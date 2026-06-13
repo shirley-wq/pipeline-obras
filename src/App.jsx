@@ -177,6 +177,7 @@ export default function App() {
   const [novaObs, setNovaObs] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [modalNovaObra, setModalNovaObra] = useState(false)
+  const [menuAberto, setMenuAberto] = useState(null)
   const [novaObra, setNovaObra] = useState({ tipo:'', nome:'', local:'', valor:'', sige:'', pedido:'', obs:'' })
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
@@ -235,7 +236,7 @@ export default function App() {
       sige: novaObra.sige || null,
       pedido: novaObra.pedido || null,
       obs: novaObra.obs || null,
-      status: 'EM ANDAMENTO',
+      status: 'VISTORIA',
       atualizado_por: usuario.email,
       atualizado_em: new Date().toISOString(),
     }).select()
@@ -245,6 +246,13 @@ export default function App() {
     setSalvando(false)
     setModalNovaObra(false)
     setNovaObra({ tipo:'', nome:'', local:'', valor:'', sige:'', pedido:'', obs:'' })
+  }
+
+  async function excluirObra(id) {
+    if (!window.confirm('Excluir esta obra?')) return
+    await supabase.from('pipeline_obras').delete().eq('id', id)
+    setObras(prev => prev.filter(o => o.id !== id))
+    setMenuAberto(null)
   }
 
   async function salvarStatus() {
@@ -377,7 +385,20 @@ export default function App() {
               const estaAberta = aberta === obra.id
               return (
                 <div key={obra.id} style={{ background:'#fff', borderRadius:12, marginBottom:10, border:'1px solid #E0E8F0', overflow:'hidden' }}>
-                  <div style={{ padding:'12px 14px', cursor:'pointer' }} onClick={() => setAberta(estaAberta ? null : obra.id)}>
+                  <div style={{ position:'relative' }}>
+                  {usuario?.email === 'shirley@grupopg.com.br' && (
+                    <button onClick={e => { e.stopPropagation(); setMenuAberto(menuAberto === obra.id ? null : obra.id) }}
+                      style={{ position:'absolute', top:8, right:8, background:'none', border:'none', fontSize:18, cursor:'pointer', color:'#888', zIndex:2, lineHeight:1 }}>⋮</button>
+                  )}
+                  {menuAberto === obra.id && (
+                    <div style={{ position:'absolute', top:32, right:8, background:'#fff', border:'1px solid #E0E8F0', borderRadius:10, boxShadow:'0 4px 12px rgba(0,0,0,.15)', zIndex:10, minWidth:140 }}>
+                      <div onClick={e => { e.stopPropagation(); excluirObra(obra.id) }}
+                        style={{ padding:'12px 16px', fontSize:13, color:'#E24B4A', fontWeight:600, cursor:'pointer' }}>
+                        🗑 Excluir obra
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ padding:'12px 14px', cursor:'pointer' }} onClick={() => { setMenuAberto(null); setAberta(estaAberta ? null : obra.id) }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4, gap:8 }}>
                       <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', flex:1, lineHeight:1.4 }}>{obra.nome}</div>
                       <div style={{ fontSize:13, fontWeight:700, color:'#2D3A8C', whiteSpace:'nowrap' }}>{fmt(obra.valor)}</div>
@@ -418,6 +439,7 @@ export default function App() {
                       </button>
                     </div>
                   )}
+                  </div>
                 </div>
               )
             })}
