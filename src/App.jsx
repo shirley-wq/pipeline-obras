@@ -76,12 +76,18 @@ const OBRAS_INICIAIS = [
 ]
 
 const STATUS_OPCOES = [
-  'EM ANDAMENTO','NF EMITIDO','RM ENVIADA','RM ENVIADA (ART)','ELABORAR BOOK',
-  'BOOK PENDENTE','AG. PEDIDO','ENVIAR RM','RM PRONTA AGUARDANDO ORDEM',
-  'PRECISA DE ARQUIVO RM','PENDÊNCIA','CANCELADO'
+  'VISTORIA','BOOK E CROQUI','ORÇAMENTO LPU','ENVIO TECBAN','APROVAÇÃO',
+  'EM ANDAMENTO','ELABORAR BOOK','BOOK PENDENTE',
+  'RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM',
+  'NF EMITIDO','AG. PEDIDO','ENVIAR RM','PRECISA DE ARQUIVO RM','PENDÊNCIA','CANCELADO'
 ]
 
 const STATUS_COR = {
+  'VISTORIA':{ bg:'#F0FDF4',text:'#166534' },
+  'BOOK E CROQUI':{ bg:'#DBEAFE',text:'#1E40AF' },
+  'ORÇAMENTO LPU':{ bg:'#EDE9FE',text:'#5B21B6' },
+  'ENVIO TECBAN':{ bg:'#FEF3C7',text:'#92400E' },
+  'APROVAÇÃO':{ bg:'#D1FAE5',text:'#065F46' },
   'NF EMITIDO':{ bg:'#D1FAE5',text:'#065F46' },
   'RM ENVIADA':{ bg:'#DBEAFE',text:'#1E40AF' },
   'RM ENVIADA (ART)':{ bg:'#E0F2FE',text:'#0369A1' },
@@ -132,6 +138,7 @@ function getEtapaAtual(status, tipo) {
   if (s.includes('QR CODE') || s.includes('EXECUCAO') || s.includes('EM ANDAMENTO') || s.includes('AG. PEDIDO')) return 6
   if (s.includes('APROVACAO') || s.includes('APROVAÇÃO')) return 5
   if (s.includes('ORÇAMENTO') || s.includes('ORCAMENTO') || s.includes('ENVIADO')) return 4
+  if (s.includes('BOOK E CROQUI') || s.includes('BOOK+CROQUI') || s.includes('CROQUI')) return 2
   if (s.includes('BOOK') || s.includes('CROQUI')) return 3
   if (s.includes('VISTORIA')) return 1
   return 3
@@ -384,11 +391,20 @@ export default function App() {
               const tc = TIPO_COR[obra.tipo] || { bg:'#F1F5F9', text:'#475569' }
               const estaAberta = aberta === obra.id
               return (
-                <div key={obra.id} style={{ background:'#fff', borderRadius:12, marginBottom:10, border:'1px solid #E0E8F0', overflow:'hidden' }}>
-                  <div style={{ position:'relative' }}>
+                <div key={obra.id} style={{ background:'#fff', borderRadius:12, marginBottom:10, border:'1px solid #E0E8F0', overflow:'hidden', position:'relative' }}>
                   {usuario?.email === 'shirley@grupopg.com.br' && (
-                    <button onClick={e => { e.stopPropagation(); setMenuAberto(menuAberto === obra.id ? null : obra.id) }}
-                      style={{ position:'absolute', top:8, right:8, background:'none', border:'none', fontSize:18, cursor:'pointer', color:'#888', zIndex:2, lineHeight:1 }}>⋮</button>
+                    <div style={{ position:'absolute', top:8, right:8, zIndex:10 }}>
+                      <button onClick={e => { e.stopPropagation(); setMenuAberto(menuAberto === obra.id ? null : obra.id) }}
+                        style={{ background:'none', border:'none', fontSize:22, cursor:'pointer', color:'#999', lineHeight:1, padding:'0 6px' }}>⋮</button>
+                      {menuAberto === obra.id && (
+                        <div style={{ position:'absolute', top:30, right:0, background:'#fff', border:'1px solid #E0E8F0', borderRadius:10, boxShadow:'0 4px 16px rgba(0,0,0,.18)', zIndex:20, minWidth:150 }}>
+                          <div onClick={e => { e.stopPropagation(); excluirObra(obra.id) }}
+                            style={{ padding:'12px 16px', fontSize:13, color:'#E24B4A', fontWeight:600, cursor:'pointer' }}>
+                            🗑 Excluir obra
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
                   {menuAberto === obra.id && (
                     <div style={{ position:'absolute', top:32, right:8, background:'#fff', border:'1px solid #E0E8F0', borderRadius:10, boxShadow:'0 4px 12px rgba(0,0,0,.15)', zIndex:10, minWidth:140 }}>
@@ -439,7 +455,6 @@ export default function App() {
                       </button>
                     </div>
                   )}
-                  </div>
                 </div>
               )
             })}
