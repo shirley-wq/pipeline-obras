@@ -1,151 +1,195 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 
+const OBRAS_INICIAIS = [
+  {tipo:'TRANSF PAE',nome:'PAB VIAÇAO OSASCO LTDA',local:'OSASCO-SP',inicio:'02/04/2026',termino:'05/04/2026',status:'NF EMITIDO',valor:5126.03,sige:'13653',pedido:'4501792509',nf:'3101'},
+  {tipo:'TRANSF PAE',nome:'PAB TRANSPPASS TRANSPORTE DE PASSAGEIROS LTDA',local:'SÃO PAULO-SP',inicio:'02/04/2026',termino:'06/04/2026',status:'NF EMITIDO',valor:7562.03,sige:'13652',pedido:'4501792506',nf:'3101'},
+  {tipo:'TRANSF PAE',nome:'PAE - EC PINHEIROS SOCIOS',local:'SÃO PAULO-SP',inicio:'16/04/2026',termino:'21/04/2026',status:'NF EMITIDO',valor:11044.53,sige:'13920',pedido:'4501792505',nf:'3101'},
+  {tipo:'DESC. PAB',nome:'PAB SECRETÁRIA DE ESTADO ADM PENITENCIÁRIA',local:'RIO DE JANEIRO-RJ',inicio:'09/02/2026',termino:'14/02/2026',status:'NF EMITIDO',valor:12720.96,sige:'13343',pedido:'4501792544',nf:'10'},
+  {tipo:'TRANSF UN',nome:'BR_UN 583 - LIDO-URJ',local:'RIO DE JANEIRO-RJ',inicio:'07/02/2026',termino:'09/02/2026',status:'NF EMITIDO',valor:14059.62,sige:'13126',pedido:'4501807948',nf:'16'},
+  {tipo:'TRANSF UN',nome:'BR_UN 1803-AV.PRES.VARGAS-URJ',local:'RIO DE JANEIRO-RJ',inicio:'09/01/2026',termino:'07/03/2026',status:'NF EMITIDO',valor:12860.74,sige:'12885',pedido:'4501807949',nf:'16'},
+  {tipo:'DESC. PA',nome:'PA 111 - CANAA',local:'CANAA-MG',inicio:'30/04/2026',termino:'05/05/2026',status:'NF EMITIDO',valor:19840.11,sige:'13648',pedido:'4501792580',nf:'1'},
+  {tipo:'DESC. PAB',nome:'PAB ALPARGATAS S.A.',local:'MONTES CLAROS-MG',inicio:'20/03/2026',termino:'12/04/2026',status:'NF EMITIDO',valor:11237.93,sige:'13654',pedido:'4501792508',nf:'17'},
+  {tipo:'DESC. PA',nome:'PA 131 - ITAMARATI DE MINAS',local:'ITAMARATI DE MINAS-MG',inicio:'26/05/2026',termino:'31/05/2026',status:'NF EMITIDO',valor:8512.27,sige:'13649',pedido:'4501792579',nf:'17'},
+  {tipo:'DESC. PAB',nome:'PAB WEG S.A. UND. SB CAMPO',local:'SÃO BERNARDO DO CAMPO-SP',inicio:'13/03/2026',termino:'13/03/2026',status:'NF EMITIDO',valor:647.07,sige:'13651',pedido:'4501864281',nf:'3181'},
+  {tipo:'REFORMA',nome:'BRADESCO AG 354 CARAPICUÍBA',local:'CARAPICUÍBA-SP',inicio:'22/04/2026',termino:'24/04/2026',status:'NF EMITIDO',valor:3467,sige:'14221',pedido:'4501864279',nf:'3181'},
+  {tipo:'REFORMA',nome:'BRADESCO AG 0593 ENDRES - GUARULHOS',local:'GUARULHOS-SP',inicio:'23/04/2026',termino:'28/04/2026',status:'NF EMITIDO',valor:5018.35,sige:'14222',pedido:'4501864280',nf:'3181'},
+  {tipo:'DESC. PA',nome:'PA 083 - ICARAI DE MINAS - AG 1151',local:'ICARAÍ DE MINAS-MG',inicio:'26/05/2026',termino:'31/05/2026',status:'NF EMITIDO',valor:8493.50,sige:'14224',pedido:'4501863922',nf:'57'},
+  {tipo:'DESC. PA',nome:'PA DIVINESIA',local:'DIVINESIA-MG',inicio:'08/06/2026',termino:'10/06/2026',status:'NF EMITIDO',valor:7477.04,sige:'14439',pedido:'4501863923',nf:'57'},
+  {tipo:'DESC. PA',nome:'PA BICAS',local:'BICAS-MG',inicio:'08/06/2026',termino:'10/06/2026',status:'NF EMITIDO',valor:9796.19,sige:'14440',pedido:'4501863924',nf:'57'},
+  {tipo:'TRANSF UN',nome:'BR_UN 2774-N.ALPHA.-USPARNAIBA',local:'SANTANA PARNAIBA-SP',inicio:'11/06/2026',termino:'12/06/2026',status:'NF EMITIDO',valor:5248.60,sige:'14227',pedido:'4501864924',nf:'3182'},
+  {tipo:'TRANSF UN',nome:'BR_UN 302-RUDGE RAMOS-USBC',local:'SÃO BERNARDO DO CAMPO-SP',inicio:'14/06/2026',termino:'15/06/2026',status:'NF EMITIDO',valor:15389.86,sige:'14225',pedido:'4501864925',nf:'3182'},
+  {tipo:'TRANSF UN',nome:'BR_UN 1056-PRIME SAO LUCAS-UBH',local:'BELO HORIZONTE-MG',inicio:'13/06/2026',termino:'18/06/2026',status:'NF EMITIDO',valor:8895.95,sige:'14228',pedido:'4501863920',nf:'57'},
+  {tipo:'TRANSF UN',nome:'BR_UN 1696-PRIME PAMPULHA-UBH',local:'BELO HORIZONTE-MG',inicio:'11/06/2026',termino:'26/06/2026',status:'NF EMITIDO',valor:7331.51,sige:'14229',pedido:'4501863921',nf:'57'},
+  {tipo:'TRANSF UN',nome:'BR_UN 870-PRIME CIDADE DE DEUS',local:'OSASCO-SP',inicio:'13/06/2026',termino:'27/06/2026',status:'NF EMITIDO',valor:4351.78,sige:'14226',pedido:'4501864926',nf:'3182'},
+  {tipo:'DESC. PA',nome:'PA RIO VERMELHO',local:'RIO VERMELHO-MG',inicio:'08/06/2026',termino:'10/06/2026',status:'NF EMITIDO',valor:9540.07,sige:'14438',pedido:'4501866855',nf:'65'},
+  {tipo:'TB FORTE',nome:'SC - SERVIÇOS EMERGENCIAIS (BASE + GARAGEM)',local:'RIO DE JANEIRO-RJ',status:'AG. PEDIDO',valor:10229.93,sige:'14525',obs:'Aguardando emissão de pedido'},
+  {tipo:'TB FORTE',nome:'SC - SERVIÇOS EMERGENCIAIS (CUMEEIRA - TELHADO GARAGEM)',local:'RIO DE JANEIRO-RJ',status:'AG. PEDIDO',valor:1560,sige:'15310',obs:'Aguardando emissão de pedido'},
+  {tipo:'DESC. PAB',nome:'PAB 012 - B2W LOJAS AMERICANAS - AG 1803',local:'RIO DE JANEIRO-RJ',status:'RM ENVIADA',valor:5728.20,sige:'14171',pedido:'ORDEM 1000077028'},
+  {tipo:'TRANSF UN',nome:'BR_UN 1417 - MERC.S.SEBASTIAO-URJ',local:'RIO DE JANEIRO-RJ',status:'ENVIAR RM',valor:84.18,sige:'14535',obs:'Item cancelado — enviar RM'},
+  {tipo:'LINK',nome:'PAB 016 - TILIBRA - AG. 0013',local:'BAURU-SP',status:'RM ENVIADA',valor:3293.12,sige:'14170',pedido:'ORDEM 1000079178'},
+  {tipo:'DESC. PA',nome:'PA MARIO CAMPOS',local:'MARIO CAMPOS-MG',status:'RM ENVIADA',valor:8511.46,sige:'14582',pedido:'ORDEM 1000079423'},
+  {tipo:'DESC. PA',nome:'PA PEDRA BONITA',local:'PEDRA BONITA-MG',status:'RM ENVIADA',valor:7892.25,sige:'14583',pedido:'ORDEM 1000079424'},
+  {tipo:'DESC. PAB',nome:'PAB PREFEITURA DE RIO NEGRINHO',local:'RIO NEGRINHO-SC',status:'RM ENVIADA (ART)',valor:5620.61,sige:'14841',pedido:'ORDEM 1000079863',obs:'ART pendente'},
+  {tipo:'DESC. PAB',nome:'PAB PREFEITURA DE CANOINHAS',local:'CANOINHAS-SC',status:'RM ENVIADA (ART)',valor:8688.98,sige:'14839',pedido:'ORDEM 1000079862',obs:'ART pendente'},
+  {tipo:'TRANSF UN',nome:'BR_UN 926 - COLON.MURICI-USJPIN',local:'SÃO JOSÉ DOS PINHAIS-PR',status:'PRECISA DE ARQUIVO RM',valor:11574.87,sige:'14538',pedido:'ORDEM 1000079897',obs:'Pendência: arquivo RM de CWB'},
+  {tipo:'TRANSF UN',nome:'BR_UN 6592 - PRIME AV.AMERIC-URJ',local:'RIO DE JANEIRO-RJ',status:'RM ENVIADA',valor:6315.62,sige:'14531',pedido:'ORDEM 1000079911'},
+  {tipo:'TRANSF UN',nome:'BR_UN 2282 - R.BORGES LAGOA-USP',local:'SÃO PAULO-SP',status:'RM ENVIADA',valor:9321.36,sige:'14529',pedido:'ORDEM 1000079913'},
+  {tipo:'TRANSF UN',nome:'BR_UN 498 - PC.BEN.CALIXTO-USP',local:'SÃO PAULO-SP',status:'RM ENVIADA',valor:6969.15,sige:'14528',pedido:'ORDEM 1000079903'},
+  {tipo:'TRANSF UN',nome:'BR_UN 2938 - PLANALTO-UBH',local:'BELO HORIZONTE-MG',status:'RM ENVIADA',valor:8665.37,sige:'14783',pedido:'ORDEM 1000079901'},
+  {tipo:'TRANSF UN',nome:'BR_UN 3435 - PROF.ALFR.BALENA-UBH',local:'BELO HORIZONTE-MG',status:'RM PRONTA AGUARDANDO ORDEM',valor:10208.43,sige:'14784',pedido:'ORDEM 1000079898',obs:'RM pronta — aguardando emissão de ordem'},
+  {tipo:'TRANSF UN',nome:'BR_UN 2423 - JD ANÁLIA FRANCO-USP',local:'SÃO PAULO-SP',status:'RM ENVIADA',valor:7933.95,sige:'14684',pedido:'ORDEM 1000079902'},
+  {tipo:'TRANSF UN',nome:'BR_UN 1088 - PRIME L.MACHADO-URJ',local:'RIO DE JANEIRO-RJ',status:'RM ENVIADA',valor:6223.47,sige:'14533',pedido:'ORDEM 1000079906'},
+  {tipo:'TRANSF UN',nome:'BR_UN 6074 - PRIME MEIER-URJ',local:'RIO DE JANEIRO-RJ',status:'RM ENVIADA',valor:4188.21,sige:'14536',pedido:'ORDEM 1000079909'},
+  {tipo:'TRANSF UN',nome:'BR_UN 2435 - PRIME CENTRAL-URJ',local:'RIO DE JANEIRO-RJ',status:'RM ENVIADA',valor:7758.51,sige:'14534',pedido:'ORDEM 1000079914'},
+  {tipo:'DESC. PAB',nome:'PAB SADIA PONTA GROSSA',local:'PONTA GROSSA-PR',status:'BOOK PENDENTE',valor:13986.59,sige:'14874',obs:'Book de conclusão pendente + orçamento telhado'},
+  {tipo:'TRANSF PAE',nome:'PAB HOSPITAL CENTRAL DA POLÍCIA MILITAR',local:'RIO DE JANEIRO-RJ',status:'BOOK PENDENTE',valor:9088.14,sige:'14912',obs:'Book Daniel — etapa 2: descarte, ART, croqui'},
+  {tipo:'ENCER. AG',nome:'AG 6170 - PRIME BELVEDERE-UBH',local:'BELO HORIZONTE-MG',status:'BOOK PENDENTE',valor:32051.37,sige:'14537',obs:'Book + ART pendentes'},
+  {tipo:'TRANSF PAE',nome:'PAB 300 - EDITORA FTD - GRUPO MARISTA - AG. 2514',local:'GUARULHOS-SP',status:'BOOK PENDENTE',valor:9829.31,obs:'Book Daniel — etapa 2: descarte, ART, croqui'},
+  {tipo:'TRANSF PAE',nome:'PAB 007 - EMPRESA FOLHA DA MANHA - AG. 0296',local:'SÃO PAULO-SP',status:'BOOK PENDENTE',valor:15780.99,sige:'14581',obs:'Book Daniel — etapa 2: descarte, ART, croqui'},
+  {tipo:'DESC. PAB',nome:'PAB IBQ IND. QUIMICA',local:'',status:'RM ENVIADA',valor:6884.66,obs:'ART + termos + relatório final pendentes'},
+  {tipo:'TRANSF UN',nome:'BR_UN 2512 - PIABETA DISTR.M.MAGE',local:'',status:'ELABORAR BOOK',valor:8846.97,obs:'Book pós-obra a elaborar'},
+  {tipo:'TRANSF UN',nome:'BR_UN 2187 - ITAIPU-UNITEROI',local:'',status:'ELABORAR BOOK',valor:9078.70,obs:'Book pós-obra a elaborar'},
+  {tipo:'TRANSF UN',nome:'BR_UN 1625 - PC D PED II-UPCALDAS',local:'',status:'EM ANDAMENTO',valor:12814.82,obs:'Prev: 22/06 a 30/06'},
+  {tipo:'TRANSF UN',nome:'BR_UN 0095 - NOVA CENTRAL-USP',local:'SÃO PAULO-SP',status:'EM ANDAMENTO',valor:3663.57,obs:'Prev: 22/06 a 30/06'},
+  {tipo:'TRANSF UN',nome:'BR_UN 2646 - JD DO TREVO-UCAMPIN',local:'CAMPINAS-SP',status:'EM ANDAMENTO',valor:13974.82,obs:'Prev: 22/06 a 30/06'},
+  {tipo:'TRANSF UN',nome:'BR_UN 2013 - ESTACIO-URJ',local:'RIO DE JANEIRO-RJ',status:'EM ANDAMENTO',valor:12084.82,obs:'Prev: 22/06 a 30/06'},
+  {tipo:'TRANSF UN',nome:'BR_UN 2900 - BETANIA-UBH',local:'BELO HORIZONTE-MG',status:'EM ANDAMENTO',valor:9995.54,obs:'Prev: 22/06 a 30/06'},
+  {tipo:'ENCER. AG',nome:'AG 1997 - V. BARCELONA-USCS',local:'SÃO CAETANO DO SUL-SP',status:'RM ENVIADA',valor:46661.56,obs:'ART + termos + book final pendentes'},
+  {tipo:'DESC. PA',nome:'PA - ITAVERAVA',local:'MG',status:'ELABORAR BOOK',valor:9065,obs:'Book pós-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - TRES MARIA',local:'MG',status:'ELABORAR BOOK',valor:11523.25,obs:'Book pós-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - TOCOS DO MOJI',local:'MG',status:'ELABORAR BOOK',valor:10793.95,obs:'Book pós-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - PIRANGUCU',local:'MG',status:'ELABORAR BOOK',valor:9449.92,obs:'Book pós-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - SIMAO PEREIRA',local:'MG',status:'ELABORAR BOOK',valor:6631.47,obs:'Book pós-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - CAMPO DO MEIO',local:'MG',status:'ELABORAR BOOK',valor:13796.72,obs:'Book pós-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - RESERVA',local:'PR',status:'ELABORAR BOOK',valor:18018.92,obs:'Book pós-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - IPIGUA',local:'SP',status:'ELABORAR BOOK',valor:12038.51,obs:'Book pós-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - NIPOA',local:'SP',status:'ELABORAR BOOK',valor:12917.90,obs:'Book pós-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - GUZOLÂNDIA',local:'SP',status:'ELABORAR BOOK',valor:7054.83,obs:'Book pós-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - PAULISTAS',local:'MG',status:'ELABORAR BOOK',valor:9294.47,obs:'Book pós-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - CAFELANDIA',local:'SP',status:'ELABORAR BOOK',valor:19601.48,obs:'Book pós-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - SAO TOME',local:'',status:'ELABORAR BOOK',valor:11335.28,obs:'Book pós-obra a elaborar'},
+  {tipo:'TRANSF EN',nome:'BR_EN AG 2337 - PC BATEL-UCTBA-PR',local:'CURITIBA-PR',status:'ELABORAR BOOK',valor:0,obs:'Book pós-obra a elaborar'},
+  {tipo:'TRANSF EN',nome:'BR_EN AG 5755 - R.JOAO NEGRAO-UCTBA',local:'CURITIBA-PR',status:'PENDÊNCIA',valor:7580.54,obs:'PENDÊNCIA: colocar rodapé'},
+  {tipo:'TRANSF EN',nome:'BR_EN AG 313 - V. LEOPOLDINA-USP',local:'SÃO PAULO-SP',status:'ELABORAR BOOK',valor:7696.74,obs:'Book pós-obra a elaborar'},
+  {tipo:'TRANSF EN',nome:'BR_EN AG 1998 - CERRO CORA-USP',local:'SÃO PAULO-SP',status:'ELABORAR BOOK',valor:11862.05,obs:'Book pós-obra a elaborar'},
+]
 
-// ── Leaflet loader ──────────────────────────────────────────────────────────
-function useLeaflet() {
-  const [ready, setReady] = useState(false)
-  useEffect(() => {
-    if (window.L) { setReady(true); return }
-    const link = document.createElement('link')
-    link.rel = 'stylesheet'
-    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-    document.head.appendChild(link)
-    const script = document.createElement('script')
-    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-    script.onload = () => setReady(true)
-    document.head.appendChild(script)
-  }, [])
-  return ready
+const STATUS_OPCOES = [
+  'EM ANDAMENTO','NF EMITIDO','RM ENVIADA','RM ENVIADA (ART)','ELABORAR BOOK',
+  'BOOK PENDENTE','AG. PEDIDO','ENVIAR RM','RM PRONTA AGUARDANDO ORDEM',
+  'PRECISA DE ARQUIVO RM','PENDÊNCIA','CANCELADO'
+]
+
+const STATUS_COR = {
+  'NF EMITIDO':{ bg:'#D1FAE5',text:'#065F46' },
+  'RM ENVIADA':{ bg:'#DBEAFE',text:'#1E40AF' },
+  'RM ENVIADA (ART)':{ bg:'#E0F2FE',text:'#0369A1' },
+  'ELABORAR BOOK':{ bg:'#FEF9E7',text:'#856404' },
+  'BOOK PENDENTE':{ bg:'#FEF3C7',text:'#92400E' },
+  'EM ANDAMENTO':{ bg:'#EDE9FE',text:'#5B21B6' },
+  'AG. PEDIDO':{ bg:'#FFF7ED',text:'#9A3412' },
+  'ENVIAR RM':{ bg:'#FEE2E2',text:'#991B1B' },
+  'RM PRONTA AGUARDANDO ORDEM':{ bg:'#F0FDF4',text:'#166534' },
+  'PRECISA DE ARQUIVO RM':{ bg:'#FEE2E2',text:'#991B1B' },
+  'PENDÊNCIA':{ bg:'#FEE2E2',text:'#991B1B' },
+  'CANCELADO':{ bg:'#F1F5F9',text:'#64748B' },
 }
 
-function haversine(lat1, lng1, lat2, lng2) {
-  const R = 6371
-  const dLat = (lat2 - lat1) * Math.PI / 180
-  const dLng = (lng2 - lng1) * Math.PI / 180
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+const TIPO_COR = {
+  'TRANSF UN':{ bg:'#DBEAFE',text:'#1E40AF' },
+  'TRANSF EN':{ bg:'#EDE9FE',text:'#5B21B6' },
+  'TRANSF PAE':{ bg:'#FCE7F3',text:'#9D174D' },
+  'DESC. PA':{ bg:'#D1FAE5',text:'#065F46' },
+  'DESC. PAB':{ bg:'#FEF3C7',text:'#92400E' },
+  'ENCER. AG':{ bg:'#FEE2E2',text:'#991B1B' },
+  'REFORMA':{ bg:'#F1F5F9',text:'#475569' },
+  'TB FORTE':{ bg:'#F5F3FF',text:'#6D28D9' },
+  'LINK':{ bg:'#E0F2FE',text:'#0369A1' },
 }
 
-async function geocodificar(endereco) {
-  try {
-    const q = encodeURIComponent(endereco + ', Brasil')
-    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}&limit=1`)
-    const d = await r.json()
-    if (d && d[0]) return { lat: parseFloat(d[0].lat), lng: parseFloat(d[0].lon) }
-  } catch {}
-  return null
-}
-
-// ── Mapa generico ────────────────────────────────────────────────────────────
-function MapaMonitoramento({ tecnicos, osLista, onVoltar, titulo }) {
-  const leafletReady = useLeaflet()
-  const mapRef = useRef(null)
-  const mapInstanceRef = useRef(null)
-
-  useEffect(() => {
-    if (!leafletReady || !mapRef.current) return
-    if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null }
-
-    const L = window.L
-    const map = L.map(mapRef.current).setView([-15.8, -47.9], 5)
-    mapInstanceRef.current = map
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap'
-    }).addTo(map)
-
-    const bounds = []
-
-    tecnicos.forEach(t => {
-      if (!t.lat || !t.lng) return
-      const icon = L.divIcon({
-        html: `<div style="background:#1A6B4A;color:#fff;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3)">${t.nome[0]}</div>`,
-        className: '', iconSize: [36,36], iconAnchor: [18,18]
-      })
-      const atualizado = t.ultima_localizacao ? new Date(t.ultima_localizacao).toLocaleString('pt-BR') : 'desconhecido'
-      L.marker([t.lat, t.lng], { icon })
-        .addTo(map)
-        .bindPopup(`<b>${t.nome}</b><br>Tecnico<br><small>Atualizado: ${atualizado}</small>`)
-      bounds.push([t.lat, t.lng])
-    })
-
-    osLista.forEach(os => {
-      if (!os._lat || !os._lng) return
-      const cor = STATUS_COR[os.status] || '#FAC775'
-      const icon = L.divIcon({
-        html: `<div style="background:${cor};color:#1A2340;border-radius:8px;padding:2px 7px;font-size:11px;font-weight:600;border:1.5px solid rgba(0,0,0,0.15);box-shadow:0 2px 6px rgba(0,0,0,0.2);white-space:nowrap">${os.numero}</div>`,
-        className: '', iconAnchor: [0,0]
-      })
-      L.marker([os._lat, os._lng], { icon })
-        .addTo(map)
-        .bindPopup(`<b>${os.numero}</b><br>${os.especialidade}<br>${os.endereco}<br><small>${STATUS_LABEL[os.status]||os.status}</small>`)
-      bounds.push([os._lat, os._lng])
-    })
-
-    if (bounds.length > 0) {
-      try { map.fitBounds(bounds, { padding: [40, 40] }) } catch {}
-    }
-
-    return () => { if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null } }
-  }, [leafletReady, tecnicos, osLista])
-
-  return (
-    <div style={{ minHeight:'100vh', background:'#2D3A8C', fontFamily:'system-ui,sans-serif', display:'flex', flexDirection:'column' }}>
-      <div style={{ background:'#1A2340', padding:'14px 16px', display:'flex', alignItems:'center', gap:12, borderBottom:'0.5px solid #3D4FA0' }}>
-        <button onClick={onVoltar} style={{ background:'none', border:'none', color:'#87CEEB', fontSize:20, cursor:'pointer', padding:0 }}>←</button>
-        <div style={{ fontSize:16, fontWeight:500, color:'#fff' }}>{titulo}</div>
-      </div>
-      <div style={{ flex:1, position:'relative' }}>
-        {!leafletReady && (
-          <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'#E6F1FB' }}>
-            <div style={{ color:'#4A7FC1' }}>Carregando mapa...</div>
-          </div>
-        )}
-        <div ref={mapRef} style={{ width:'100%', height:'100%', minHeight:'calc(100vh - 54px)' }} />
-      </div>
-      <div style={{ background:'#fff', padding:'10px 16px', display:'flex', gap:16, borderTop:'0.5px solid #B5D4F4', flexWrap:'wrap' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'#1A2340' }}>
-          <div style={{ width:14, height:14, borderRadius:'50%', background:'#1A6B4A' }} /> Tecnicos
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'#1A2340' }}>
-          <div style={{ width:14, height:10, borderRadius:3, background:'#FAC775', border:'1px solid #ccc' }} /> OS em aberto
-        </div>
-        {tecnicos.filter(t => !t.lat).length > 0 && (
-          <div style={{ fontSize:11, color:'#E67E22' }}>{tecnicos.filter(t=>!t.lat).length} tecnico(s) sem localizacao</div>
-        )}
-      </div>
-    </div>
-  )
-}
+function fmt(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) }
 
 export default function App() {
   const [usuario, setUsuario] = useState(null)
-  const [perfil, setPerfil] = useState(null)
   const [carregando, setCarregando] = useState(true)
+  const [obras, setObras] = useState([])
+  const [filtroTipo, setFiltroTipo] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState('')
+  const [busca, setBusca] = useState('')
+  const [aberta, setAberta] = useState(null)
+  const [modal, setModal] = useState(null)
+  const [novoStatus, setNovoStatus] = useState('')
+  const [novaObs, setNovaObs] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [email, setEmail] = useState('')
+  const [senha, setSenha] = useState('')
+  const [erroLogin, setErroLogin] = useState('')
+  const [carregandoLogin, setCarregandoLogin] = useState(false)
+  const [importando, setImportando] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setUsuario(data.session?.user ?? null)
-      if (data.session?.user) carregarPerfil(data.session.user.id)
-      else setCarregando(false)
+      setCarregando(false)
     })
-    supabase.auth.onAuthStateChange((_event, session) => {
+    supabase.auth.onAuthStateChange((_e, session) => {
       setUsuario(session?.user ?? null)
-      if (session?.user) carregarPerfil(session.user.id)
-      else { setPerfil(null); setCarregando(false) }
     })
   }, [])
 
-  async function carregarPerfil(userId) {
-    const { data } = await supabase.from('perfis').select('*').eq('id', userId).single()
-    setPerfil(data)
-    setCarregando(false)
+  useEffect(() => { if (usuario) carregarObras() }, [usuario])
+
+  async function carregarObras() {
+    const { data, error } = await supabase.from('pipeline_obras').select('*').order('tipo').order('nome')
+    if (error || !data || data.length === 0) {
+      await importarDadosIniciais()
+    } else {
+      setObras(data)
+    }
   }
 
-  async function handleLogout() {
-    await supabase.auth.signOut()
+  async function importarDadosIniciais() {
+    setImportando(true)
+    const { error } = await supabase.from('pipeline_obras').insert(OBRAS_INICIAIS)
+    if (!error) {
+      const { data } = await supabase.from('pipeline_obras').select('*').order('tipo').order('nome')
+      setObras(data || [])
+    }
+    setImportando(false)
   }
+
+  async function handleLogin(e) {
+    e.preventDefault()
+    setCarregandoLogin(true)
+    setErroLogin('')
+    const { error } = await supabase.auth.signInWithPassword({ email, password: senha })
+    if (error) setErroLogin('Email ou senha incorretos')
+    setCarregandoLogin(false)
+  }
+
+  async function salvarStatus() {
+    if (!novoStatus) return
+    setSalvando(true)
+    const { error } = await supabase.from('pipeline_obras').update({
+      status: novoStatus,
+      obs: novaObs || modal.obs || null,
+      atualizado_em: new Date().toISOString(),
+      atualizado_por: usuario.email,
+    }).eq('id', modal.id)
+    if (!error) {
+      setObras(prev => prev.map(o => o.id === modal.id
+        ? { ...o, status: novoStatus, obs: novaObs || o.obs, atualizado_por: usuario.email, atualizado_em: new Date().toISOString() }
+        : o))
+    }
+    setSalvando(false)
+    setModal(null)
+    setNovoStatus('')
+    setNovaObs('')
+  }
+
+  const estilo = { fontFamily:'system-ui,sans-serif', minHeight:'100vh', background:'#F0F4F8' }
+  const inp = { width:'100%', padding:'11px 12px', fontSize:14, border:'1px solid #B5D4F4', borderRadius:10, background:'#fff', color:'#1A2340', outline:'none', boxSizing:'border-box', marginBottom:12 }
 
   if (carregando) return (
     <div style={{ minHeight:'100vh', background:'#2D3A8C', display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -153,1534 +197,185 @@ export default function App() {
     </div>
   )
 
-  if (!usuario) return <Login />
-  if (!perfil) return (
-    <div style={{ minHeight:'100vh', background:'#2D3A8C', display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div style={{ color:'#F09595', fontSize:14, textAlign:'center', padding:24 }}>Perfil nao encontrado. Entre em contato com o ADM.</div>
-    </div>
-  )
-
-  if (perfil.perfil === 'tecnico') return <PainelTecnico perfil={perfil} onLogout={handleLogout} />
-  if (perfil.perfil === 'lider') return <PainelLider perfil={perfil} onLogout={handleLogout} />
-  if (perfil.perfil === 'adm') return <PainelAdm perfil={perfil} onLogout={handleLogout} />
-}
-
-function Login() {
-  const [email, setEmail] = useState('')
-  const [senha, setSenha] = useState('')
-  const [erro, setErro] = useState('')
-  const [carregando, setCarregando] = useState(false)
-  const [mostrarSenha, setMostrarSenha] = useState(false)
-
-  async function handleLogin(e) {
-    e.preventDefault()
-    setCarregando(true)
-    setErro('')
-    const { error } = await supabase.auth.signInWithPassword({ email, password: senha })
-    if (error) setErro('Email ou senha incorretos')
-    setCarregando(false)
-  }
-
-  return (
-    <div style={{ minHeight:'100vh', background:'#2D3A8C', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'system-ui,sans-serif' }}>
-      <div style={{ background:'#E6F1FB', borderRadius:20, padding:'40px 32px', width:'100%', maxWidth:380, boxShadow:'0 8px 32px rgba(0,0,0,0.3)' }}>
-        <div style={{ textAlign:'center', marginBottom:32 }}>
-          <div style={{ fontSize:28, fontWeight:700, color:'#2D3A8C', letterSpacing:1 }}>GRUPO PG</div>
-          <div style={{ fontSize:13, color:'#4A7FC1', marginTop:4 }}>Sistema de gestao de OS</div>
-        </div>
+  if (!usuario) return (
+    <div style={{ minHeight:'100vh', background:'#2D3A8C', display:'flex', alignItems:'center', justifyContent:'center', padding:16, fontFamily:'system-ui,sans-serif' }}>
+      <div style={{ background:'#E6F1FB', borderRadius:20, padding:'40px 28px', width:'100%', maxWidth:360, boxShadow:'0 8px 32px rgba(0,0,0,.3)' }}>
+        <div style={{ fontSize:24, fontWeight:700, color:'#2D3A8C', textAlign:'center', marginBottom:4 }}>GRUPO PG</div>
+        <div style={{ fontSize:12, color:'#4A7FC1', textAlign:'center', marginBottom:28 }}>Pipeline de Obras</div>
         <form onSubmit={handleLogin}>
-          <div style={{ marginBottom:14 }}>
-            <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Email</label>
-            <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="seu@grupopg.com.br"
-              style={{ width:'100%', padding:'10px 12px', fontSize:14, border:'1px solid #B5D4F4', borderRadius:10, background:'#fff', color:'#1A2340', outline:'none', boxSizing:'border-box' }} />
-          </div>
-          <div style={{ marginBottom:20 }}>
-            <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Senha</label>
-            <div style={{ position:'relative' }}>
-              <input
-                type={mostrarSenha ? 'text' : 'password'}
-                value={senha}
-                onChange={e=>setSenha(e.target.value)}
-                placeholder="********"
-                style={{ width:'100%', padding:'10px 40px 10px 12px', fontSize:14, border:'1px solid #B5D4F4', borderRadius:10, background:'#fff', color:'#1A2340', outline:'none', boxSizing:'border-box' }}
-              />
-              <button type="button" onClick={() => setMostrarSenha(!mostrarSenha)}
-                style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#4A7FC1', fontSize:16, padding:0 }}>
-                {mostrarSenha ? 'ocultar' : 'ver'}
-              </button>
-            </div>
-          </div>
-          {erro && <div style={{ color:'#E24B4A', fontSize:13, marginBottom:12, textAlign:'center' }}>{erro}</div>}
-          <button type="submit" disabled={carregando}
-            style={{ width:'100%', padding:13, background:'#2D3A8C', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:500, cursor:'pointer', borderBottom:'3px solid #1A2340', opacity:carregando?0.7:1 }}>
-            {carregando ? 'Entrando...' : 'Entrar'}
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" style={inp} />
+          <input type="password" value={senha} onChange={e=>setSenha(e.target.value)} placeholder="Senha" style={inp} />
+          {erroLogin && <div style={{ color:'#E24B4A', fontSize:13, marginBottom:12, textAlign:'center' }}>{erroLogin}</div>}
+          <button type="submit" disabled={carregandoLogin}
+            style={{ width:'100%', padding:13, background:'#2D3A8C', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:600, cursor:'pointer', borderBottom:'3px solid #1A2340', opacity:carregandoLogin?0.7:1 }}>
+            {carregandoLogin ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
       </div>
     </div>
   )
-}
 
-function Header({ nome, tipo, onLogout }) {
-  return (
-    <div style={{ background:'#1A2340', padding:'14px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'0.5px solid #3D4FA0' }}>
-      <div>
-        <div style={{ fontSize:16, fontWeight:500, color:'#fff' }}>Ola, {nome}</div>
-        <div style={{ fontSize:11, color:'#87CEEB', marginTop:2 }}>{tipo}</div>
-      </div>
-      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-        <span style={{ fontSize:11, background:'#87CEEB', color:'#1A2340', padding:'3px 9px', borderRadius:99, fontWeight:500 }}>{tipo.split('·')[0].trim()}</span>
-        <button onClick={onLogout} style={{ fontSize:11, background:'none', border:'none', color:'#87CEEB', cursor:'pointer' }}>Sair</button>
+  if (importando) return (
+    <div style={{ minHeight:'100vh', background:'#2D3A8C', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ color:'#87CEEB', fontSize:14, textAlign:'center' }}>
+        <div style={{ fontSize:32, marginBottom:12 }}>⏳</div>
+        Importando dados da planilha...
       </div>
     </div>
   )
-}
 
-function Caixa({ num, label, corFundo, corTexto, onClick }) {
+  const obrasFiltradas = obras.filter(o => {
+    if (filtroTipo && o.tipo !== filtroTipo) return false
+    if (filtroStatus && o.status !== filtroStatus) return false
+    if (busca && !o.nome.toLowerCase().includes(busca.toLowerCase()) && !(o.local||'').toLowerCase().includes(busca.toLowerCase())) return false
+    return true
+  })
+
+  const totalValor = obras.reduce((s,o) => s + Number(o.valor||0), 0)
+  const emAndamento = obras.filter(o => o.status === 'EM ANDAMENTO').length
+  const pendencias = obras.filter(o => ['PENDÊNCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM'].includes(o.status)).length
+  const nfEmitido = obras.filter(o => o.status === 'NF EMITIDO').length
+
+  const grupos = [
+    { label:'🔴 Pendências', obras: obrasFiltradas.filter(o => ['PENDÊNCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM'].includes(o.status)) },
+    { label:'🟡 Em andamento', obras: obrasFiltradas.filter(o => o.status === 'EM ANDAMENTO') },
+    { label:'📚 Elaborar / Book pendente', obras: obrasFiltradas.filter(o => ['ELABORAR BOOK','BOOK PENDENTE'].includes(o.status)) },
+    { label:'📤 RM Enviada / Aguardando', obras: obrasFiltradas.filter(o => ['RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM'].includes(o.status)) },
+    { label:'✅ NF Emitido', obras: obrasFiltradas.filter(o => o.status === 'NF EMITIDO') },
+    { label:'⚫ Outros', obras: obrasFiltradas.filter(o => !['PENDÊNCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM','EM ANDAMENTO','ELABORAR BOOK','BOOK PENDENTE','RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM','NF EMITIDO'].includes(o.status)) },
+  ].filter(g => g.obras.length > 0)
+
   return (
-    <div onClick={onClick} style={{ background:corFundo, borderRadius:16, padding:'14px 16px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8, border:'0.5px solid rgba(255,255,255,0.1)' }}>
-      <div>
-        <div style={{ fontSize:26, fontWeight:500, color:corTexto }}>{num}</div>
-        <div style={{ fontSize:13, color:corTexto, marginTop:3 }}>{label}</div>
+    <div style={estilo}>
+      {/* Header */}
+      <div style={{ background:'#1A2340', padding:'14px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div>
+          <div style={{ fontSize:16, fontWeight:700, color:'#fff' }}>Pipeline de Obras</div>
+          <div style={{ fontSize:11, color:'rgba(255,255,255,.6)', marginTop:2 }}>Grupo PG · {obras.length} obras</div>
+        </div>
+        <button onClick={() => supabase.auth.signOut()} style={{ background:'none', border:'none', color:'rgba(255,255,255,.6)', fontSize:12, cursor:'pointer' }}>Sair</button>
       </div>
-      <div style={{ fontSize:18, color:corTexto, opacity:0.7 }}>›</div>
-    </div>
-  )
-}
 
-const REDES = ['Bradesco','Banco24Horas','Saque&Pague','Banrisul','Agibank','Crefisa']
+      {/* Totalizadores */}
+      <div style={{ background:'#2D3A8C', padding:'12px 16px', display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
+        {[
+          { n: 'R$' + (totalValor/1000).toFixed(0) + 'k', l:'Valor Total' },
+          { n: emAndamento, l:'Andamento' },
+          { n: pendencias, l:'Pendências', alert: pendencias > 0 },
+          { n: nfEmitido, l:'NF Emitido' },
+        ].map((t,i) => (
+          <div key={i} style={{ background:'rgba(255,255,255,.1)', borderRadius:10, padding:'10px 8px', textAlign:'center' }}>
+            <div style={{ fontSize:20, fontWeight:700, color: t.alert ? '#FCA5A5' : '#fff' }}>{t.n}</div>
+            <div style={{ fontSize:10, color:'rgba(255,255,255,.65)', marginTop:2 }}>{t.l}</div>
+          </div>
+        ))}
+      </div>
 
-const TIPOS_SERVICO = [
-  'Instalacao ATM Projeto T','Instalacao ATM Concretada','Instalacao ATM Quimico',
-  'Desativacao de ATM','Troca de ATM e fixacao','Troca de ATM','Remanejamento',
-  'Reativacao','Substituicao de ATM','Pintura de ATM','Descaracterizacao de agencia',
-  'Vistoria de BDN','Vistoria de Encerramento de PA PAB PAE',
-  'Vistoria de Transformacao de UN','Vistoria de Transformacao de EN',
-  'Vistoria BDN Movimentacao','Vistoria Crefisa','Reparo de piso desativacao',
-]
+      {/* Filtros */}
+      <div style={{ background:'#fff', padding:'10px 16px', borderBottom:'1px solid #E0E8F0', display:'flex', gap:8, flexWrap:'wrap' }}>
+        <select value={filtroTipo} onChange={e=>setFiltroTipo(e.target.value)} style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff', flex:1, minWidth:100 }}>
+          <option value="">Todos tipos</option>
+          {[...new Set(obras.map(o=>o.tipo))].sort().map(t => <option key={t}>{t}</option>)}
+        </select>
+        <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)} style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff', flex:1, minWidth:100 }}>
+          <option value="">Todos status</option>
+          {STATUS_OPCOES.map(s => <option key={s}>{s}</option>)}
+        </select>
+        <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar..." style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', flex:2, minWidth:120 }} />
+      </div>
 
-const LABEL_IDENTIFICADOR = {
-  'Bradesco':'No BDN / PA','Banco24Horas':'No PC / PA','Saque&Pague':'No PC / PA',
-  'Banrisul':'No PC / PA','Agibank':'No PC / PA','Crefisa':'No PC / PA',
-}
+      {/* Lista */}
+      <div style={{ padding:12 }}>
+        {obrasFiltradas.length === 0 && <div style={{ textAlign:'center', color:'#4A7FC1', marginTop:40, fontSize:14 }}>Nenhuma obra encontrada</div>}
+        {grupos.map(g => (
+          <div key={g.label}>
+            <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:.8, color:'#64748B', margin:'16px 0 8px', paddingBottom:4, borderBottom:'1px solid #E0E8F0' }}>
+              {g.label} — {g.obras.length}
+            </div>
+            {g.obras.map(obra => {
+              const sc = STATUS_COR[obra.status] || { bg:'#F1F5F9', text:'#475569' }
+              const tc = TIPO_COR[obra.tipo] || { bg:'#F1F5F9', text:'#475569' }
+              const estaAberta = aberta === obra.id
+              return (
+                <div key={obra.id} style={{ background:'#fff', borderRadius:12, marginBottom:10, border:'1px solid #E0E8F0', overflow:'hidden' }}>
+                  <div style={{ padding:'12px 14px', cursor:'pointer' }} onClick={() => setAberta(estaAberta ? null : obra.id)}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4, gap:8 }}>
+                      <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', flex:1, lineHeight:1.4 }}>{obra.nome}</div>
+                      <div style={{ fontSize:13, fontWeight:700, color:'#2D3A8C', whiteSpace:'nowrap' }}>{fmt(obra.valor)}</div>
+                    </div>
+                    <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
+                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:tc.bg, color:tc.text }}>{obra.tipo}</span>
+                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text }}>{obra.status}</span>
+                      {obra.local ? <span style={{ fontSize:11, color:'#888' }}>{obra.local}</span> : null}
+                    </div>
+                  </div>
 
-const HORARIOS = [
-  '06:00','06:30','07:00','07:30','08:00','08:30','09:00','09:30',
-  '10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30',
-  '14:00','14:30','15:00','15:30','16:00','16:30','17:00','17:30',
-  '18:00','18:30','19:00','19:30','20:00','20:30','21:00','21:30','22:00'
-]
+                  {estaAberta && (
+                    <div style={{ padding:'12px 14px', borderTop:'1px solid #F0F4F8', background:'#FAFBFF' }}>
+                      {obra.obs && (
+                        <div style={{ fontSize:11, background:'#FFF9E6', borderLeft:'3px solid #F5A623', padding:'6px 10px', borderRadius:4, color:'#7A5A00', marginBottom:10 }}>
+                          ⚠️ {obra.obs}
+                        </div>
+                      )}
+                      <div style={{ display:'flex', gap:16, flexWrap:'wrap', marginBottom:10 }}>
+                        {obra.sige && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>SIGE</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.sige}</div></div>}
+                        {obra.pedido && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Pedido</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.pedido}</div></div>}
+                        {obra.nf && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>NF</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.nf}</div></div>}
+                        {obra.inicio && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Início</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.inicio}</div></div>}
+                        {obra.termino && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Término</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.termino}</div></div>}
+                      </div>
+                      {obra.atualizado_por && (
+                        <div style={{ fontSize:10, color:'#4A7FC1', marginBottom:8 }}>
+                          Atualizado por {obra.atualizado_por} · {obra.atualizado_em ? new Date(obra.atualizado_em).toLocaleString('pt-BR') : ''}
+                        </div>
+                      )}
+                      <button onClick={() => { setModal(obra); setNovoStatus(obra.status); setNovaObs(obra.obs||'') }}
+                        style={{ width:'100%', padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                        Atualizar status
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ))}
+      </div>
 
-const UFs = ['SP','MG','RJ','PR','ES','SC']
-
-const STATUS_LABEL = {
-  novo: 'Nova OS',
-  agendar_ec: 'Agendar com EC',
-  aguardando_ec: 'Aguardando EC',
-  confirmado_ec: 'Confirmado com EC',
-  liberado_lider: 'Liberado p/ Lider',
-  em_campo: 'No campo',
-  concluido: 'Concluido',
-  elaborar_rm: 'Elaborar RM',
-  aguardando_proxima_etapa: 'Aguard. prox. etapa',
-}
-
-const STATUS_COR = {
-  novo: '#FAC775',
-  agendar_ec: '#FFD9A0',
-  aguardando_ec: '#AFA9EC',
-  confirmado_ec: '#87CEEB',
-  liberado_lider: '#B5D4F4',
-  em_campo: '#C0DD97',
-  concluido: '#9FD9BE',
-  elaborar_rm: '#F5CBA7',
-  aguardando_proxima_etapa: '#F09595',
-}
-
-// ── Iniciais a partir do nome ────────────────────────────────────────────────
-function iniciaisNome(nome) {
-  if (!nome) return '?'
-  const partes = nome.trim().split(' ').filter(Boolean)
-  if (partes.length === 1) return partes[0][0].toUpperCase()
-  return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase()
-}
-
-function CardOS({ os, onClick }) {
-  return (
-    <div onClick={onClick} style={{ background:'#fff', borderRadius:14, padding:'14px 16px', marginBottom:10, border:'0.5px solid #B5D4F4', cursor:'pointer', position:'relative' }}>
-      {/* Iniciais do tecnico — canto inferior esquerdo */}
-      {os._nome_tecnico && (
-        <div style={{ position:'absolute', bottom:10, left:12, width:28, height:28, borderRadius:99, background:'#1A6B4A', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700 }}>
-          {iniciaisNome(os._nome_tecnico)}
+      {/* Modal */}
+      {modal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:100, display:'flex', alignItems:'flex-end' }}
+          onClick={e => { if(e.target === e.currentTarget) setModal(null) }}>
+          <div style={{ background:'#fff', borderRadius:'16px 16px 0 0', padding:20, width:'100%', maxHeight:'80vh', overflowY:'auto' }}>
+            <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:4 }}>{modal.nome}</div>
+            <div style={{ fontSize:11, color:'#888', marginBottom:16 }}>{modal.tipo} · {fmt(modal.valor)}</div>
+            <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, marginBottom:8 }}>Novo status:</div>
+            {STATUS_OPCOES.map(op => {
+              const sc = STATUS_COR[op] || { bg:'#F1F5F9', text:'#475569' }
+              const ativo = novoStatus === op
+              return (
+                <div key={op} onClick={() => setNovoStatus(op)}
+                  style={{ padding:'11px 14px', borderRadius:10, border: ativo ? '2px solid #2D3A8C' : '1px solid #E0E8F0', marginBottom:8, cursor:'pointer', background: ativo ? '#E6F1FB' : '#fff', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <span style={{ fontSize:13, color:'#1A2340', fontWeight: ativo ? 600 : 400 }}>{op}</span>
+                  <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text }}>{op}</span>
+                </div>
+              )
+            })}
+            <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, margin:'12px 0 6px' }}>Observação:</div>
+            <textarea value={novaObs} onChange={e=>setNovaObs(e.target.value)} rows={3}
+              placeholder="Pendências, próximos passos..."
+              style={{ width:'100%', padding:'10px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, resize:'none', marginBottom:12, boxSizing:'border-box', color:'#1A2340' }} />
+            <button onClick={salvarStatus} disabled={!novoStatus || salvando}
+              style={{ width:'100%', padding:13, background: (!novoStatus||salvando) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor: (!novoStatus||salvando) ? 'default' : 'pointer' }}>
+              {salvando ? 'Salvando...' : 'Salvar'}
+            </button>
+            <button onClick={() => setModal(null)}
+              style={{ width:'100%', padding:11, background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:12, fontSize:13, cursor:'pointer', marginTop:8 }}>
+              Cancelar
+            </button>
+          </div>
         </div>
       )}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
-        <div style={{ fontSize:13, fontWeight:600, color:'#1A2340' }}>{os.numero}</div>
-        <span style={{ fontSize:11, background: STATUS_COR[os.status]||'#eee', color:'#1A2340', padding:'2px 8px', borderRadius:99 }}>
-          {STATUS_LABEL[os.status]||os.status}
-        </span>
-      </div>
-      <div style={{ fontSize:13, color:'#2D3A8C', fontWeight:500, marginBottom:2 }}>{os.contrato}</div>
-      <div style={{ fontSize:12, color:'#4A7FC1', marginBottom:2 }}>{os.especialidade}</div>
-      <div style={{ fontSize:12, color:'#666' }}>{os.endereco}{os.cidade ? ` · ${os.cidade}` : ''}{os.estado ? `/${os.estado}` : ''}</div>
-      {os.data && <div style={{ fontSize:12, color:'#666', marginTop:4 }}>Data: {new Date(os.data+'T12:00:00').toLocaleDateString('pt-BR')}{os.hora ? ` · ${os.hora}` : ''}</div>}
-      {/* Nome tecnico e lider */}
-      <div style={{ marginTop: os._nome_tecnico ? 6 : 4, paddingLeft: os._nome_tecnico ? 36 : 0, display:'flex', flexWrap:'wrap', gap:8 }}>
-        {os._nome_tecnico && (
-          <div style={{ fontSize:11, color:'#1A6B4A', fontWeight:500 }}>Tec: {os._nome_tecnico}</div>
-        )}
-        {os._nome_lider && (
-          <div style={{ fontSize:11, color:'#2D3A8C', fontWeight:500 }}>Lider: {os._nome_lider}</div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ── ListaOS com join de nomes ────────────────────────────────────────────────
-function ListaOS({ titulo, status, onVoltar, onVerOS }) {
-  const [lista, setLista] = useState([])
-  const [carregando, setCarregando] = useState(true)
-
-  useEffect(() => {
-    async function carregar() {
-      const statusArray = Array.isArray(status) ? status : [status]
-      const { data } = await supabase
-        .from('ordens_servico')
-        .select('*')
-        .in('status', statusArray)
-        .order('criado_em', { ascending: false })
-
-      if (!data) { setCarregando(false); return }
-
-      // Coletar IDs unicos de tecnicos e lideres
-      const tecIds = [...new Set(data.map(o => o.tecnico_id).filter(Boolean))]
-      const lidIds = [...new Set(data.map(o => o.lider_id).filter(Boolean))]
-      const allIds = [...new Set([...tecIds, ...lidIds])]
-
-      let nomeMap = {}
-      if (allIds.length > 0) {
-        const { data: perfis } = await supabase.from('perfis').select('id,nome').in('id', allIds)
-        ;(perfis || []).forEach(p => { nomeMap[p.id] = p.nome })
-      }
-
-      const enriquecido = data.map(o => ({
-        ...o,
-        _nome_tecnico: o.tecnico_id ? nomeMap[o.tecnico_id] || null : null,
-        _nome_lider: o.lider_id ? nomeMap[o.lider_id] || null : null,
-      }))
-
-      setLista(enriquecido)
-      setCarregando(false)
-    }
-    carregar()
-  }, [status])
-
-  return (
-    <div style={{ minHeight:'100vh', background:'#2D3A8C', fontFamily:'system-ui,sans-serif', display:'flex', flexDirection:'column' }}>
-      <div style={{ background:'#1A2340', padding:'14px 16px', display:'flex', alignItems:'center', gap:12, borderBottom:'0.5px solid #3D4FA0' }}>
-        <button onClick={onVoltar} style={{ background:'none', border:'none', color:'#87CEEB', fontSize:20, cursor:'pointer', padding:0 }}>←</button>
-        <div style={{ fontSize:16, fontWeight:500, color:'#fff' }}>{titulo}</div>
-        <span style={{ marginLeft:'auto', fontSize:12, background:'#3D4FA0', color:'#87CEEB', padding:'2px 10px', borderRadius:99 }}>{lista.length}</span>
-      </div>
-      <div style={{ flex:1, background:'#E6F1FB', padding:16, overflowY:'auto' }}>
-        {carregando && <div style={{ textAlign:'center', color:'#4A7FC1', marginTop:40 }}>Carregando...</div>}
-        {!carregando && lista.length === 0 && (
-          <div style={{ textAlign:'center', color:'#4A7FC1', marginTop:40, fontSize:14 }}>Nenhuma OS aqui ainda</div>
-        )}
-        {lista.map(os => <CardOS key={os.id} os={os} onClick={() => onVerOS(os)} />)}
-      </div>
-    </div>
-  )
-}
-
-// ── Historico OS ─────────────────────────────────────────────────────────────
-function HistoricoOS({ osId }) {
-  const [historico, setHistorico] = useState([])
-  const [carregando, setCarregando] = useState(true)
-
-  useEffect(() => {
-    supabase
-      .from('os_historico')
-      .select('*')
-      .eq('os_id', osId)
-      .order('criado_em', { ascending: true })
-      .then(({ data }) => {
-        setHistorico(data || [])
-        setCarregando(false)
-      })
-  }, [osId])
-
-  if (carregando) return null
-  if (historico.length === 0) return null
-
-  return (
-    <div style={{ background:'#fff', borderRadius:14, padding:16, marginBottom:12, border:'0.5px solid #B5D4F4' }}>
-      <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', marginBottom:10 }}>Historico</div>
-      {historico.map((h, i) => (
-        <div key={h.id || i} style={{ display:'flex', gap:10, marginBottom:10, alignItems:'flex-start' }}>
-          <div style={{ width:8, height:8, borderRadius:99, background:'#2D3A8C', marginTop:5, flexShrink:0 }} />
-          <div style={{ flex:1 }}>
-            <div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>
-              {STATUS_LABEL[h.status_novo] || h.status_novo}
-            </div>
-            {h.observacao && (
-              <div style={{ fontSize:11, color:'#666', marginTop:2 }}>{h.observacao}</div>
-            )}
-            <div style={{ fontSize:11, color:'#4A7FC1', marginTop:2 }}>
-              {h.criado_em ? new Date(h.criado_em).toLocaleString('pt-BR') : ''}
-              {h.usuario_nome ? ` · ${h.usuario_nome}` : ''}
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// ── Registrar historico ───────────────────────────────────────────────────────
-async function registrarHistorico(osId, statusNovo, usuarioNome, observacao) {
-  try {
-    await supabase.from('os_historico').insert({
-      os_id: osId,
-      status_novo: statusNovo,
-      usuario_nome: usuarioNome || null,
-      observacao: observacao || null,
-    })
-  } catch {}
-}
-
-function DetalhesOS({ os: osInicial, onVoltar, onAtualizar, onElaborarRM }) {
-  const [os, setOs] = useState(osInicial)
-  const [salvando, setSalvando] = useState(false)
-  const [editando, setEditando] = useState(false)
-  const [confirmarEC, setConfirmarEC] = useState(false)
-  const [dadosEC, setDadosEC] = useState({ nome_responsavel:'', tel_responsavel:'', protocolo:'' })
-  const [editForm, setEditForm] = useState({ data: os.data||'', hora: os.hora||'', observacoes: os.observacoes||'', numero_ordem_tecban: os.numero_ordem_tecban||'' })
-  const [selecionarLider, setSelecionarLider] = useState(false)
-  const [lideres, setLideres] = useState([])
-  const [liderEscolhido, setLiderEscolhido] = useState('')
-  const [nomeLiderAtual, setNomeLiderAtual] = useState('')
-
-  useEffect(() => {
-    if (selecionarLider && lideres.length === 0) {
-      supabase.from('perfis').select('id,nome').eq('perfil','lider').then(({ data }) => {
-        setLideres(data || [])
-      })
-    }
-  }, [selecionarLider])
-
-  useEffect(() => {
-    if (os.lider_id) {
-      supabase.from('perfis').select('nome').eq('id', os.lider_id).single().then(({ data }) => {
-        if (data) setNomeLiderAtual(data.nome)
-      })
-    }
-  }, [os.lider_id])
-
-  async function mudarStatus(novoStatus, extras) {
-    setSalvando(true)
-    await supabase.from('ordens_servico').update({ status: novoStatus, ...extras }).eq('id', os.id)
-    await registrarHistorico(os.id, novoStatus, null, extras?.observacoes || null)
-    setOs(o => ({ ...o, status: novoStatus, ...extras }))
-    setSalvando(false)
-    setConfirmarEC(false)
-    setSelecionarLider(false)
-  }
-
-  async function salvarEdicao() {
-    setSalvando(true)
-    await supabase.from('ordens_servico').update({ data: editForm.data, hora: editForm.hora, observacoes: editForm.observacoes, numero_ordem_tecban: editForm.numero_ordem_tecban || null }).eq('id', os.id)
-    setOs(o => ({ ...o, ...editForm }))
-    setSalvando(false)
-    setEditando(false)
-  }
-
-  const estilo = { width:'100%', padding:'10px 12px', fontSize:14, border:'1px solid #B5D4F4', borderRadius:10, background:'#fff', color:'#1A2340', outline:'none', boxSizing:'border-box' }
-
-  return (
-    <div style={{ minHeight:'100vh', background:'#2D3A8C', fontFamily:'system-ui,sans-serif', display:'flex', flexDirection:'column' }}>
-      <div style={{ background:'#1A2340', padding:'14px 16px', display:'flex', alignItems:'center', gap:12, borderBottom:'0.5px solid #3D4FA0' }}>
-        <button onClick={onVoltar} style={{ background:'none', border:'none', color:'#87CEEB', fontSize:20, cursor:'pointer', padding:0 }}>←</button>
-        <div style={{ fontSize:16, fontWeight:500, color:'#fff' }}>{os.numero}</div>
-        <span style={{ marginLeft:'auto', fontSize:11, background: STATUS_COR[os.status]||'#eee', color:'#1A2340', padding:'2px 8px', borderRadius:99 }}>
-          {STATUS_LABEL[os.status]||os.status}
-        </span>
-      </div>
-
-      <div style={{ flex:1, background:'#E6F1FB', padding:16, overflowY:'auto' }}>
-        <div style={{ background:'#fff', borderRadius:14, padding:16, marginBottom:12, border:'0.5px solid #B5D4F4' }}>
-          <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:2 }}>Rede</div>
-          <div style={{ fontSize:15, fontWeight:500, color:'#1A2340', marginBottom:10 }}>{os.contrato}</div>
-          <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:2 }}>Tipo de Servico</div>
-          <div style={{ fontSize:15, fontWeight:500, color:'#1A2340', marginBottom:10 }}>{os.especialidade}</div>
-          {os.ec && <>
-            <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:2 }}>No PC / BDN / PA</div>
-            <div style={{ fontSize:15, fontWeight:500, color:'#1A2340', marginBottom:10 }}>{os.ec}</div>
-          </>}
-          <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:2 }}>Endereco</div>
-          <div style={{ fontSize:14, color:'#1A2340', marginBottom:10 }}>{os.endereco}{os.cidade ? `, ${os.cidade}` : ''}{os.estado ? `/${os.estado}` : ''}</div>
-
-          {!editando ? <>
-            {os.data && <>
-              <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:2 }}>Data / Hora</div>
-              <div style={{ fontSize:14, color:'#1A2340', marginBottom:10 }}>
-                {new Date(os.data+'T12:00:00').toLocaleDateString('pt-BR')}{os.hora ? ` as ${os.hora}` : ''}
-              </div>
-            </>}
-            {os.observacoes && <>
-              <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:2 }}>Observacoes</div>
-              <div style={{ fontSize:14, color:'#1A2340', marginBottom:10 }}>{os.observacoes}</div>
-            </>}
-            <button onClick={() => setEditando(true)}
-              style={{ fontSize:13, color:'#4A7FC1', background:'none', border:'1px solid #B5D4F4', borderRadius:8, padding:'6px 14px', cursor:'pointer' }}>
-              Editar data / hora
-            </button>
-          </> : <>
-            <div style={{ marginBottom:10 }}>
-              <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Data</label>
-              <input type="date" value={editForm.data} onChange={e=>setEditForm(f=>({...f,data:e.target.value}))} style={estilo} />
-            </div>
-            <div style={{ marginBottom:10 }}>
-              <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Hora</label>
-              <select value={editForm.hora} onChange={e=>setEditForm(f=>({...f,hora:e.target.value}))} style={estilo}>
-                <option value="">Selecione...</option>
-                {HORARIOS.map(h=><option key={h}>{h}</option>)}
-              </select>
-            </div>
-            <div style={{ marginBottom:10 }}>
-              <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Observacoes</label>
-              <textarea value={editForm.observacoes} onChange={e=>setEditForm(f=>({...f,observacoes:e.target.value}))}
-                rows={3} style={{ ...estilo, resize:'none' }} />
-            </div>
-            <div style={{ marginBottom:10 }}>
-              <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>No Ordem do Cliente (Tecban)</label>
-              <input type="text" value={editForm.numero_ordem_tecban} onChange={e=>setEditForm(f=>({...f,numero_ordem_tecban:e.target.value}))}
-                placeholder="Ex: I00000131527" style={estilo} />
-            </div>
-            <div style={{ display:'flex', gap:8, marginBottom:4 }}>
-              <button onClick={salvarEdicao} disabled={salvando}
-                style={{ flex:1, padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:14, cursor:'pointer', opacity:salvando?0.7:1 }}>
-                {salvando ? 'Salvando...' : 'Salvar'}
-              </button>
-              <button onClick={() => setEditando(false)}
-                style={{ flex:1, padding:'10px', background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:10, fontSize:14, cursor:'pointer' }}>
-                Cancelar
-              </button>
-            </div>
-          </>}
-        </div>
-
-        {os.status === 'novo' && (
-          <button onClick={() => mudarStatus('agendar_ec')} disabled={salvando}
-            style={{ width:'100%', padding:13, background:'#2D3A8C', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:500, cursor:'pointer', borderBottom:'3px solid #1A2340', marginBottom:8, opacity:salvando?0.7:1 }}>
-            Agendar com EC
-          </button>
-        )}
-
-        {os.status === 'agendar_ec' && (
-          <button onClick={() => mudarStatus('aguardando_ec')} disabled={salvando}
-            style={{ width:'100%', padding:13, background:'#3C3489', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:500, cursor:'pointer', borderBottom:'3px solid #26215C', marginBottom:8, opacity:salvando?0.7:1 }}>
-            Aguardando confirmacao do EC
-          </button>
-        )}
-
-        {os.status === 'aguardando_ec' && !confirmarEC && (
-          <button onClick={() => setConfirmarEC(true)}
-            style={{ width:'100%', padding:13, background:'#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:500, cursor:'pointer', borderBottom:'3px solid #0F4A32', marginBottom:8 }}>
-            Confirmado com EC
-          </button>
-        )}
-
-        {os.status === 'aguardando_ec' && confirmarEC && (
-          <div style={{ background:'#fff', borderRadius:14, padding:16, border:'0.5px solid #9FD9BE', marginBottom:8 }}>
-            <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', marginBottom:12 }}>Dados da confirmacao</div>
-            <div style={{ marginBottom:10 }}>
-              <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Nome do responsavel *</label>
-              <input type="text" value={dadosEC.nome_responsavel} onChange={e=>setDadosEC(d=>({...d,nome_responsavel:e.target.value}))}
-                placeholder="Nome de quem autorizou" style={estilo} />
-            </div>
-            <div style={{ marginBottom:10 }}>
-              <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Telefone</label>
-              <input type="tel" value={dadosEC.tel_responsavel} onChange={e=>setDadosEC(d=>({...d,tel_responsavel:e.target.value}))}
-                placeholder="(11) 99999-9999" style={estilo} />
-            </div>
-            <div style={{ marginBottom:12 }}>
-              <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Protocolo / No chamado</label>
-              <input type="text" value={dadosEC.protocolo} onChange={e=>setDadosEC(d=>({...d,protocolo:e.target.value}))}
-                placeholder="Ex: CHM-12345" style={estilo} />
-            </div>
-            <div style={{ display:'flex', gap:8 }}>
-              <button onClick={() => mudarStatus('confirmado_ec', { observacoes: `Confirmado por: ${dadosEC.nome_responsavel} | Tel: ${dadosEC.tel_responsavel} | Protocolo: ${dadosEC.protocolo}` })}
-                disabled={!dadosEC.nome_responsavel || salvando}
-                style={{ flex:1, padding:'10px', background:'#1A6B4A', color:'#fff', border:'none', borderRadius:10, fontSize:14, cursor:'pointer', opacity:(!dadosEC.nome_responsavel||salvando)?0.5:1 }}>
-                {salvando ? 'Salvando...' : 'Confirmar'}
-              </button>
-              <button onClick={() => setConfirmarEC(false)}
-                style={{ flex:1, padding:'10px', background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:10, fontSize:14, cursor:'pointer' }}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )}
-
-        {os.status === 'confirmado_ec' && !selecionarLider && (
-          <button onClick={() => setSelecionarLider(true)} disabled={salvando}
-            style={{ width:'100%', padding:13, background:'#2D3A8C', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:500, cursor:'pointer', borderBottom:'3px solid #1A2340', marginBottom:8, opacity:salvando?0.7:1 }}>
-            Liberar para o Lider
-          </button>
-        )}
-
-        {os.status === 'liberado_lider' && !selecionarLider && (
-          <button onClick={() => setSelecionarLider(true)} disabled={salvando}
-            style={{ width:'100%', padding:13, background:'#3C3489', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:500, cursor:'pointer', borderBottom:'3px solid #26215C', marginBottom:8, opacity:salvando?0.7:1 }}>
-            {nomeLiderAtual ? `Lider: ${nomeLiderAtual} · Trocar` : 'Trocar Lider'}
-          </button>
-        )}
-
-        {(os.status === 'confirmado_ec' || os.status === 'liberado_lider') && selecionarLider && (
-          <div style={{ background:'#fff', borderRadius:14, padding:16, border:'0.5px solid #B5D4F4', marginBottom:8 }}>
-            <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', marginBottom:12 }}>Escolha o Lider responsavel</div>
-            {lideres.length === 0 && <div style={{ color:'#4A7FC1', fontSize:13, marginBottom:12 }}>Carregando lideres...</div>}
-            {lideres.map(l => (
-              <div key={l.id} onClick={() => setLiderEscolhido(l.id)}
-                style={{ padding:'12px 14px', borderRadius:10, border: liderEscolhido === l.id ? '2px solid #2D3A8C' : '1px solid #B5D4F4', marginBottom:8, cursor:'pointer', background: liderEscolhido === l.id ? '#E6F1FB' : '#fff', display:'flex', alignItems:'center', gap:10 }}>
-                <div style={{ width:32, height:32, borderRadius:99, background:'#2D3A8C', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:600 }}>
-                  {iniciaisNome(l.nome)}
-                </div>
-                <div style={{ fontSize:15, fontWeight:500, color:'#1A2340' }}>{l.nome}</div>
-                {liderEscolhido === l.id && <div style={{ marginLeft:'auto', color:'#2D3A8C', fontSize:18 }}>✓</div>}
-              </div>
-            ))}
-            <div style={{ display:'flex', gap:8, marginTop:4 }}>
-              <button onClick={() => mudarStatus('liberado_lider', { lider_id: liderEscolhido })}
-                disabled={!liderEscolhido || salvando}
-                style={{ flex:1, padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:14, cursor:'pointer', opacity:(!liderEscolhido||salvando)?0.5:1 }}>
-                {salvando ? 'Salvando...' : 'Confirmar'}
-              </button>
-              <button onClick={() => { setSelecionarLider(false); setLiderEscolhido('') }}
-                style={{ flex:1, padding:'10px', background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:10, fontSize:14, cursor:'pointer' }}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )}
-
-        {os.status === 'elaborar_rm' && (
-          <div style={{ background:'#fff', borderRadius:14, padding:16, border:'0.5px solid #F5CBA7', marginBottom:8 }}>
-            <div style={{ fontSize:13, fontWeight:600, color:'#935116', marginBottom:12 }}>Relatorio do Tecnico</div>
-            {os.hora_chegada && (
-              <div style={{ fontSize:13, color:'#1A2340', marginBottom:6 }}>Chegada: <strong>{os.hora_chegada}</strong></div>
-            )}
-            {os.hora_inicio_servico && (
-              <div style={{ fontSize:13, color:'#1A2340', marginBottom:6 }}>Inicio: <strong>{os.hora_inicio_servico}</strong></div>
-            )}
-            {os.hora_conclusao && (
-              <div style={{ fontSize:13, color:'#1A2340', marginBottom:6 }}>Conclusao: <strong>{os.hora_conclusao}</strong></div>
-            )}
-            {os.teve_problema === false && (
-              <div style={{ fontSize:13, color:'#1A6B4A', marginBottom:6 }}>Servico ocorreu dentro do esperado</div>
-            )}
-            {os.teve_problema === true && (
-              <div style={{ fontSize:13, color:'#E67E22', marginBottom:6 }}>Houve problema no servico</div>
-            )}
-            {os.ocorrencia && (
-              <div style={{ fontSize:13, color:'#1A2340', marginBottom:6, background:'#FEF9E7', borderRadius:8, padding:'8px 12px' }}>{os.ocorrencia}</div>
-            )}
-            <button onClick={() => onElaborarRM(os)}
-              style={{ width:'100%', padding:13, background:'#935116', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:500, cursor:'pointer', borderBottom:'3px solid #6B3A0F', marginTop:8 }}>
-              Elaborar RM
-            </button>
-          </div>
-        )}
-
-        <HistoricoOS osId={os.id} />
-      </div>
-    </div>
-  )
-}
-
-
-function FormNovaOS({ perfil, onVoltar, onSalvo }) {
-  const [form, setForm] = useState({
-    rede:'', tipo_servico:'', identificador:'', endereco:'', cidade:'', uf:'', data:'', hora:'', observacoes:'', numero_ordem_cliente:'', nome_agencia:''
-  })
-  const [salvando, setSalvando] = useState(false)
-  const [erro, setErro] = useState('')
-
-  function set(campo, valor) { setForm(f => ({ ...f, [campo]: valor })) }
-
-  async function salvar() {
-    if (!form.rede || !form.tipo_servico || !form.endereco || !form.data) {
-      setErro('Preencha rede, tipo de servico, endereco e data.')
-      return
-    }
-    setSalvando(true)
-    setErro('')
-    const numero = 'OS-' + Date.now().toString().slice(-6)
-    const { error } = await supabase.from('ordens_servico').insert({
-      numero, contrato: form.rede, especialidade: form.tipo_servico,
-      ec: form.identificador, endereco: form.endereco, cidade: form.cidade,
-      estado: form.uf, data: form.data, hora: form.hora,
-      observacoes: form.observacoes, status: 'novo', origem: 'manual', adm_id: perfil.id, numero_ordem_tecban: form.numero_ordem_cliente, nome_agencia: form.nome_agencia
-    })
-    setSalvando(false)
-    if (error) { setErro('Erro ao salvar: ' + error.message); return }
-    onSalvo()
-  }
-
-  const estilo = { width:'100%', padding:'10px 12px', fontSize:14, border:'1px solid #B5D4F4', borderRadius:10, background:'#fff', color:'#1A2340', outline:'none', boxSizing:'border-box' }
-
-  return (
-    <div style={{ minHeight:'100vh', background:'#2D3A8C', fontFamily:'system-ui,sans-serif', display:'flex', flexDirection:'column' }}>
-      <div style={{ background:'#1A2340', padding:'14px 16px', display:'flex', alignItems:'center', gap:12, borderBottom:'0.5px solid #3D4FA0' }}>
-        <button onClick={onVoltar} style={{ background:'none', border:'none', color:'#87CEEB', fontSize:20, cursor:'pointer', padding:0 }}>←</button>
-        <div style={{ fontSize:16, fontWeight:500, color:'#fff' }}>Nova OS Manual</div>
-      </div>
-      <div style={{ flex:1, background:'#E6F1FB', padding:16, overflowY:'auto' }}>
-        <div style={{ marginBottom:12 }}>
-          <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Rede *</label>
-          <select value={form.rede} onChange={e=>set('rede',e.target.value)} style={estilo}>
-            <option value="">Selecione a rede...</option>
-            {REDES.map(r => <option key={r}>{r}</option>)}
-          </select>
-        </div>
-        <div style={{ marginBottom:12 }}>
-          <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Tipo de Servico *</label>
-          <select value={form.tipo_servico} onChange={e=>set('tipo_servico',e.target.value)} style={estilo}>
-            <option value="">Selecione o tipo...</option>
-            {TIPOS_SERVICO.map(t => <option key={t}>{t}</option>)}
-          </select>
-        </div>
-        <div style={{ marginBottom:12 }}>
-          <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>
-            {form.rede ? LABEL_IDENTIFICADOR[form.rede] : 'No PC / BDN / PA'}
-          </label>
-          <input type="text" value={form.identificador} onChange={e=>set('identificador',e.target.value)}
-            placeholder={form.rede === 'Bradesco' ? 'Ex: BDN-12345' : 'Ex: PC-98765'} style={estilo} />
-        </div>
-        <div style={{ marginBottom:12 }}>
-          <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>No Ordem do Cliente</label>
-          <input type="text" value={form.numero_ordem_cliente} onChange={e=>set('numero_ordem_cliente',e.target.value)}
-            placeholder="Ex: I00000131527" style={estilo} />
-        </div>
-        <div style={{ marginBottom:12 }}>
-          <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Nome do PC / Agencia</label>
-          <input type="text" value={form.nome_agencia} onChange={e=>set('nome_agencia',e.target.value)}
-            placeholder="Ex: DROG SOUL FARMA" style={estilo} />
-        </div>
-        <div style={{ marginBottom:12 }}>
-          <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Endereco *</label>
-          <input type="text" value={form.endereco} onChange={e=>set('endereco',e.target.value)}
-            placeholder="Rua, numero" style={estilo} />
-        </div>
-        <div style={{ display:'flex', gap:8, marginBottom:12 }}>
-          <div style={{ flex:2 }}>
-            <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Cidade</label>
-            <input type="text" value={form.cidade} onChange={e=>set('cidade',e.target.value)}
-              placeholder="Cidade" style={estilo} />
-          </div>
-          <div style={{ flex:1 }}>
-            <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>UF</label>
-            <select value={form.uf} onChange={e=>set('uf',e.target.value)} style={estilo}>
-              <option value="">UF</option>
-              {UFs.map(u => <option key={u}>{u}</option>)}
-            </select>
-          </div>
-        </div>
-        <div style={{ display:'flex', gap:8, marginBottom:12 }}>
-          <div style={{ flex:1 }}>
-            <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Data *</label>
-            <input type="date" value={form.data} onChange={e=>set('data',e.target.value)} style={estilo} />
-          </div>
-          <div style={{ flex:1 }}>
-            <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Hora</label>
-            <select value={form.hora} onChange={e=>set('hora',e.target.value)} style={estilo}>
-              <option value="">Selecione...</option>
-              {HORARIOS.map(h => <option key={h}>{h}</option>)}
-            </select>
-          </div>
-        </div>
-        <div style={{ marginBottom:20 }}>
-          <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Observacoes</label>
-          <textarea value={form.observacoes} onChange={e=>set('observacoes',e.target.value)}
-            placeholder="Informacoes adicionais..." rows={3}
-            style={{ ...estilo, resize:'none' }} />
-        </div>
-        {erro && <div style={{ color:'#E24B4A', fontSize:13, marginBottom:12, textAlign:'center' }}>{erro}</div>}
-        <button onClick={salvar} disabled={salvando}
-          style={{ width:'100%', padding:13, background:'#2D3A8C', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:500, cursor:'pointer', borderBottom:'3px solid #1A2340', opacity:salvando?0.7:1 }}>
-          {salvando ? 'Salvando...' : 'Criar OS'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function PainelTecnico({ perfil, onLogout }) {
-  const [lista, setLista] = useState([])
-  const [carregando, setCarregando] = useState(true)
-  const [osSelecionada, setOsSelecionada] = useState(null)
-  const [salvando, setSalvando] = useState(false)
-  const [etapa, setEtapa] = useState(null)
-  const [motivoNegado, setMotivoNegado] = useState('')
-  const [ocorrencia, setOcorrencia] = useState('')
-  const [tevePro, setTevePro] = useState(null)
-  const [mostrarMapa, setMostrarMapa] = useState(false)
-  const [osComCoords, setOsComCoords] = useState([])
-
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(async pos => {
-        const { latitude: lat, longitude: lng } = pos.coords
-        await supabase.from('perfis').update({ lat, lng, ultima_localizacao: new Date().toISOString() }).eq('id', perfil.id)
-      })
-    }
-  }, [])
-
-  function carregar() {
-    supabase.from('ordens_servico')
-      .select('*')
-      .eq('tecnico_id', perfil.id)
-      .in('status', ['em_campo', 'elaborar_rm'])
-      .order('criado_em', { ascending: false })
-      .then(({ data }) => { setLista(data || []); setCarregando(false) })
-  }
-
-  useEffect(() => { carregar() }, [])
-
-  function abrirOS(os) {
-    setOsSelecionada(os)
-    setOcorrencia('')
-    setTevePro(null)
-    if (os.status === 'elaborar_rm') {
-      setEtapa('elaborar_rm')
-    } else if (os.hora_inicio_servico) {
-      setEtapa('relatorio')
-    } else if (os.hora_chegada) {
-      setEtapa('autorizar')
-    } else {
-      setEtapa('aceitar_demanda')
-    }
-  }
-
-  async function aceitar() {
-    setSalvando(true)
-    const agora = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })
-    await supabase.from('ordens_servico').update({ hora_chegada: agora }).eq('id', osSelecionada.id)
-    await registrarHistorico(osSelecionada.id, 'em_campo', perfil.nome, 'Tecnico registrou chegada ao local')
-    setOsSelecionada(o => ({ ...o, hora_chegada: agora }))
-    setSalvando(false)
-    setEtapa('autorizar')
-  }
-
-  async function iniciarServico() {
-    setSalvando(true)
-    const agora = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })
-    await supabase.from('ordens_servico').update({ hora_inicio_servico: agora }).eq('id', osSelecionada.id)
-    setOsSelecionada(o => ({ ...o, hora_inicio_servico: agora }))
-    setSalvando(false)
-    setEtapa('relatorio')
-  }
-
-  async function concluir() {
-    if (tevePro === null) return
-    setSalvando(true)
-    const agora = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })
-    await supabase.from('ordens_servico').update({
-      status: 'elaborar_rm',
-      teve_problema: tevePro,
-      ocorrencia: ocorrencia || null,
-      hora_conclusao: agora
-    }).eq('id', osSelecionada.id)
-    await registrarHistorico(osSelecionada.id, 'elaborar_rm', perfil.nome, ocorrencia || null)
-    setSalvando(false)
-    setOsSelecionada(null)
-    setEtapa(null)
-    setOcorrencia('')
-    setTevePro(null)
-    carregar()
-  }
-
-  async function rejeitar() {
-    if (!motivoNegado.trim()) return
-    setSalvando(true)
-    await supabase.from('ordens_servico').update({
-      status: 'liberado_lider',
-      tecnico_id: null,
-      motivo_nao_autorizado: 'Rejeitado pelo tecnico: ' + motivoNegado
-    }).eq('id', osSelecionada.id)
-    await registrarHistorico(osSelecionada.id, 'liberado_lider', perfil.nome, 'Rejeitado: ' + motivoNegado)
-    setSalvando(false)
-    setOsSelecionada(null)
-    setEtapa(null)
-    setMotivoNegado('')
-    carregar()
-  }
-
-  async function naoAutorizado() {
-    if (!motivoNegado.trim()) return
-    setSalvando(true)
-    await supabase.from('ordens_servico').update({
-      status: 'confirmado_ec',
-      tecnico_id: null,
-      hora_chegada: null,
-      motivo_nao_autorizado: motivoNegado
-    }).eq('id', osSelecionada.id)
-    await registrarHistorico(osSelecionada.id, 'confirmado_ec', perfil.nome, 'Nao autorizado: ' + motivoNegado)
-    setSalvando(false)
-    setOsSelecionada(null)
-    setEtapa(null)
-    setMotivoNegado('')
-    carregar()
-  }
-
-  const emCampo = lista.filter(o => o.status === 'em_campo')
-  const aguardando = lista.filter(o => o.status === 'elaborar_rm')
-
-  if (osSelecionada) {
-    const enderecoMaps = encodeURIComponent(`${osSelecionada.endereco || ''}${osSelecionada.cidade ? ', ' + osSelecionada.cidade : ''}${osSelecionada.estado ? ', ' + osSelecionada.estado : ''}`)
-    const linkMaps = `https://www.google.com/maps/search/?api=1&query=${enderecoMaps}`
-
-    return (
-      <div style={{ minHeight:'100vh', background:'#2D3A8C', fontFamily:'system-ui,sans-serif', display:'flex', flexDirection:'column' }}>
-        <div style={{ background:'#1A2340', padding:'14px 16px', display:'flex', alignItems:'center', gap:12, borderBottom:'0.5px solid #3D4FA0' }}>
-          <button onClick={() => { setOsSelecionada(null); setEtapa(null); setMotivoNegado(''); setOcorrencia(''); setTevePro(null) }}
-            style={{ background:'none', border:'none', color:'#87CEEB', fontSize:20, cursor:'pointer', padding:0 }}>←</button>
-          <div style={{ fontSize:16, fontWeight:500, color:'#fff' }}>{osSelecionada.numero}</div>
-          <span style={{ marginLeft:'auto', fontSize:11, background: STATUS_COR[osSelecionada.status]||'#eee', color:'#1A2340', padding:'2px 8px', borderRadius:99 }}>
-            {STATUS_LABEL[osSelecionada.status]||osSelecionada.status}
-          </span>
-        </div>
-        <div style={{ flex:1, background:'#E6F1FB', padding:16, overflowY:'auto' }}>
-          <div style={{ background:'#fff', borderRadius:14, padding:16, marginBottom:12, border:'0.5px solid #B5D4F4' }}>
-            <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:2 }}>Rede</div>
-            <div style={{ fontSize:15, fontWeight:500, color:'#1A2340', marginBottom:10 }}>{osSelecionada.contrato}</div>
-            <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:2 }}>Tipo de Servico</div>
-            <div style={{ fontSize:15, fontWeight:500, color:'#1A2340', marginBottom:10 }}>{osSelecionada.especialidade}</div>
-            {osSelecionada.ec && <>
-              <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:2 }}>No PC / BDN / PA</div>
-              <div style={{ fontSize:15, fontWeight:500, color:'#1A2340', marginBottom:10 }}>{osSelecionada.ec}</div>
-            </>}
-            <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:2 }}>Endereco</div>
-            <a href={linkMaps} target="_blank" rel="noopener noreferrer"
-              style={{ fontSize:14, color:'#2D3A8C', marginBottom:10, display:'block', textDecoration:'underline', cursor:'pointer' }}>
-              Ver no Maps: {osSelecionada.endereco}{osSelecionada.cidade ? `, ${osSelecionada.cidade}` : ''}{osSelecionada.estado ? `/${osSelecionada.estado}` : ''}
-            </a>
-            {osSelecionada.data && <>
-              <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:2 }}>Data / Hora</div>
-              <div style={{ fontSize:14, color:'#1A2340', marginBottom:10 }}>
-                {new Date(osSelecionada.data+'T12:00:00').toLocaleDateString('pt-BR')}{osSelecionada.hora ? ` as ${osSelecionada.hora}` : ''}
-              </div>
-            </>}
-            {osSelecionada.observacoes && <>
-              <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:2 }}>Observacoes</div>
-              <div style={{ fontSize:14, color:'#1A2340', marginBottom:4 }}>{osSelecionada.observacoes}</div>
-            </>}
-            {osSelecionada.hora_chegada && (
-              <div style={{ fontSize:12, color:'#1A6B4A', marginTop:8 }}>Chegada registrada as {osSelecionada.hora_chegada}</div>
-            )}
-          </div>
-
-          {etapa === 'aceitar_demanda' && (
-            <div style={{ background:'#fff', borderRadius:14, padding:16, border:'0.5px solid #B5D4F4', marginBottom:8 }}>
-              <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', marginBottom:12 }}>Voce aceita essa demanda?</div>
-              <div style={{ display:'flex', gap:8 }}>
-                <button onClick={() => setEtapa('aceitar')}
-                  style={{ flex:1, padding:'12px', background:'#1A6B4A', color:'#fff', border:'none', borderRadius:10, fontSize:14, cursor:'pointer' }}>
-                  Aceitar
-                </button>
-                <button onClick={() => setEtapa('rejeitar')}
-                  style={{ flex:1, padding:'12px', background:'#C0392B', color:'#fff', border:'none', borderRadius:10, fontSize:14, cursor:'pointer' }}>
-                  Rejeitar
-                </button>
-              </div>
-            </div>
-          )}
-
-          {etapa === 'rejeitar' && (
-            <div style={{ background:'#fff', borderRadius:14, padding:16, border:'0.5px solid #F5B7B1', marginBottom:8 }}>
-              <div style={{ fontSize:13, fontWeight:600, color:'#C0392B', marginBottom:12 }}>Motivo da rejeicao</div>
-              <div style={{ marginBottom:12 }}>
-                <textarea value={motivoNegado} onChange={e => setMotivoNegado(e.target.value)}
-                  rows={3} placeholder="Descreva o motivo..."
-                  style={{ width:'100%', padding:'10px 12px', fontSize:14, border:'1px solid #B5D4F4', borderRadius:10, background:'#fff', color:'#1A2340', outline:'none', boxSizing:'border-box', resize:'none' }} />
-              </div>
-              <div style={{ display:'flex', gap:8 }}>
-                <button onClick={rejeitar} disabled={!motivoNegado.trim() || salvando}
-                  style={{ flex:1, padding:'10px', background:'#C0392B', color:'#fff', border:'none', borderRadius:10, fontSize:14, cursor:'pointer', opacity:(!motivoNegado.trim()||salvando)?0.5:1 }}>
-                  {salvando ? 'Enviando...' : 'Confirmar'}
-                </button>
-                <button onClick={() => { setEtapa('aceitar_demanda'); setMotivoNegado('') }}
-                  style={{ flex:1, padding:'10px', background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:10, fontSize:14, cursor:'pointer' }}>
-                  Voltar
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* FIX: etapa 'aceitar' mostra botao de registrar chegada diretamente */}
-          {etapa === 'aceitar' && (
-            <button onClick={aceitar} disabled={salvando}
-              style={{ width:'100%', padding:13, background:'#2D3A8C', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:500, cursor:'pointer', borderBottom:'3px solid #1A2340', marginBottom:8, opacity:salvando?0.7:1 }}>
-              {salvando ? 'Registrando...' : 'Registrar chegada ao local'}
-            </button>
-          )}
-
-          {etapa === 'autorizar' && (
-            <div style={{ background:'#fff', borderRadius:14, padding:16, border:'0.5px solid #B5D4F4', marginBottom:8 }}>
-              <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', marginBottom:12 }}>O servico foi autorizado?</div>
-              <div style={{ display:'flex', gap:8 }}>
-                <button onClick={() => setEtapa('iniciar_servico')}
-                  style={{ flex:1, padding:'12px', background:'#1A6B4A', color:'#fff', border:'none', borderRadius:10, fontSize:14, cursor:'pointer' }}>
-                  Sim, autorizado
-                </button>
-                <button onClick={() => setEtapa('nao_autorizado')}
-                  style={{ flex:1, padding:'12px', background:'#C0392B', color:'#fff', border:'none', borderRadius:10, fontSize:14, cursor:'pointer' }}>
-                  Nao autorizado
-                </button>
-              </div>
-            </div>
-          )}
-
-          {etapa === 'nao_autorizado' && (
-            <div style={{ background:'#fff', borderRadius:14, padding:16, border:'0.5px solid #F5B7B1', marginBottom:8 }}>
-              <div style={{ fontSize:13, fontWeight:600, color:'#C0392B', marginBottom:12 }}>Servico nao autorizado</div>
-              <div style={{ marginBottom:12 }}>
-                <textarea value={motivoNegado} onChange={e => setMotivoNegado(e.target.value)}
-                  rows={3} placeholder="Descreva o motivo..."
-                  style={{ width:'100%', padding:'10px 12px', fontSize:14, border:'1px solid #B5D4F4', borderRadius:10, background:'#fff', color:'#1A2340', outline:'none', boxSizing:'border-box', resize:'none' }} />
-              </div>
-              <div style={{ display:'flex', gap:8 }}>
-                <button onClick={naoAutorizado} disabled={!motivoNegado.trim() || salvando}
-                  style={{ flex:1, padding:'10px', background:'#C0392B', color:'#fff', border:'none', borderRadius:10, fontSize:14, cursor:'pointer', opacity:(!motivoNegado.trim()||salvando)?0.5:1 }}>
-                  {salvando ? 'Enviando...' : 'Confirmar'}
-                </button>
-                <button onClick={() => setEtapa('autorizar')}
-                  style={{ flex:1, padding:'10px', background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:10, fontSize:14, cursor:'pointer' }}>
-                  Voltar
-                </button>
-              </div>
-            </div>
-          )}
-
-          {etapa === 'iniciar_servico' && (
-            <button onClick={iniciarServico} disabled={salvando}
-              style={{ width:'100%', padding:13, background:'#2D3A8C', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:500, cursor:'pointer', borderBottom:'3px solid #1A2340', marginBottom:8, opacity:salvando?0.7:1 }}>
-              {salvando ? 'Registrando...' : 'Iniciar servico'}
-            </button>
-          )}
-
-          {etapa === 'relatorio' && (
-            <div style={{ background:'#fff', borderRadius:14, padding:16, border:'0.5px solid #B5D4F4', marginBottom:8 }}>
-              <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', marginBottom:12 }}>Como foi o servico?</div>
-              <div style={{ display:'flex', gap:8, marginBottom:12 }}>
-                <button onClick={() => setTevePro(false)}
-                  style={{ flex:1, padding:'12px', background: tevePro === false ? '#1A6B4A' : '#fff', color: tevePro === false ? '#fff' : '#1A6B4A', border:'2px solid #1A6B4A', borderRadius:10, fontSize:13, cursor:'pointer', fontWeight:500 }}>
-                  Tudo certo
-                </button>
-                <button onClick={() => setTevePro(true)}
-                  style={{ flex:1, padding:'12px', background: tevePro === true ? '#E67E22' : '#fff', color: tevePro === true ? '#fff' : '#E67E22', border:'2px solid #E67E22', borderRadius:10, fontSize:13, cursor:'pointer', fontWeight:500 }}>
-                  Houve problema
-                </button>
-              </div>
-              {tevePro === true && (
-                <div style={{ marginBottom:12 }}>
-                  <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Descreva o problema *</label>
-                  <textarea value={ocorrencia} onChange={e => setOcorrencia(e.target.value)}
-                    rows={3} placeholder="Descreva o que ocorreu..."
-                    style={{ width:'100%', padding:'10px 12px', fontSize:14, border:'1px solid #B5D4F4', borderRadius:10, background:'#fff', color:'#1A2340', outline:'none', boxSizing:'border-box', resize:'none' }} />
-                </div>
-              )}
-              {tevePro === false && (
-                <div style={{ marginBottom:12 }}>
-                  <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Observacoes (opcional)</label>
-                  <textarea value={ocorrencia} onChange={e => setOcorrencia(e.target.value)}
-                    rows={3} placeholder="Alguma observacao sobre o servico..."
-                    style={{ width:'100%', padding:'10px 12px', fontSize:14, border:'1px solid #B5D4F4', borderRadius:10, background:'#fff', color:'#1A2340', outline:'none', boxSizing:'border-box', resize:'none' }} />
-                </div>
-              )}
-              <button onClick={concluir}
-                disabled={salvando || tevePro === null || (tevePro === true && !ocorrencia.trim())}
-                style={{ width:'100%', padding:13, background:'#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:500, cursor:'pointer', borderBottom:'3px solid #0F4A32', marginTop:4, opacity:(salvando || tevePro === null || (tevePro === true && !ocorrencia.trim())) ? 0.5 : 1 }}>
-                {salvando ? 'Salvando...' : 'Concluir OS'}
-              </button>
-            </div>
-          )}
-
-          {etapa === 'elaborar_rm' && (
-            <div style={{ background:'#FEF9E7', borderRadius:12, padding:'12px 16px', border:'0.5px solid #F5CBA7' }}>
-              <div style={{ fontSize:13, color:'#935116', fontWeight:500 }}>OS concluida - aguardando Elaboracao de RM pelo ADM</div>
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  async function abrirMapaTecnico() {
-    const geocodadas = await Promise.all(lista.map(async os => {
-      const end = `${os.endereco||''}, ${os.cidade||''}, ${os.estado||''}`
-      const coords = await geocodificar(end)
-      return coords ? { ...os, _lat: coords.lat, _lng: coords.lng } : os
-    }))
-    setOsComCoords(geocodadas)
-    setMostrarMapa(true)
-  }
-
-  if (mostrarMapa) {
-    const minha = perfil.lat ? [{ ...perfil, nome: perfil.nome }] : []
-    return <MapaMonitoramento tecnicos={minha} osLista={osComCoords} onVoltar={() => setMostrarMapa(false)} titulo="Minha localizacao" />
-  }
-
-  return (
-    <div style={{ minHeight:'100vh', background:'#2D3A8C', fontFamily:'system-ui,sans-serif', display:'flex', flexDirection:'column' }}>
-      <Header nome={perfil.nome} tipo="Tecnico · Grupo PG" onLogout={onLogout} />
-      <div style={{ flex:1, background:'#E6F1FB', padding:16, overflowY:'auto' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-          <div style={{ fontSize:11, fontWeight:500, color:'#4A7FC1', textTransform:'uppercase', letterSpacing:'0.05em' }}>Minhas OS</div>
-          <button onClick={abrirMapaTecnico} style={{ fontSize:13, background:'#2D3A8C', color:'#fff', border:'none', borderRadius:8, padding:'7px 16px', cursor:'pointer', fontWeight:500 }}>Mapa</button>
-        </div>
-        <Caixa num={emCampo.length} label="No campo" corFundo="#EAF3DE" corTexto="#27500A" />
-        <Caixa num={aguardando.length} label="Aguardando Elaborar RM" corFundo="#FEF9E7" corTexto="#935116" />
-        {carregando && <div style={{ textAlign:'center', color:'#4A7FC1', marginTop:20 }}>Carregando...</div>}
-        {!carregando && emCampo.length > 0 && <>
-          <div style={{ fontSize:11, fontWeight:500, color:'#4A7FC1', textTransform:'uppercase', letterSpacing:'0.05em', margin:'16px 0 10px' }}>Para atender</div>
-          {emCampo.map(os => <CardOS key={os.id} os={os} onClick={() => abrirOS(os)} />)}
-        </>}
-        {!carregando && aguardando.length > 0 && <>
-          <div style={{ fontSize:11, fontWeight:500, color:'#4A7FC1', textTransform:'uppercase', letterSpacing:'0.05em', margin:'16px 0 10px' }}>Aguardando RM</div>
-          {aguardando.map(os => <CardOS key={os.id} os={os} onClick={() => abrirOS(os)} />)}
-        </>}
-        {!carregando && lista.length === 0 && (
-          <div style={{ textAlign:'center', color:'#4A7FC1', marginTop:40, fontSize:14 }}>Nenhuma OS atribuida ainda</div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-
-function PainelLider({ perfil, onLogout }) {
-  const [lista, setLista] = useState([])
-  const [carregando, setCarregando] = useState(true)
-  const [osSelecionada, setOsSelecionada] = useState(null)
-  const [tecnicos, setTecnicos] = useState([])
-  const [tecnicoEscolhido, setTecnicoEscolhido] = useState('')
-  const [delegando, setDelegando] = useState(false)
-  const [salvando, setSalvando] = useState(false)
-  const [mostrarMapa, setMostrarMapa] = useState(false)
-  const [osComCoords, setOsComCoords] = useState([])
-  const [tecnicosComDist, setTecnicosComDist] = useState([])
-  const [coordsOS, setCoordsOS] = useState(null)
-
-  function carregar() {
-    supabase.from('ordens_servico')
-      .select('*')
-      .eq('lider_id', perfil.id)
-      .in('status', ['liberado_lider','em_campo','elaborar_rm','concluido'])
-      .order('criado_em', { ascending: false })
-      .then(({ data }) => { setLista(data || []); setCarregando(false) })
-  }
-
-  useEffect(() => { carregar() }, [])
-
-  // Capturar localizacao do lider
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(async pos => {
-        const { latitude: lat, longitude: lng } = pos.coords
-        await supabase.from('perfis').update({ lat, lng, ultima_localizacao: new Date().toISOString() }).eq('id', perfil.id)
-      })
-    }
-  }, [])
-
-  useEffect(() => {
-    if (delegando && tecnicos.length === 0) {
-      supabase.from('perfis').select('id,nome,lat,lng').eq('perfil','tecnico')
-        .then(async ({ data }) => {
-          const lista = data || []
-          if (osSelecionada) {
-            const end = `${osSelecionada.endereco||''}, ${osSelecionada.cidade||''}, ${osSelecionada.estado||''}`
-            const coords = await geocodificar(end)
-            setCoordsOS(coords)
-            if (coords) {
-              const comDist = lista.map(t => ({
-                ...t,
-                distancia: t.lat && t.lng ? haversine(t.lat, t.lng, coords.lat, coords.lng) : null
-              })).sort((a,b) => {
-                if (a.distancia === null) return 1
-                if (b.distancia === null) return -1
-                return a.distancia - b.distancia
-              })
-              setTecnicosComDist(comDist)
-              setTecnicos(comDist)
-              return
-            }
-          }
-          setTecnicos(lista)
-          setTecnicosComDist(lista)
-        })
-    }
-  }, [delegando])
-
-  async function delegar() {
-    if (!tecnicoEscolhido) return
-    setSalvando(true)
-    await supabase.from('ordens_servico')
-      .update({ status: 'em_campo', tecnico_id: tecnicoEscolhido })
-      .eq('id', osSelecionada.id)
-    const tec = tecnicos.find(t => t.id === tecnicoEscolhido)
-    await registrarHistorico(osSelecionada.id, 'em_campo', perfil.nome, tec ? `Delegado para: ${tec.nome}` : null)
-    setSalvando(false)
-    setDelegando(false)
-    setOsSelecionada(null)
-    setTecnicoEscolhido('')
-    setTecnicos([]) // reset para redelegar
-    carregar()
-  }
-
-  const liberadas = lista.filter(o => o.status === 'liberado_lider')
-  const emCampo = lista.filter(o => o.status === 'em_campo')
-  const concluidas = lista.filter(o => o.status === 'concluido' || o.status === 'elaborar_rm')
-
-  async function abrirMapaLider() {
-    const geocodadas = await Promise.all(
-      lista.filter(o => ['liberado_lider','em_campo'].includes(o.status)).map(async os => {
-        const end = `${os.endereco||''}, ${os.cidade||''}, ${os.estado||''}`
-        const coords = await geocodificar(end)
-        return coords ? { ...os, _lat: coords.lat, _lng: coords.lng } : os
-      })
-    )
-    setOsComCoords(geocodadas)
-    setMostrarMapa(true)
-  }
-
-  if (mostrarMapa) {
-    return <MapaMonitoramento tecnicos={[]} osLista={osComCoords} onVoltar={() => setMostrarMapa(false)} titulo="Mapa do time" />
-  }
-
-  if (osSelecionada) return (
-    <div style={{ minHeight:'100vh', background:'#2D3A8C', fontFamily:'system-ui,sans-serif', display:'flex', flexDirection:'column' }}>
-      <div style={{ background:'#1A2340', padding:'14px 16px', display:'flex', alignItems:'center', gap:12, borderBottom:'0.5px solid #3D4FA0' }}>
-        <button onClick={() => { setOsSelecionada(null); setDelegando(false); setTecnicoEscolhido(''); setTecnicos([]) }}
-          style={{ background:'none', border:'none', color:'#87CEEB', fontSize:20, cursor:'pointer', padding:0 }}>←</button>
-        <div style={{ fontSize:16, fontWeight:500, color:'#fff' }}>{osSelecionada.numero}</div>
-        <span style={{ marginLeft:'auto', fontSize:11, background: STATUS_COR[osSelecionada.status]||'#eee', color:'#1A2340', padding:'2px 8px', borderRadius:99 }}>
-          {STATUS_LABEL[osSelecionada.status]||osSelecionada.status}
-        </span>
-      </div>
-      <div style={{ flex:1, background:'#E6F1FB', padding:16, overflowY:'auto' }}>
-        <div style={{ background:'#fff', borderRadius:14, padding:16, marginBottom:12, border:'0.5px solid #B5D4F4' }}>
-          <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:2 }}>Rede</div>
-          <div style={{ fontSize:15, fontWeight:500, color:'#1A2340', marginBottom:10 }}>{osSelecionada.contrato}</div>
-          <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:2 }}>Tipo de Servico</div>
-          <div style={{ fontSize:15, fontWeight:500, color:'#1A2340', marginBottom:10 }}>{osSelecionada.especialidade}</div>
-          {osSelecionada.ec && <>
-            <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:2 }}>No PC / BDN / PA</div>
-            <div style={{ fontSize:15, fontWeight:500, color:'#1A2340', marginBottom:10 }}>{osSelecionada.ec}</div>
-          </>}
-          <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:2 }}>Endereco</div>
-          <div style={{ fontSize:14, color:'#1A2340', marginBottom:10 }}>{osSelecionada.endereco}{osSelecionada.cidade ? `, ${osSelecionada.cidade}` : ''}{osSelecionada.estado ? `/${osSelecionada.estado}` : ''}</div>
-          {osSelecionada.data && <>
-            <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:2 }}>Data / Hora</div>
-            <div style={{ fontSize:14, color:'#1A2340', marginBottom:10 }}>
-              {new Date(osSelecionada.data+'T12:00:00').toLocaleDateString('pt-BR')}{osSelecionada.hora ? ` as ${osSelecionada.hora}` : ''}
-            </div>
-          </>}
-          {osSelecionada.observacoes && <>
-            <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:2 }}>Observacoes</div>
-            <div style={{ fontSize:14, color:'#1A2340' }}>{osSelecionada.observacoes}</div>
-          </>}
-        </div>
-
-        {osSelecionada.status === 'liberado_lider' && !delegando && (
-          <button onClick={() => setDelegando(true)}
-            style={{ width:'100%', padding:13, background:'#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:500, cursor:'pointer', borderBottom:'3px solid #0F4A32', marginBottom:8 }}>
-            Delegar para Tecnico
-          </button>
-        )}
-
-        {osSelecionada.status === 'liberado_lider' && delegando && (
-          <div style={{ background:'#fff', borderRadius:14, padding:16, border:'0.5px solid #B5D4F4', marginBottom:8 }}>
-            <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', marginBottom:12 }}>Escolha o Tecnico</div>
-            {tecnicos.length === 0 && <div style={{ color:'#4A7FC1', fontSize:13, marginBottom:12 }}>Carregando tecnicos...</div>}
-            {coordsOS && <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:8 }}>Ordenado por proximidade ao local da OS</div>}
-            <div style={{ maxHeight:300, overflowY:'auto' }}>
-              {tecnicos.map(t => (
-                <div key={t.id} onClick={() => setTecnicoEscolhido(t.id)}
-                  style={{ padding:'12px 14px', borderRadius:10, border: tecnicoEscolhido === t.id ? '2px solid #1A6B4A' : '1px solid #B5D4F4', marginBottom:8, cursor:'pointer', background: tecnicoEscolhido === t.id ? '#D4F0E4' : '#fff', display:'flex', alignItems:'center', gap:10 }}>
-                  <div style={{ width:32, height:32, borderRadius:99, background:'#1A6B4A', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:600 }}>
-                    {iniciaisNome(t.nome)}
-                  </div>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontSize:15, fontWeight:500, color:'#1A2340' }}>{t.nome}</div>
-                    {t.distancia !== null && t.distancia !== undefined
-                      ? <div style={{ fontSize:11, color:'#1A6B4A' }}>{t.distancia < 1 ? `${Math.round(t.distancia*1000)} m` : `${t.distancia.toFixed(0)} km`} do local</div>
-                      : <div style={{ fontSize:11, color:'#aaa' }}>Localizacao nao disponivel</div>
-                    }
-                  </div>
-                  {tecnicoEscolhido === t.id && <div style={{ color:'#1A6B4A', fontSize:18 }}>✓</div>}
-                </div>
-              ))}
-            </div>
-            <div style={{ display:'flex', gap:8, marginTop:4 }}>
-              <button onClick={delegar} disabled={!tecnicoEscolhido || salvando}
-                style={{ flex:1, padding:'10px', background:'#1A6B4A', color:'#fff', border:'none', borderRadius:10, fontSize:14, cursor:'pointer', opacity:(!tecnicoEscolhido||salvando)?0.5:1 }}>
-                {salvando ? 'Salvando...' : 'Confirmar'}
-              </button>
-              <button onClick={() => { setDelegando(false); setTecnicoEscolhido(''); setTecnicos([]) }}
-                style={{ flex:1, padding:'10px', background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:10, fontSize:14, cursor:'pointer' }}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )}
-
-        {osSelecionada.status === 'em_campo' && !delegando && (
-          <div>
-            <div style={{ background:'#EAF3DE', borderRadius:12, padding:'12px 16px', border:'0.5px solid #C0DD97', marginBottom:8 }}>
-              <div style={{ fontSize:13, color:'#27500A', fontWeight:500 }}>Tecnico no campo</div>
-            </div>
-            <button onClick={() => { setDelegando(true); setTecnicos([]) }}
-              style={{ width:'100%', padding:13, background:'#3C3489', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:500, cursor:'pointer', borderBottom:'3px solid #26215C' }}>
-              Redelegar para outro Tecnico
-            </button>
-          </div>
-        )}
-
-        {osSelecionada.status === 'em_campo' && delegando && (
-          <div style={{ background:'#fff', borderRadius:14, padding:16, border:'0.5px solid #B5D4F4', marginBottom:8 }}>
-            <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', marginBottom:12 }}>Escolha o novo Tecnico</div>
-            {tecnicos.length === 0 && <div style={{ color:'#4A7FC1', fontSize:13, marginBottom:12 }}>Carregando tecnicos...</div>}
-            {coordsOS && <div style={{ fontSize:11, color:'#4A7FC1', marginBottom:8 }}>Ordenado por proximidade ao local da OS</div>}
-            <div style={{ maxHeight:300, overflowY:'auto' }}>
-              {tecnicos.map(t => (
-                <div key={t.id} onClick={() => setTecnicoEscolhido(t.id)}
-                  style={{ padding:'12px 14px', borderRadius:10, border: tecnicoEscolhido === t.id ? '2px solid #1A6B4A' : '1px solid #B5D4F4', marginBottom:8, cursor:'pointer', background: tecnicoEscolhido === t.id ? '#D4F0E4' : '#fff', display:'flex', alignItems:'center', gap:10 }}>
-                  <div style={{ width:32, height:32, borderRadius:99, background:'#1A6B4A', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:600 }}>
-                    {iniciaisNome(t.nome)}
-                  </div>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontSize:15, fontWeight:500, color:'#1A2340' }}>{t.nome}</div>
-                    {t.distancia !== null && t.distancia !== undefined
-                      ? <div style={{ fontSize:11, color:'#1A6B4A' }}>{t.distancia < 1 ? `${Math.round(t.distancia*1000)} m` : `${t.distancia.toFixed(0)} km`} do local</div>
-                      : <div style={{ fontSize:11, color:'#aaa' }}>Localizacao nao disponivel</div>
-                    }
-                  </div>
-                  {tecnicoEscolhido === t.id && <div style={{ color:'#1A6B4A', fontSize:18 }}>✓</div>}
-                </div>
-              ))}
-            </div>
-            <div style={{ display:'flex', gap:8, marginTop:4 }}>
-              <button onClick={delegar} disabled={!tecnicoEscolhido || salvando}
-                style={{ flex:1, padding:'10px', background:'#1A6B4A', color:'#fff', border:'none', borderRadius:10, fontSize:14, cursor:'pointer', opacity:(!tecnicoEscolhido||salvando)?0.5:1 }}>
-                {salvando ? 'Salvando...' : 'Confirmar'}
-              </button>
-              <button onClick={() => { setDelegando(false); setTecnicoEscolhido(''); setTecnicos([]) }}
-                style={{ flex:1, padding:'10px', background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:10, fontSize:14, cursor:'pointer' }}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-
-  return (
-    <div style={{ minHeight:'100vh', background:'#2D3A8C', fontFamily:'system-ui,sans-serif', display:'flex', flexDirection:'column' }}>
-      <Header nome={perfil.nome} tipo={`Lider · Grupo PG`} onLogout={onLogout} />
-      <div style={{ flex:1, background:'#E6F1FB', padding:16, overflowY:'auto' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-          <div style={{ fontSize:11, fontWeight:500, color:'#4A7FC1', textTransform:'uppercase', letterSpacing:'0.05em' }}>Minhas OS</div>
-          <button onClick={abrirMapaLider} style={{ fontSize:13, background:'#2D3A8C', color:'#fff', border:'none', borderRadius:8, padding:'7px 16px', cursor:'pointer', fontWeight:500 }}>Mapa</button>
-        </div>
-        <Caixa num={liberadas.length} label="Aguardando delegar" corFundo="#E6F1FB" corTexto="#0C447C" />
-        <Caixa num={emCampo.length} label="No campo" corFundo="#EAF3DE" corTexto="#27500A" />
-        <Caixa num={concluidas.length} label="Concluidas" corFundo="#E8F5EE" corTexto="#0F6E56" />
-        {carregando && <div style={{ textAlign:'center', color:'#4A7FC1', marginTop:20 }}>Carregando...</div>}
-        {!carregando && liberadas.length > 0 && <>
-          <div style={{ fontSize:11, fontWeight:500, color:'#4A7FC1', textTransform:'uppercase', letterSpacing:'0.05em', margin:'16px 0 10px' }}>Para delegar</div>
-          {liberadas.map(os => <CardOS key={os.id} os={os} onClick={() => setOsSelecionada(os)} />)}
-        </>}
-        {!carregando && emCampo.length > 0 && <>
-          <div style={{ fontSize:11, fontWeight:500, color:'#4A7FC1', textTransform:'uppercase', letterSpacing:'0.05em', margin:'16px 0 10px' }}>No campo</div>
-          {emCampo.map(os => <CardOS key={os.id} os={os} onClick={() => setOsSelecionada(os)} />)}
-        </>}
-        {!carregando && lista.length === 0 && (
-          <div style={{ textAlign:'center', color:'#4A7FC1', marginTop:40, fontSize:14 }}>Nenhuma OS atribuida ainda</div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-
-
-function ElaborarRM({ os, onVoltar, onConcluir }) {
-  const pMap = {
-    SP: { codigo: '108044', cnpj: '19.786.849/0001-60', uo: 'SAO' },
-    PR: { codigo: '108044', cnpj: '19.786.849/0001-60', uo: 'CWB' },
-    ES: { codigo: '108044', cnpj: '19.786.849/0001-60', uo: 'VIX' },
-    SC: { codigo: '108044', cnpj: '19.786.849/0001-60', uo: 'FLN' },
-    RJ: { codigo: '112142', cnpj: '19.786.849/0002-41', uo: 'RIO' },
-    MG: { codigo: '113338', cnpj: '19.786.849/0003-22', uo: 'BHZ' },
-  }
-  const p = pMap[os.estado] || pMap['SP']
-  const [form, setForm] = useState({ numero_ordem: os.numero_ordem_tecban || '', nr_serie: os.nr_serie_equipamento || '', data_conclusao: os.data || '' })
-  const [itens, setItens] = useState([{ codigo: '', descricao: '', qtd: 1, operacao: '', valor_unitario: '', valor_total: 0 }])
-  const [busca, setBusca] = useState('')
-  const [resultados, setResultados] = useState([])
-  const [buscandoIdx, setBuscandoIdx] = useState(null)
-  const [salvando, setSalvando] = useState(false)
-  const estilo = { width:'100%', padding:'10px 12px', fontSize:14, border:'1px solid #B5D4F4', borderRadius:10, background:'#fff', color:'#1A2340', outline:'none', boxSizing:'border-box' }
-
-  async function buscarServico(texto, idx) {
-    setBuscandoIdx(idx)
-    setBusca(texto)
-    if (texto.length < 2) { setResultados([]); return }
-    const { data } = await supabase.from('servicos_tecban').select('*')
-      .or('codigo.ilike.%' + texto + '%,descricao.ilike.%' + texto + '%').limit(8)
-    setResultados(data || [])
-  }
-
-  function selecionarServico(servico, idx) {
-    const novos = [...itens]
-    novos[idx] = { ...novos[idx], codigo: servico.codigo, descricao: servico.descricao, valor_unitario: servico.valor_unitario, valor_total: novos[idx].qtd * servico.valor_unitario, operacao: servico.operacao || '20' }
-    setItens(novos)
-    setResultados([])
-    setBuscandoIdx(null)
-    setBusca('')
-  }
-
-  function atualizarItem(idx, campo, valor) {
-    const novos = [...itens]
-    novos[idx][campo] = valor
-    if (campo === 'qtd' || campo === 'valor_unitario') {
-      novos[idx].valor_total = parseFloat(novos[idx].qtd || 0) * parseFloat(novos[idx].valor_unitario || 0)
-    }
-    setItens(novos)
-  }
-
-  function adicionarItem() { setItens([...itens, { codigo: '', descricao: '', qtd: 1, operacao: '', valor_unitario: '', valor_total: 0 }]) }
-  function removerItem(idx) { setItens(itens.filter((_, i) => i !== idx)) }
-
-  const total = itens.reduce((s, i) => s + (parseFloat(i.valor_total) || parseFloat(i.qtd||1) * parseFloat(i.valor_unitario||0)), 0)
-
-  async function salvarRM() {
-    if (!form.numero_ordem) { alert('Informe o No da Ordem Tecban'); return }
-    setSalvando(true)
-    await supabase.from('ordens_servico').update({
-      numero_ordem_tecban: form.numero_ordem,
-      nr_serie_equipamento: form.nr_serie,
-      status: 'concluido'
-    }).eq('id', os.id)
-    const itensValidos = itens.filter(i => i.codigo).map(i => ({
-      os_id: os.id, codigo_servico: i.codigo, descricao: i.descricao,
-      quantidade: parseFloat(i.qtd), operacao: i.operacao,
-      valor_unitario: parseFloat(i.valor_unitario),
-    }))
-    if (itensValidos.length > 0) await supabase.from('rm_itens').insert(itensValidos)
-    await registrarHistorico(os.id, 'concluido', null, 'RM elaborada')
-    setSalvando(false)
-    onConcluir()
-  }
-
-  return (
-    <div style={{ minHeight:'100vh', background:'#2D3A8C', fontFamily:'system-ui,sans-serif', display:'flex', flexDirection:'column' }}>
-      <div style={{ background:'#1A2340', padding:'14px 16px', display:'flex', alignItems:'center', gap:12, borderBottom:'0.5px solid #3D4FA0' }}>
-        <button onClick={onVoltar} style={{ background:'none', border:'none', color:'#87CEEB', fontSize:20, cursor:'pointer', padding:0 }}>←</button>
-        <div style={{ fontSize:15, fontWeight:500, color:'#fff' }}>Elaborar RM — {os.numero}</div>
-      </div>
-      <div style={{ flex:1, background:'#E6F1FB', padding:16, overflowY:'auto' }}>
-        <div style={{ background:'#fff', borderRadius:14, padding:16, marginBottom:12, border:'0.5px solid #B5D4F4' }}>
-          <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', marginBottom:12 }}>Dados da Ordem</div>
-          <div style={{ marginBottom:10 }}>
-            <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>No da Ordem Tecban *</label>
-            <input type="text" value={form.numero_ordem} onChange={e=>setForm(f=>({...f,numero_ordem:e.target.value}))} placeholder="Ex: I00000131527" style={estilo} />
-          </div>
-          <div style={{ marginBottom:10 }}>
-            <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>No Serie Equipamento</label>
-            <input type="text" value={form.nr_serie} onChange={e=>setForm(f=>({...f,nr_serie:e.target.value}))} placeholder="Ex: 28-59093340" style={estilo} />
-          </div>
-          <div style={{ marginBottom:4 }}>
-            <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Data de Conclusao</label>
-            <input type="date" value={form.data_conclusao} onChange={e=>setForm(f=>({...f,data_conclusao:e.target.value}))} style={estilo} />
-          </div>
-        </div>
-
-        <div style={{ background:'#fff', borderRadius:14, padding:16, marginBottom:12, border:'0.5px solid #B5D4F4' }}>
-          <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', marginBottom:4 }}>Prestador — UO: {p.uo}</div>
-          <div style={{ fontSize:12, color:'#4A7FC1' }}>Codigo: {p.codigo} · CNPJ: {p.cnpj}</div>
-        </div>
-
-        <div style={{ background:'#fff', borderRadius:14, padding:16, marginBottom:12, border:'0.5px solid #B5D4F4' }}>
-          <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', marginBottom:12 }}>Itens de Servico</div>
-          {itens.map((item, idx) => (
-            <div key={idx} style={{ border:'1px solid #E6F1FB', borderRadius:10, padding:12, marginBottom:10, background:'#F8FBFF' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-                <div style={{ fontSize:12, fontWeight:600, color:'#2D3A8C' }}>Item {idx+1}</div>
-                {itens.length > 1 && <button onClick={() => removerItem(idx)} style={{ background:'none', border:'none', color:'#E24B4A', cursor:'pointer', fontSize:20, lineHeight:1 }}>×</button>}
-              </div>
-              <div style={{ marginBottom:8, position:'relative' }}>
-                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Buscar servico</label>
-                <input type="text"
-                  value={buscandoIdx === idx ? busca : (item.codigo ? item.codigo + ' — ' + item.descricao : '')}
-                  onChange={e => buscarServico(e.target.value, idx)}
-                  onFocus={() => { setBuscandoIdx(idx); setBusca('') }}
-                  placeholder="Digite codigo ou nome do servico..."
-                  style={estilo} />
-                {buscandoIdx === idx && resultados.length > 0 && (
-                  <div style={{ position:'absolute', top:'100%', left:0, right:0, background:'#fff', border:'1px solid #B5D4F4', borderRadius:8, zIndex:100, maxHeight:200, overflowY:'auto', boxShadow:'0 4px 12px rgba(0,0,0,0.15)' }}>
-                    {resultados.map((r, ri) => (
-                      <div key={ri} onClick={() => selecionarServico(r, idx)}
-                        style={{ padding:'10px 12px', cursor:'pointer', borderBottom:'0.5px solid #E6F1FB', fontSize:13 }}>
-                        <strong>{r.codigo}</strong> — {r.descricao}
-                        <div style={{ fontSize:12, color:'#4A7FC1' }}>R$ {parseFloat(r.valor_unitario).toFixed(2)}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div style={{ display:'flex', gap:8 }}>
-                <div style={{ flex:1 }}>
-                  <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Qtd</label>
-                  <input type="number" value={item.qtd} onChange={e=>atualizarItem(idx,'qtd',e.target.value)} style={{...estilo, textAlign:'center'}} />
-                </div>
-                <div style={{ flex:1 }}>
-                  <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Operacao</label>
-                  <input type="text" value={item.operacao} onChange={e=>atualizarItem(idx,'operacao',e.target.value)} placeholder="Ex: 20" style={estilo} />
-                </div>
-                <div style={{ flex:1 }}>
-                  <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Vlr Unit</label>
-                  <input type="number" value={item.valor_unitario} onChange={e=>atualizarItem(idx,'valor_unitario',e.target.value)} style={estilo} />
-                </div>
-              </div>
-              {item.valor_total > 0 && (
-                <div style={{ fontSize:13, color:'#1A6B4A', marginTop:8, textAlign:'right', fontWeight:600 }}>
-                  Total: R$ {parseFloat(item.valor_total).toFixed(2)}
-                </div>
-              )}
-            </div>
-          ))}
-          <button onClick={adicionarItem}
-            style={{ width:'100%', padding:'10px', background:'#E6F1FB', color:'#2D3A8C', border:'1px dashed #B5D4F4', borderRadius:10, fontSize:14, cursor:'pointer', marginBottom:8 }}>
-            + Adicionar item
-          </button>
-          <div style={{ fontSize:15, fontWeight:600, color:'#1A2340', textAlign:'right', padding:'8px 0', borderTop:'1px solid #E6F1FB' }}>
-            Total Geral: R$ {total.toFixed(2)}
-          </div>
-        </div>
-
-        <button onClick={salvarRM} disabled={salvando}
-          style={{ width:'100%', padding:13, background:'#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:500, cursor:'pointer', borderBottom:'3px solid #0F4A32', opacity:salvando?0.7:1 }}>
-          {salvando ? 'Salvando...' : 'Salvar RM e Concluir OS'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-
-function MapaAdm({ onVoltar }) {
-  const [tecnicos, setTecnicos] = useState([])
-  const [osComCoords, setOsComCoords] = useState([])
-  const [carregando, setCarregando] = useState(true)
-
-  useEffect(() => {
-    async function carregar() {
-      const [{ data: tecs }, { data: osData }] = await Promise.all([
-        supabase.from('perfis').select('id,nome,lat,lng,ultima_localizacao').eq('perfil','tecnico'),
-        supabase.from('ordens_servico').select('*').in('status', ['liberado_lider','em_campo','confirmado_ec'])
-      ])
-      const geocodadas = await Promise.all((osData||[]).map(async os => {
-        const end = `${os.endereco||''}, ${os.cidade||''}, ${os.estado||''}`
-        const coords = await geocodificar(end)
-        return coords ? { ...os, _lat: coords.lat, _lng: coords.lng } : os
-      }))
-      setTecnicos(tecs || [])
-      setOsComCoords(geocodadas)
-      setCarregando(false)
-    }
-    carregar()
-  }, [])
-
-  if (carregando) return (
-    <div style={{ minHeight:'100vh', background:'#E6F1FB', display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div style={{ color:'#4A7FC1' }}>Carregando dados do mapa...</div>
-    </div>
-  )
-
-  return <MapaMonitoramento tecnicos={tecnicos} osLista={osComCoords} onVoltar={onVoltar} titulo="Monitoramento de equipes" />
-}
-
-function PainelAdm({ perfil, onLogout }) {
-  const [tela, setTela] = useState('home')
-  const [telaParams, setTelaParams] = useState(null)
-  const [contadores, setContadores] = useState({
-    novo:0, agendar_ec:0, aguardando_ec:0, confirmado_ec:0, liberado_lider:0, em_campo:0, elaborar_rm:0, concluido:0
-  })
-
-  useEffect(() => { if (tela === 'home') carregarContadores() }, [tela])
-
-  // Capturar localizacao do ADM
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(async pos => {
-        const { latitude: lat, longitude: lng } = pos.coords
-        await supabase.from('perfis').update({ lat, lng, ultima_localizacao: new Date().toISOString() }).eq('id', perfil.id)
-      })
-    }
-  }, [])
-
-  async function carregarContadores() {
-    const { data } = await supabase.from('ordens_servico').select('status')
-    if (!data) return
-    const c = { novo:0, agendar_ec:0, aguardando_ec:0, confirmado_ec:0, liberado_lider:0, em_campo:0, elaborar_rm:0, concluido:0 }
-    data.forEach(os => { if (c[os.status] !== undefined) c[os.status]++ })
-    setContadores(c)
-  }
-
-  function abrirLista(titulo, status) {
-    setTelaParams({ titulo, status })
-    setTela('lista')
-  }
-
-  async function abrirOS(osBasica) {
-    // Busca dados atualizados do banco antes de abrir
-    const { data } = await supabase.from('ordens_servico').select('*').eq('id', osBasica.id).single()
-    setTelaParams(data || osBasica)
-    setTela('detalhes')
-  }
-
-  if (tela === 'mapa') return <MapaAdm onVoltar={() => setTela('home')} />
-  if (tela === 'nova_os') return <FormNovaOS perfil={perfil} onVoltar={() => setTela('home')} onSalvo={() => setTela('home')} />
-  if (tela === 'lista') return <ListaOS titulo={telaParams.titulo} status={telaParams.status} onVoltar={() => setTela('home')} onVerOS={abrirOS} />
-  if (tela === 'elaborar_rm') return <ElaborarRM os={telaParams} onVoltar={() => { setTelaParams(prev => prev); setTela('detalhes') }} onConcluir={() => setTela('home')} />
-  if (tela === 'detalhes') return <DetalhesOS os={telaParams} onVoltar={() => setTela('lista')} onAtualizar={() => setTela('home')} onElaborarRM={(os) => { setTelaParams(os); setTela('elaborar_rm') }} />
-
-  return (
-    <div style={{ minHeight:'100vh', background:'#2D3A8C', fontFamily:'system-ui,sans-serif', display:'flex', flexDirection:'column' }}>
-      <Header nome={perfil.nome} tipo="ADM · Grupo PG" onLogout={onLogout} />
-      <div style={{ flex:1, background:'#E6F1FB', padding:16 }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-          <div style={{ fontSize:11, fontWeight:500, color:'#4A7FC1', textTransform:'uppercase', letterSpacing:'0.05em' }}>Fila de trabalho</div>
-          <button onClick={() => setTela('mapa')} style={{ fontSize:13, background:'#2D3A8C', color:'#fff', border:'none', borderRadius:8, padding:'7px 16px', cursor:'pointer', fontWeight:500 }}>Mapa</button>
-        </div>
-        <Caixa num={contadores.novo} label="Novas OS" corFundo="#FAEEDA" corTexto="#412402" onClick={() => abrirLista('Novas OS', 'novo')} />
-        <Caixa num={contadores.agendar_ec + contadores.aguardando_ec} label="Em contato com EC" corFundo="#EEEDFE" corTexto="#26215C" onClick={() => abrirLista('Em contato com EC', ['agendar_ec','aguardando_ec'])} />
-        <Caixa num={contadores.confirmado_ec} label="Confirmado com EC" corFundo="#D4F0E4" corTexto="#0F6E56" onClick={() => abrirLista('Confirmado com EC', 'confirmado_ec')} />
-        <Caixa num={contadores.liberado_lider} label="Liberado p/ Lider" corFundo="#E6F1FB" corTexto="#0C447C" onClick={() => abrirLista('Liberado p/ Lider', 'liberado_lider')} />
-        <div style={{ fontSize:11, fontWeight:500, color:'#4A7FC1', textTransform:'uppercase', letterSpacing:'0.05em', margin:'16px 0 10px' }}>Em andamento</div>
-        <Caixa num={contadores.em_campo} label="No campo" corFundo="#EAF3DE" corTexto="#27500A" onClick={() => abrirLista('No campo', 'em_campo')} />
-        <Caixa num={contadores.elaborar_rm} label="Elaborar RM" corFundo="#F5CBA7" corTexto="#935116" onClick={() => abrirLista('Elaborar RM', 'elaborar_rm')} />
-        <Caixa num={contadores.concluido} label="Concluidas" corFundo="#E8F5EE" corTexto="#0F6E56" onClick={() => abrirLista('Concluidas', 'concluido')} />
-        <button onClick={() => setTela('nova_os')}
-          style={{ width:'100%', padding:13, background:'#3C3489', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:500, cursor:'pointer', borderBottom:'3px solid #26215C', marginTop:8 }}>
-          + Nova OS manual
-        </button>
-      </div>
     </div>
   )
 }
