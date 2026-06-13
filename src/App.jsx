@@ -110,6 +110,62 @@ const TIPO_COR = {
 
 function fmt(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) }
 
+const ETAPAS_UN_EN = ['Vistoria','Book+Croqui','Orçamento LPU','Envio Tecban','Aprovação','Execução obra','Termo assinado','ART','Book final','RM liberada']
+const ETAPAS_DESC = ['Vistoria','Book+Croqui','Orçamento LPU','Envio Tecban','Aprovação','Execução obra','QR Code','Termo assinado','Book final','RM liberada']
+const ETAPAS_OUTRAS = ['Início','Em andamento','Conclusão','Faturamento']
+
+function getEtapas(tipo) {
+  if (['TRANSF UN','TRANSF EN'].includes(tipo)) return ETAPAS_UN_EN
+  if (['DESC. PA','DESC. PAB','TRANSF PAE','ENCER. AG'].includes(tipo)) return ETAPAS_DESC
+  return ETAPAS_OUTRAS
+}
+
+function getEtapaAtual(status, tipo) {
+  const etapas = getEtapas(tipo)
+  const mapa = {
+    'EM ANDAMENTO': 1,
+    'ELABORAR BOOK': 2,
+    'BOOK PENDENTE': 2,
+    'AG. PEDIDO': 1,
+    'ENVIAR RM': etapas.length - 1,
+    'RM PRONTA AGUARDANDO ORDEM': etapas.length - 1,
+    'PRECISA DE ARQUIVO RM': etapas.length - 1,
+    'RM ENVIADA': etapas.length - 1,
+    'RM ENVIADA (ART)': etapas.length - 1,
+    'PENDÊNCIA': 2,
+    'NF EMITIDO': etapas.length,
+    'CANCELADO': 0,
+  }
+  return mapa[status] ?? 1
+}
+
+function Regua({ tipo, status }) {
+  const etapas = getEtapas(tipo)
+  const atual = getEtapaAtual(status, tipo)
+  return (
+    <div style={{ display:'flex', alignItems:'flex-start', padding:'10px 0 6px', overflowX:'auto', gap:0 }}>
+      {etapas.map((etapa, i) => {
+        const num = i + 1
+        const concluida = num < atual
+        const ativa = num === atual
+        const pendente = num > atual
+        const cor = concluida ? '#1A6B4A' : ativa ? '#2D3A8C' : '#D1D5DB'
+        return (
+          <div key={i} style={{ flex:1, minWidth:48, display:'flex', flexDirection:'column', alignItems:'center', position:'relative' }}>
+            {i < etapas.length - 1 && (
+              <div style={{ position:'absolute', top:11, left:'50%', right:'-50%', height:2, background: concluida ? '#1A6B4A' : '#E5E7EB', zIndex:0 }} />
+            )}
+            <div style={{ width:24, height:24, borderRadius:'50%', background: cor, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, position:'relative', zIndex:1, flexShrink:0, border: ativa ? '2px solid #2D3A8C' : 'none', boxShadow: ativa ? '0 0 0 3px rgba(45,58,140,.2)' : 'none' }}>
+              {concluida ? '✓' : num}
+            </div>
+            <div style={{ fontSize:8, color: concluida ? '#1A6B4A' : ativa ? '#2D3A8C' : '#9CA3AF', marginTop:4, textAlign:'center', lineHeight:1.2, maxWidth:48 }}>{etapa}</div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function App() {
   const [usuario, setUsuario] = useState(null)
   const [carregando, setCarregando] = useState(true)
@@ -312,6 +368,7 @@ export default function App() {
 
                   {estaAberta && (
                     <div style={{ padding:'12px 14px', borderTop:'1px solid #F0F4F8', background:'#FAFBFF' }}>
+                      <Regua tipo={obra.tipo} status={obra.status} />
                       {obra.obs && (
                         <div style={{ fontSize:11, background:'#FFF9E6', borderLeft:'3px solid #F5A623', padding:'6px 10px', borderRadius:4, color:'#7A5A00', marginBottom:10 }}>
                           ⚠️ {obra.obs}
