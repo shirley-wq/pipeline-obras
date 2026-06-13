@@ -77,9 +77,8 @@ const OBRAS_INICIAIS = [
 
 const STATUS_OPCOES = [
   'VISTORIA','BOOK E CROQUI','ORÇAMENTO LPU','ENVIO TECBAN','APROVAÇÃO',
-  'EM ANDAMENTO','ELABORAR BOOK','BOOK PENDENTE',
-  'RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM',
-  'NF EMITIDO','AG. PEDIDO','ENVIAR RM','PRECISA DE ARQUIVO RM','PENDÊNCIA','CANCELADO'
+  'EM ANDAMENTO','ELABORAR BOOK','ART PENDENTE','BOOK FINAL',
+  'RM ENVIADA','NF EMITIDO','PENDÊNCIA','CANCELADO'
 ]
 
 const STATUS_COR = {
@@ -88,16 +87,12 @@ const STATUS_COR = {
   'ORÇAMENTO LPU':{ bg:'#EDE9FE',text:'#5B21B6' },
   'ENVIO TECBAN':{ bg:'#FEF3C7',text:'#92400E' },
   'APROVAÇÃO':{ bg:'#D1FAE5',text:'#065F46' },
-  'NF EMITIDO':{ bg:'#D1FAE5',text:'#065F46' },
-  'RM ENVIADA':{ bg:'#DBEAFE',text:'#1E40AF' },
-  'RM ENVIADA (ART)':{ bg:'#E0F2FE',text:'#0369A1' },
-  'ELABORAR BOOK':{ bg:'#FEF9E7',text:'#856404' },
-  'BOOK PENDENTE':{ bg:'#FEF3C7',text:'#92400E' },
   'EM ANDAMENTO':{ bg:'#EDE9FE',text:'#5B21B6' },
-  'AG. PEDIDO':{ bg:'#FFF7ED',text:'#9A3412' },
-  'ENVIAR RM':{ bg:'#FEE2E2',text:'#991B1B' },
-  'RM PRONTA AGUARDANDO ORDEM':{ bg:'#F0FDF4',text:'#166534' },
-  'PRECISA DE ARQUIVO RM':{ bg:'#FEE2E2',text:'#991B1B' },
+  'ELABORAR BOOK':{ bg:'#FEF9E7',text:'#856404' },
+  'ART PENDENTE':{ bg:'#FFF7ED',text:'#9A3412' },
+  'BOOK FINAL':{ bg:'#FEF3C7',text:'#92400E' },
+  'RM ENVIADA':{ bg:'#DBEAFE',text:'#1E40AF' },
+  'NF EMITIDO':{ bg:'#D1FAE5',text:'#065F46' },
   'PENDÊNCIA':{ bg:'#FEE2E2',text:'#991B1B' },
   'CANCELADO':{ bg:'#F1F5F9',text:'#64748B' },
 }
