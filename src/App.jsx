@@ -122,21 +122,19 @@ function getEtapas(tipo) {
 
 function getEtapaAtual(status, tipo) {
   const etapas = getEtapas(tipo)
-  const mapa = {
-    'EM ANDAMENTO': 1,
-    'ELABORAR BOOK': 2,
-    'BOOK PENDENTE': 2,
-    'AG. PEDIDO': 1,
-    'ENVIAR RM': etapas.length - 1,
-    'RM PRONTA AGUARDANDO ORDEM': etapas.length - 1,
-    'PRECISA DE ARQUIVO RM': etapas.length - 1,
-    'RM ENVIADA': etapas.length - 1,
-    'RM ENVIADA (ART)': etapas.length - 1,
-    'PENDÊNCIA': 2,
-    'NF EMITIDO': etapas.length,
-    'CANCELADO': 0,
-  }
-  return mapa[status] ?? 1
+  const n = etapas.length
+  const s = status.toUpperCase()
+  if (s.includes('NF EMITIDO')) return n
+  if (s.includes('RM ENVIADA') || s.includes('RM PRONTA')) return n - 1
+  if (s.includes('ENVIAR RM') || s.includes('ARQUIVO RM')) return n - 1
+  if (s.includes('BOOK FINAL') || s.includes('BOOK POS') || s.includes('BOOK DE CONCLUSAO') || s.includes('BOOK + ART')) return n - 2
+  if (s.includes('ART') || s.includes('TERMO')) return n - 3
+  if (s.includes('QR CODE') || s.includes('EXECUCAO') || s.includes('EM ANDAMENTO') || s.includes('AG. PEDIDO')) return 6
+  if (s.includes('APROVACAO') || s.includes('APROVAÇÃO')) return 5
+  if (s.includes('ORÇAMENTO') || s.includes('ORCAMENTO') || s.includes('ENVIADO')) return 4
+  if (s.includes('BOOK') || s.includes('CROQUI')) return 3
+  if (s.includes('VISTORIA')) return 1
+  return 3
 }
 
 function Regua({ tipo, status }) {
