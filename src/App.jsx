@@ -176,6 +176,8 @@ export default function App() {
   const [novoStatus, setNovoStatus] = useState('')
   const [novaObs, setNovaObs] = useState('')
   const [salvando, setSalvando] = useState(false)
+  const [modalNovaObra, setModalNovaObra] = useState(false)
+  const [novaObra, setNovaObra] = useState({ tipo:'', nome:'', local:'', valor:'', sige:'', pedido:'', obs:'' })
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [erroLogin, setErroLogin] = useState('')
@@ -220,6 +222,29 @@ export default function App() {
     const { error } = await supabase.auth.signInWithPassword({ email, password: senha })
     if (error) setErroLogin('Email ou senha incorretos')
     setCarregandoLogin(false)
+  }
+
+  async function salvarNovaObra() {
+    if (!novaObra.tipo || !novaObra.nome) return
+    setSalvando(true)
+    const { data, error } = await supabase.from('pipeline_obras').insert({
+      tipo: novaObra.tipo,
+      nome: novaObra.nome,
+      local: novaObra.local || null,
+      valor: parseFloat(novaObra.valor) || 0,
+      sige: novaObra.sige || null,
+      pedido: novaObra.pedido || null,
+      obs: novaObra.obs || null,
+      status: 'EM ANDAMENTO',
+      atualizado_por: usuario.email,
+      atualizado_em: new Date().toISOString(),
+    }).select()
+    if (!error && data) {
+      setObras(prev => [...prev, data[0]].sort((a,b) => a.tipo.localeCompare(b.tipo)))
+    }
+    setSalvando(false)
+    setModalNovaObra(false)
+    setNovaObra({ tipo:'', nome:'', local:'', valor:'', sige:'', pedido:'', obs:'' })
   }
 
   async function salvarStatus() {
@@ -399,6 +424,60 @@ export default function App() {
           </div>
         ))}
       </div>
+
+      {/* Botão Nova Obra */}
+      <div style={{ padding:'0 12px 16px' }}>
+        <button onClick={() => setModalNovaObra(true)}
+          style={{ width:'100%', padding:13, background:'#3C3489', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:600, cursor:'pointer', borderBottom:'3px solid #26215C' }}>
+          + Nova Obra
+        </button>
+      </div>
+
+      {/* Modal Nova Obra */}
+      {modalNovaObra && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:100, display:'flex', alignItems:'flex-end' }}
+          onClick={e => { if(e.target === e.currentTarget) setModalNovaObra(false) }}>
+          <div style={{ background:'#fff', borderRadius:'16px 16px 0 0', padding:20, width:'100%', maxHeight:'90vh', overflowY:'auto' }}>
+            <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:16 }}>Nova Obra</div>
+            {[
+              { label:'Tipo *', field:'tipo', type:'select', options:['TRANSF UN','TRANSF EN','TRANSF PAE','DESC. PA','DESC. PAB','ENCER. AG','REFORMA','TB FORTE','LINK'] },
+              { label:'Nome da obra *', field:'nome', type:'text', placeholder:'Ex: BR_UN 1234 - NOME-USP' },
+              { label:'Local', field:'local', type:'text', placeholder:'Ex: SÃO PAULO-SP' },
+              { label:'Valor (R$)', field:'valor', type:'number', placeholder:'Ex: 12500.00' },
+              { label:'SIGE', field:'sige', type:'text', placeholder:'Ex: 14500' },
+              { label:'Pedido', field:'pedido', type:'text', placeholder:'Ex: ORDEM 1000079999' },
+              { label:'Observação', field:'obs', type:'textarea', placeholder:'Detalhes, pendências...' },
+            ].map(f => (
+              <div key={f.field} style={{ marginBottom:12 }}>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>{f.label}</label>
+                {f.type === 'select' ? (
+                  <select value={novaObra[f.field]} onChange={e => setNovaObra(p => ({...p, [f.field]:e.target.value}))}
+                    style={{ width:'100%', padding:'10px 12px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }}>
+                    <option value="">Selecione...</option>
+                    {f.options.map(o => <option key={o}>{o}</option>)}
+                  </select>
+                ) : f.type === 'textarea' ? (
+                  <textarea value={novaObra[f.field]} onChange={e => setNovaObra(p => ({...p, [f.field]:e.target.value}))}
+                    rows={3} placeholder={f.placeholder}
+                    style={{ width:'100%', padding:'10px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, resize:'none', boxSizing:'border-box', color:'#1A2340' }} />
+                ) : (
+                  <input type={f.type} value={novaObra[f.field]} onChange={e => setNovaObra(p => ({...p, [f.field]:e.target.value}))}
+                    placeholder={f.placeholder}
+                    style={{ width:'100%', padding:'10px 12px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                )}
+              </div>
+            ))}
+            <button onClick={salvarNovaObra} disabled={!novaObra.tipo || !novaObra.nome || salvando}
+              style={{ width:'100%', padding:13, background: (!novaObra.tipo||!novaObra.nome||salvando) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor:'pointer', marginBottom:8 }}>
+              {salvando ? 'Salvando...' : 'Criar Obra'}
+            </button>
+            <button onClick={() => setModalNovaObra(false)}
+              style={{ width:'100%', padding:11, background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:12, fontSize:13, cursor:'pointer' }}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {modal && (
