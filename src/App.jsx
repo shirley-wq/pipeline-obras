@@ -366,9 +366,12 @@ export default function App() {
                     </div>
                   </div>
 
+                  <div style={{ padding:'0 14px 8px' }}>
+                    <Regua tipo={obra.tipo} status={obra.status} />
+                  </div>
+
                   {estaAberta && (
                     <div style={{ padding:'12px 14px', borderTop:'1px solid #F0F4F8', background:'#FAFBFF' }}>
-                      <Regua tipo={obra.tipo} status={obra.status} />
                       {obra.obs && (
                         <div style={{ fontSize:11, background:'#FFF9E6', borderLeft:'3px solid #F5A623', padding:'6px 10px', borderRadius:4, color:'#7A5A00', marginBottom:10 }}>
                           ⚠️ {obra.obs}
