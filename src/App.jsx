@@ -177,6 +177,7 @@ export default function App() {
   const [modal, setModal] = useState(null)
   const [novoStatus, setNovoStatus] = useState('')
   const [novaObs, setNovaObs] = useState('')
+  const [dataInicio, setDataInicio] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [modalNovaObra, setModalNovaObra] = useState(false)
   const [menuAberto, setMenuAberto] = useState(null)
@@ -260,21 +261,26 @@ export default function App() {
   async function salvarStatus() {
     if (!novoStatus) return
     setSalvando(true)
-    const { error } = await supabase.from('pipeline_obras').update({
+    const updateData = {
       status: novoStatus,
       obs: novaObs || modal.obs || null,
       atualizado_em: new Date().toISOString(),
       atualizado_por: usuario.email,
-    }).eq('id', modal.id)
+    }
+    if (novoStatus === 'ORÇAMENTO APROVADO' && dataInicio) {
+      updateData.data_inicio = dataInicio
+    }
+    const { error } = await supabase.from('pipeline_obras').update(updateData).eq('id', modal.id)
     if (!error) {
       setObras(prev => prev.map(o => o.id === modal.id
-        ? { ...o, status: novoStatus, obs: novaObs || o.obs, atualizado_por: usuario.email, atualizado_em: new Date().toISOString() }
+        ? { ...o, status: novoStatus, obs: novaObs || o.obs, atualizado_por: usuario.email, atualizado_em: new Date().toISOString(), data_inicio: updateData.data_inicio || o.data_inicio }
         : o))
     }
     setSalvando(false)
     setModal(null)
     setNovoStatus('')
     setNovaObs('')
+    setDataInicio('')
     setAberta(null)
   }
 
@@ -439,6 +445,7 @@ export default function App() {
                         {obra.sige && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>SIGE</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.sige}</div></div>}
                         {obra.pedido && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Pedido</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.pedido}</div></div>}
                         {obra.nf && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>NF</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.nf}</div></div>}
+                        {obra.data_inicio && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Data Início</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{new Date(obra.data_inicio+'T12:00:00').toLocaleDateString('pt-BR')}</div></div>}
                         {obra.inicio && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Início</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.inicio}</div></div>}
                         {obra.termino && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Término</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.termino}</div></div>}
                       </div>
@@ -533,6 +540,13 @@ export default function App() {
                 </div>
               )
             })}
+            {novoStatus === 'ORÇAMENTO APROVADO' && (
+              <div style={{ marginBottom:12 }}>
+                <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, marginBottom:6 }}>Data de início da obra:</div>
+                <input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)}
+                  style={{ width:'100%', padding:'10px 12px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+              </div>
+            )}
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, margin:'12px 0 6px' }}>Observação:</div>
             <textarea value={novaObs} onChange={e=>setNovaObs(e.target.value)} rows={3}
               placeholder="Pendências, próximos passos..."
