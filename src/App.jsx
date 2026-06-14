@@ -275,6 +275,7 @@ export default function App() {
     setModal(null)
     setNovoStatus('')
     setNovaObs('')
+    setAberta(null)
   }
 
   const estilo = { fontFamily:'system-ui,sans-serif', minHeight:'100vh', background:'#F0F4F8' }
