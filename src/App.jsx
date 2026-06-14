@@ -423,6 +423,13 @@ export default function App() {
                       <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', flex:1, lineHeight:1.4 }}>{obra.nome}</div>
                       <div style={{ fontSize:13, fontWeight:700, color:'#2D3A8C', whiteSpace:'nowrap' }}>{fmt(obra.valor)}</div>
                     </div>
+                    {obra.data_inicio && (
+                      <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                        <span style={{ fontSize:12, background:'#2D3A8C', color:'#fff', padding:'3px 10px', borderRadius:8, fontWeight:600 }}>
+                          📅 Início: {new Date(obra.data_inicio+'T12:00:00').toLocaleDateString('pt-BR')}
+                        </span>
+                      </div>
+                    )}
                     <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
                       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:tc.bg, color:tc.text }}>{obra.tipo}</span>
                       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text }}>{obra.status}</span>
