@@ -326,13 +326,15 @@ export default function App() {
   const pendencias = obras.filter(o => ['PENDÊNCIA'].includes(o.status)).length
   const nfEmitido = obras.filter(o => o.status === 'EMITIR NF').length
 
+  const STATUS_TODOS = ['VISTORIA','BOOK E CROQUI','ORÇAMENTO LPU','ENVIO ORÇAMENTO TECBAN','ORÇAMENTO APROVADO','OBRA INICIADA','ASSINATURA DE TERMOS','ELABORAR QRCODE','ELABORAR ART','BOOK FINAL POS OBRA','ELABORAR RM','EMITIR NF','PENDÊNCIA','CANCELADO']
   const grupos = [
-    { label:'🔴 Pendências', obras: obrasFiltradas.filter(o => ['PENDÊNCIA'].includes(o.status)) },
-    { label:'🟡 Em andamento', obras: obrasFiltradas.filter(o => o.status === 'EM ANDAMENTO') },
+    { label:'🔴 Pendências', obras: obrasFiltradas.filter(o => o.status === 'PENDÊNCIA') },
+    { label:'🟡 Em andamento', obras: obrasFiltradas.filter(o => ['OBRA INICIADA','ASSINATURA DE TERMOS','ENVIO ORÇAMENTO TECBAN','ORÇAMENTO APROVADO'].includes(o.status)) },
     { label:'📚 Elaborar Book / ART / QR Code', obras: obrasFiltradas.filter(o => ['ELABORAR QRCODE','ELABORAR ART','BOOK FINAL POS OBRA'].includes(o.status)) },
-    { label:'📤 Elaborar RM', obras: obrasFiltradas.filter(o => ['ELABORAR RM'].includes(o.status)) },
+    { label:'📤 Elaborar RM', obras: obrasFiltradas.filter(o => o.status === 'ELABORAR RM') },
     { label:'✅ NF Emitido', obras: obrasFiltradas.filter(o => o.status === 'EMITIR NF') },
-    { label:'⚫ Outros', obras: obrasFiltradas.filter(o => !['PENDÊNCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM','EM ANDAMENTO','ELABORAR BOOK','BOOK PENDENTE','RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM','NF EMITIDO'].includes(o.status)) },
+    { label:'📋 Vistoria / Book / Orçamento', obras: obrasFiltradas.filter(o => ['VISTORIA','BOOK E CROQUI','ORÇAMENTO LPU'].includes(o.status)) },
+    { label:'⚫ Outros', obras: obrasFiltradas.filter(o => !STATUS_TODOS.includes(o.status)) },
   ].filter(g => g.obras.length > 0)
 
   return (
