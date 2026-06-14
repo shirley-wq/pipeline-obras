@@ -134,7 +134,8 @@ function getEtapaAtual(status, tipo) {
   if (s.includes('APROVACAO') || s.includes('APROVAÇÃO')) return 5
   if (s.includes('ORÇAMENTO') || s.includes('ORCAMENTO') || s.includes('ENVIADO')) return 4
   if (s.includes('BOOK E CROQUI') || s.includes('BOOK+CROQUI') || s.includes('CROQUI')) return 2
-  if (s.includes('BOOK') || s.includes('CROQUI')) return 3
+  if (s.includes('BOOK FINAL') || s.includes('ELABORAR BOOK')) return n - 2
+  if (s.includes('BOOK')) return 3
   if (s.includes('VISTORIA')) return 1
   return 3
 }
