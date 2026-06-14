@@ -76,23 +76,24 @@ const OBRAS_INICIAIS = [
 ]
 
 const STATUS_OPCOES = [
-  'VISTORIA','BOOK E CROQUI','ORÇAMENTO LPU','ENVIO TECBAN','APROVAÇÃO',
-  'EM ANDAMENTO','ELABORAR BOOK','ART PENDENTE','BOOK FINAL',
-  'RM ENVIADA','NF EMITIDO','PENDÊNCIA','CANCELADO'
+  'VISTORIA','BOOK E CROQUI','ORÇAMENTO LPU','ENVIO ORÇAMENTO TECBAN','ORÇAMENTO APROVADO',
+  'OBRA INICIADA','ASSINATURA DE TERMOS','ELABORAR QRCODE','ELABORAR ART','BOOK FINAL POS OBRA',
+  'ELABORAR RM','EMITIR NF','PENDÊNCIA','CANCELADO'
 ]
 
 const STATUS_COR = {
   'VISTORIA':{ bg:'#F0FDF4',text:'#166534' },
   'BOOK E CROQUI':{ bg:'#DBEAFE',text:'#1E40AF' },
   'ORÇAMENTO LPU':{ bg:'#EDE9FE',text:'#5B21B6' },
-  'ENVIO TECBAN':{ bg:'#FEF3C7',text:'#92400E' },
-  'APROVAÇÃO':{ bg:'#D1FAE5',text:'#065F46' },
-  'EM ANDAMENTO':{ bg:'#EDE9FE',text:'#5B21B6' },
-  'ELABORAR BOOK':{ bg:'#FEF9E7',text:'#856404' },
-  'ART PENDENTE':{ bg:'#FFF7ED',text:'#9A3412' },
-  'BOOK FINAL':{ bg:'#FEF3C7',text:'#92400E' },
-  'RM ENVIADA':{ bg:'#DBEAFE',text:'#1E40AF' },
-  'NF EMITIDO':{ bg:'#D1FAE5',text:'#065F46' },
+  'ENVIO ORÇAMENTO TECBAN':{ bg:'#FEF3C7',text:'#92400E' },
+  'ORÇAMENTO APROVADO':{ bg:'#D1FAE5',text:'#065F46' },
+  'OBRA INICIADA':{ bg:'#EDE9FE',text:'#5B21B6' },
+  'ASSINATURA DE TERMOS':{ bg:'#F0FDF4',text:'#166534' },
+  'ELABORAR QRCODE':{ bg:'#FEF9E7',text:'#856404' },
+  'ELABORAR ART':{ bg:'#FFF7ED',text:'#9A3412' },
+  'BOOK FINAL POS OBRA':{ bg:'#FEF3C7',text:'#92400E' },
+  'ELABORAR RM':{ bg:'#DBEAFE',text:'#1E40AF' },
+  'EMITIR NF':{ bg:'#D1FAE5',text:'#065F46' },
   'PENDÊNCIA':{ bg:'#FEE2E2',text:'#991B1B' },
   'CANCELADO':{ bg:'#F1F5F9',text:'#64748B' },
 }
@@ -111,9 +112,9 @@ const TIPO_COR = {
 
 function fmt(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) }
 
-const ETAPAS_UN_EN = ['Vistoria','Book+Croqui','Orçamento LPU','Envio Tecban','Aprovação','Execução obra','Termo assinado','ART','Book final','RM liberada']
-const ETAPAS_DESC = ['Vistoria','Book+Croqui','Orçamento LPU','Envio Tecban','Aprovação','Execução obra','QR Code','Termo assinado','Book final','RM liberada']
-const ETAPAS_OUTRAS = ['Início','Em andamento','Conclusão','Faturamento']
+const ETAPAS_UN_EN = ['Vistoria','Book+Croqui','Orç. LPU','Envio Orç. Tecban','Orç. Aprovado','Obra Iniciada','Assin. Termos','QR Code','Elaborar ART','Book Final','Elaborar RM','Emitir NF']
+const ETAPAS_DESC = ['Vistoria','Book+Croqui','Orç. LPU','Envio Orç. Tecban','Orç. Aprovado','Obra Iniciada','Assin. Termos','QR Code','Elaborar ART','Book Final','Elaborar RM','Emitir NF']
+const ETAPAS_OUTRAS = ['Vistoria','Book+Croqui','Orç. LPU','Envio Orç. Tecban','Orç. Aprovado','Obra Iniciada','Assin. Termos','QR Code','Elaborar ART','Book Final','Elaborar RM','Emitir NF']
 
 function getEtapas(tipo) {
   if (['TRANSF UN','TRANSF EN'].includes(tipo)) return ETAPAS_UN_EN
@@ -122,22 +123,20 @@ function getEtapas(tipo) {
 }
 
 function getEtapaAtual(status, tipo) {
-  const etapas = getEtapas(tipo)
-  const n = etapas.length
   const s = status.toUpperCase()
-  if (s.includes('NF EMITIDO')) return n
-  if (s.includes('RM ENVIADA') || s.includes('RM PRONTA')) return n - 1
-  if (s.includes('ENVIAR RM') || s.includes('ARQUIVO RM')) return n - 1
-  if (s.includes('BOOK FINAL') || s.includes('BOOK POS') || s.includes('BOOK DE CONCLUSAO') || s.includes('BOOK + ART')) return n - 2
-  if (s.includes('ART') || s.includes('TERMO')) return n - 3
-  if (s.includes('QR CODE') || s.includes('EXECUCAO') || s.includes('EM ANDAMENTO') || s.includes('AG. PEDIDO')) return 6
-  if (s.includes('APROVACAO') || s.includes('APROVAÇÃO')) return 5
-  if (s.includes('ORÇAMENTO') || s.includes('ORCAMENTO') || s.includes('ENVIADO')) return 4
-  if (s.includes('BOOK E CROQUI') || s.includes('BOOK+CROQUI') || s.includes('CROQUI')) return 2
-  if (s.includes('BOOK FINAL') || s.includes('ELABORAR BOOK')) return n - 2
-  if (s.includes('BOOK')) return 3
+  if (s.includes('EMITIR NF') || s.includes('NF EMITIDO')) return 12
+  if (s.includes('ELABORAR RM') || s.includes('RM ENVIADA') || s.includes('RM PRONTA')) return 11
+  if (s.includes('BOOK FINAL') || s.includes('ELABORAR BOOK')) return 10
+  if (s.includes('ELABORAR ART') || s.includes('ART PENDENTE')) return 9
+  if (s.includes('QRCODE') || s.includes('QR CODE')) return 8
+  if (s.includes('ASSINATURA') || s.includes('TERMO')) return 7
+  if (s.includes('OBRA INICIADA') || s.includes('EM ANDAMENTO')) return 6
+  if (s.includes('ORÇAMENTO APROVADO') || s.includes('APROVADO') || s.includes('APROVAÇÃO')) return 5
+  if (s.includes('ENVIO ORÇAMENTO') || s.includes('ENVIO TECBAN')) return 4
+  if (s.includes('ORÇAMENTO LPU') || s.includes('ORCAMENTO')) return 3
+  if (s.includes('BOOK E CROQUI') || s.includes('CROQUI')) return 2
   if (s.includes('VISTORIA')) return 1
-  return 3
+  return 1
 }
 
 function Regua({ tipo, status }) {
@@ -323,16 +322,16 @@ export default function App() {
   })
 
   const totalValor = obras.reduce((s,o) => s + Number(o.valor||0), 0)
-  const emAndamento = obras.filter(o => o.status === 'EM ANDAMENTO').length
-  const pendencias = obras.filter(o => ['PENDÊNCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM'].includes(o.status)).length
-  const nfEmitido = obras.filter(o => o.status === 'NF EMITIDO').length
+  const emAndamento = obras.filter(o => ['OBRA INICIADA','ENVIO ORÇAMENTO TECBAN','ORÇAMENTO APROVADO','ASSINATURA DE TERMOS','ELABORAR QRCODE','ELABORAR ART'].includes(o.status)).length
+  const pendencias = obras.filter(o => ['PENDÊNCIA'].includes(o.status)).length
+  const nfEmitido = obras.filter(o => o.status === 'EMITIR NF').length
 
   const grupos = [
-    { label:'🔴 Pendências', obras: obrasFiltradas.filter(o => ['PENDÊNCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM'].includes(o.status)) },
+    { label:'🔴 Pendências', obras: obrasFiltradas.filter(o => ['PENDÊNCIA'].includes(o.status)) },
     { label:'🟡 Em andamento', obras: obrasFiltradas.filter(o => o.status === 'EM ANDAMENTO') },
-    { label:'📚 Elaborar / Book pendente', obras: obrasFiltradas.filter(o => ['ELABORAR BOOK','BOOK PENDENTE'].includes(o.status)) },
-    { label:'📤 RM Enviada / Aguardando', obras: obrasFiltradas.filter(o => ['RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM'].includes(o.status)) },
-    { label:'✅ NF Emitido', obras: obrasFiltradas.filter(o => o.status === 'NF EMITIDO') },
+    { label:'📚 Elaborar Book / ART / QR Code', obras: obrasFiltradas.filter(o => ['ELABORAR QRCODE','ELABORAR ART','BOOK FINAL POS OBRA'].includes(o.status)) },
+    { label:'📤 Elaborar RM', obras: obrasFiltradas.filter(o => ['ELABORAR RM'].includes(o.status)) },
+    { label:'✅ NF Emitido', obras: obrasFiltradas.filter(o => o.status === 'EMITIR NF') },
     { label:'⚫ Outros', obras: obrasFiltradas.filter(o => !['PENDÊNCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM','EM ANDAMENTO','ELABORAR BOOK','BOOK PENDENTE','RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM','NF EMITIDO'].includes(o.status)) },
   ].filter(g => g.obras.length > 0)
 
