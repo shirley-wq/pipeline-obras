@@ -179,6 +179,7 @@ export default function App() {
   const [novaObs, setNovaObs] = useState('')
   const [dataInicio, setDataInicio] = useState('')
   const [novoValor, setNovoValor] = useState('')
+  const [emNegociacao, setEmNegociacao] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [modalNovaObra, setModalNovaObra] = useState(false)
   const [menuAberto, setMenuAberto] = useState(null)
@@ -274,10 +275,11 @@ export default function App() {
     if (novoValor !== '' && !isNaN(parseFloat(novoValor))) {
       updateData.valor = parseFloat(novoValor)
     }
+    updateData.em_negociacao = emNegociacao
     const { error } = await supabase.from('pipeline_obras').update(updateData).eq('id', modal.id)
     if (!error) {
       setObras(prev => prev.map(o => o.id === modal.id
-        ? { ...o, status: novoStatus, obs: novaObs || o.obs, atualizado_por: usuario.email, atualizado_em: new Date().toISOString(), data_inicio: updateData.data_inicio || o.data_inicio, valor: updateData.valor ?? o.valor }
+        ? { ...o, status: novoStatus, obs: novaObs || o.obs, atualizado_por: usuario.email, atualizado_em: new Date().toISOString(), data_inicio: updateData.data_inicio || o.data_inicio, valor: updateData.valor ?? o.valor, em_negociacao: emNegociacao }
         : o))
     }
     setSalvando(false)
@@ -286,6 +288,7 @@ export default function App() {
     setNovaObs('')
     setDataInicio('')
     setNovoValor('')
+    setEmNegociacao(false)
     setAberta(null)
   }
 
@@ -428,11 +431,18 @@ export default function App() {
                       <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', flex:1, lineHeight:1.4 }}>{obra.nome}</div>
                       <div style={{ fontSize:13, fontWeight:700, color:'#2D3A8C', whiteSpace:'nowrap' }}>{fmt(obra.valor)}</div>
                     </div>
-                    {obra.data_inicio && (
-                      <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
-                        <span style={{ fontSize:12, background:'#2D3A8C', color:'#fff', padding:'3px 10px', borderRadius:8, fontWeight:600 }}>
-                          📅 Início: {new Date(obra.data_inicio+'T12:00:00').toLocaleDateString('pt-BR')}
-                        </span>
+                    {(obra.data_inicio || obra.em_negociacao) && (
+                      <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4, flexWrap:'wrap' }}>
+                        {obra.data_inicio && (
+                          <span style={{ fontSize:12, background:'#2D3A8C', color:'#fff', padding:'3px 10px', borderRadius:8, fontWeight:600 }}>
+                            📅 Início: {new Date(obra.data_inicio+'T12:00:00').toLocaleDateString('pt-BR')}
+                          </span>
+                        )}
+                        {obra.em_negociacao && (
+                          <span style={{ fontSize:12, background:'#E24B4A', color:'#fff', padding:'3px 10px', borderRadius:8, fontWeight:600 }}>
+                            🔴 Orç. em negociação
+                          </span>
+                        )}
                       </div>
                     )}
                     <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
@@ -466,7 +476,7 @@ export default function App() {
                           Atualizado por {obra.atualizado_por} · {obra.atualizado_em ? new Date(obra.atualizado_em).toLocaleString('pt-BR') : ''}
                         </div>
                       )}
-                      <button onClick={() => { setModal(obra); setNovoStatus(obra.status); setNovaObs(obra.obs||'') }}
+                      <button onClick={() => { setModal(obra); setNovoStatus(obra.status); setNovaObs(obra.obs||''); setEmNegociacao(obra.em_negociacao || false) }}
                         style={{ width:'100%', padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                         Atualizar status
                       </button>
@@ -566,6 +576,15 @@ export default function App() {
               <input type="text" value={novoValor} onChange={e => setNovoValor(e.target.value.replace(',','.'))}
                 placeholder={`Deixe vazio para manter ${fmt(modal.valor)}`}
                 style={{ width:'100%', padding:'10px 12px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+            </div>
+            <div style={{ marginBottom:12 }}>
+              <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'10px 12px', border:'1px solid #CDD8E3', borderRadius:10, background: emNegociacao ? '#FEE2E2' : '#fff' }}>
+                <input type="checkbox" checked={emNegociacao} onChange={e => setEmNegociacao(e.target.checked)}
+                  style={{ width:18, height:18, cursor:'pointer', accentColor:'#E24B4A' }} />
+                <span style={{ fontSize:13, color: emNegociacao ? '#991B1B' : '#1A2340', fontWeight: emNegociacao ? 600 : 400 }}>
+                  🔴 Orçamento devolvido para negociação
+                </span>
+              </label>
             </div>
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, margin:'12px 0 6px' }}>Observação:</div>
             <textarea value={novaObs} onChange={e=>setNovaObs(e.target.value)} rows={3}
