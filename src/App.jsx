@@ -178,6 +178,7 @@ export default function App() {
   const [novoStatus, setNovoStatus] = useState('')
   const [novaObs, setNovaObs] = useState('')
   const [dataInicio, setDataInicio] = useState('')
+  const [novoValor, setNovoValor] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [modalNovaObra, setModalNovaObra] = useState(false)
   const [menuAberto, setMenuAberto] = useState(null)
@@ -270,10 +271,13 @@ export default function App() {
     if (novoStatus === 'ORÇAMENTO APROVADO' && dataInicio) {
       updateData.data_inicio = dataInicio
     }
+    if (novoValor !== '' && !isNaN(parseFloat(novoValor))) {
+      updateData.valor = parseFloat(novoValor)
+    }
     const { error } = await supabase.from('pipeline_obras').update(updateData).eq('id', modal.id)
     if (!error) {
       setObras(prev => prev.map(o => o.id === modal.id
-        ? { ...o, status: novoStatus, obs: novaObs || o.obs, atualizado_por: usuario.email, atualizado_em: new Date().toISOString(), data_inicio: updateData.data_inicio || o.data_inicio }
+        ? { ...o, status: novoStatus, obs: novaObs || o.obs, atualizado_por: usuario.email, atualizado_em: new Date().toISOString(), data_inicio: updateData.data_inicio || o.data_inicio, valor: updateData.valor ?? o.valor }
         : o))
     }
     setSalvando(false)
@@ -281,6 +285,7 @@ export default function App() {
     setNovoStatus('')
     setNovaObs('')
     setDataInicio('')
+    setNovoValor('')
     setAberta(null)
   }
 
@@ -554,6 +559,14 @@ export default function App() {
                   style={{ width:'100%', padding:'10px 12px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
               </div>
             )}
+            <div style={{ marginBottom:12 }}>
+              <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, marginBottom:6 }}>
+                Atualizar valor da obra (R$): <span style={{ fontSize:11, color:'#888', fontWeight:400 }}>atual: {fmt(modal.valor)}</span>
+              </div>
+              <input type="number" value={novoValor} onChange={e => setNovoValor(e.target.value)}
+                placeholder={`Deixe vazio para manter ${fmt(modal.valor)}`}
+                style={{ width:'100%', padding:'10px 12px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+            </div>
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, margin:'12px 0 6px' }}>Observação:</div>
             <textarea value={novaObs} onChange={e=>setNovaObs(e.target.value)} rows={3}
               placeholder="Pendências, próximos passos..."
