@@ -563,7 +563,7 @@ export default function App() {
               <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, marginBottom:6 }}>
                 Atualizar valor da obra (R$): <span style={{ fontSize:11, color:'#888', fontWeight:400 }}>atual: {fmt(modal.valor)}</span>
               </div>
-              <input type="number" value={novoValor} onChange={e => setNovoValor(e.target.value)}
+              <input type="text" value={novoValor} onChange={e => setNovoValor(e.target.value.replace(',','.'))}
                 placeholder={`Deixe vazio para manter ${fmt(modal.valor)}`}
                 style={{ width:'100%', padding:'10px 12px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
             </div>
