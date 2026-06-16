@@ -228,6 +228,7 @@ export default function App() {
   const [senha, setSenha] = useState('')
   const [erroLogin, setErroLogin] = useState('')
   const [carregandoLogin, setCarregandoLogin] = useState(false)
+  const [importando, setImportando] = useState(false)
   const [modalAcionamento, setModalAcionamento] = useState(null)
   const [termosSelecionados, setTermosSelecionados] = useState({})
   const [checklistAberto, setChecklistAberto] = useState(null)
