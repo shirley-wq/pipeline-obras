@@ -210,6 +210,7 @@ export default function App() {
   const [senha, setSenha] = useState('')
   const [erroLogin, setErroLogin] = useState('')
   const [carregandoLogin, setCarregandoLogin] = useState(false)
+  const [importando, setImportando] = useState(false)
   const [checklistAberto, setChecklistAberto] = useState(null)
   const [novoItemChecklist, setNovoItemChecklist] = useState('')
   const [salvandoChecklist, setSalvandoChecklist] = useState(false)
