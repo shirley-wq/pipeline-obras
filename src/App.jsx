@@ -112,6 +112,28 @@ const TIPO_COR = {
 
 function fmt(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) }
 
+const CHECKLIST_PADRAO = [
+  { id:'book_vistoria',    texto:'Verificar book de vistoria', obrigatorio:true },
+  { id:'parede',           texto:'Verificar: tem parede de drywall / divisória naval / não precisa fazer parede?', obrigatorio:false },
+  { id:'carpete',          texto:'Remover carpete?', obrigatorio:false },
+  { id:'piso_tatil_rem',   texto:'Remover piso tátil?', obrigatorio:false },
+  { id:'piso_tatil_apl',   texto:'Reaplicar piso tátil?', obrigatorio:false },
+  { id:'adesivos',         texto:'Aplicar adesivos nos vidros?', obrigatorio:false },
+  { id:'cacamba',          texto:'Necessário caçamba?', obrigatorio:false },
+  { id:'carro_transporte', texto:'Necessário carro de transporte?', obrigatorio:false },
+  { id:'dcm_impressos',    texto:'Termos de DCM estão impressos?', obrigatorio:true },
+  { id:'termos_conclusao', texto:'Termos de conclusão de obra disponíveis para assinatura', obrigatorio:true, link:true },
+  { id:'epis',             texto:'Levou EPIs?', obrigatorio:true },
+]
+
+const STATUS_APROVADO_IDX = 5
+
+function statusAprovado(status) {
+  const s = status?.toUpperCase() || ''
+  const aprovados = ['ORÇAMENTO APROVADO','OBRA INICIADA','ASSINATURA DE TERMOS','ELABORAR QRCODE','ELABORAR ART','BOOK FINAL POS OBRA','ELABORAR RM','EMITIR NF','EM ANDAMENTO','BOOK PENDENTE','ELABORAR BOOK','RM ENVIADA','RM PRONTA','NF EMITIDO']
+  return aprovados.some(a => s.includes(a))
+}
+
 const ETAPAS_UN_EN = ['Vistoria','Book+Croqui','Orç. LPU','Envio Orç. Tecban','Orç. Aprovado','Obra Iniciada','Assin. Termos','QR Code','Elaborar ART','Book Final','Elaborar RM','Emitir NF']
 const ETAPAS_DESC = ['Vistoria','Book+Croqui','Orç. LPU','Envio Orç. Tecban','Orç. Aprovado','Obra Iniciada','Assin. Termos','QR Code','Elaborar ART','Book Final','Elaborar RM','Emitir NF']
 const ETAPAS_OUTRAS = ['Vistoria','Book+Croqui','Orç. LPU','Envio Orç. Tecban','Orç. Aprovado','Obra Iniciada','Assin. Termos','QR Code','Elaborar ART','Book Final','Elaborar RM','Emitir NF']
@@ -188,7 +210,9 @@ export default function App() {
   const [senha, setSenha] = useState('')
   const [erroLogin, setErroLogin] = useState('')
   const [carregandoLogin, setCarregandoLogin] = useState(false)
-  const [importando, setImportando] = useState(false)
+  const [checklistAberto, setChecklistAberto] = useState(null)
+  const [novoItemChecklist, setNovoItemChecklist] = useState('')
+  const [salvandoChecklist, setSalvandoChecklist] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -290,6 +314,38 @@ export default function App() {
     setNovoValor('')
     setEmNegociacao(false)
     setAberta(null)
+  }
+
+  function getChecklist(obra) {
+    if (!obra.checklist) return CHECKLIST_PADRAO.map(i => ({ ...i, feito: false }))
+    const salvo = typeof obra.checklist === 'string' ? JSON.parse(obra.checklist) : obra.checklist
+    const base = CHECKLIST_PADRAO.map(i => ({ ...i, feito: salvo.find(s => s.id === i.id)?.feito || false }))
+    const extras = salvo.filter(s => !CHECKLIST_PADRAO.find(p => p.id === s.id))
+    return [...base, ...extras]
+  }
+
+  async function toggleItem(obra, itemId) {
+    const lista = getChecklist(obra)
+    const nova = lista.map(i => i.id === itemId ? { ...i, feito: !i.feito } : i)
+    const novaObras = obras.map(o => o.id === obra.id ? { ...o, checklist: nova } : o)
+    setObras(novaObras)
+    await supabase.from('pipeline_obras').update({ checklist: nova }).eq('id', obra.id)
+  }
+
+  async function adicionarItemChecklist(obra) {
+    if (!novoItemChecklist.trim()) return
+    const lista = getChecklist(obra)
+    const novo = { id: 'extra_' + Date.now(), texto: novoItemChecklist.trim(), obrigatorio: false, feito: false, extra: true }
+    const nova = [...lista, novo]
+    setObras(obras.map(o => o.id === obra.id ? { ...o, checklist: nova } : o))
+    await supabase.from('pipeline_obras').update({ checklist: nova }).eq('id', obra.id)
+    setNovoItemChecklist('')
+  }
+
+  async function removerItemExtra(obra, itemId) {
+    const lista = getChecklist(obra).filter(i => i.id !== itemId)
+    setObras(obras.map(o => o.id === obra.id ? { ...o, checklist: lista } : o))
+    await supabase.from('pipeline_obras').update({ checklist: lista }).eq('id', obra.id)
   }
 
   const estilo = { fontFamily:'system-ui,sans-serif', minHeight:'100vh', background:'#F0F4F8' }
@@ -476,6 +532,70 @@ export default function App() {
                           Atualizado por {obra.atualizado_por} · {obra.atualizado_em ? new Date(obra.atualizado_em).toLocaleString('pt-BR') : ''}
                         </div>
                       )}
+                      {statusAprovado(obra.status) && (() => {
+                        const lista = getChecklist(obra)
+                        const pendentes = lista.filter(i => !i.feito).length
+                        const obrigPendentes = lista.filter(i => i.obrigatorio && !i.feito).length
+                        const checkAberto = checklistAberto === obra.id
+                        return (
+                          <div style={{ marginBottom:12 }}>
+                            <div onClick={() => setChecklistAberto(checkAberto ? null : obra.id)}
+                              style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 12px', background: obrigPendentes > 0 ? '#FEE2E2' : pendentes > 0 ? '#FEF9E6' : '#D1FAE5', borderRadius:10, cursor:'pointer', border:`1px solid ${obrigPendentes > 0 ? '#FCA5A5' : pendentes > 0 ? '#FCD34D' : '#6EE7B7'}` }}>
+                              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                                <span style={{ fontSize:14 }}>{obrigPendentes > 0 ? '🔴' : pendentes > 0 ? '🟡' : '✅'}</span>
+                                <span style={{ fontSize:12, fontWeight:600, color: obrigPendentes > 0 ? '#991B1B' : pendentes > 0 ? '#92400E' : '#065F46' }}>
+                                  Checklist pré-obra
+                                </span>
+                              </div>
+                              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                                {pendentes > 0 && <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:20, background: obrigPendentes > 0 ? '#FCA5A5' : '#FCD34D', color: obrigPendentes > 0 ? '#991B1B' : '#92400E' }}>{pendentes} pendente{pendentes>1?'s':''}</span>}
+                                {pendentes === 0 && <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:20, background:'#6EE7B7', color:'#065F46' }}>Tudo ok</span>}
+                                <span style={{ fontSize:16, color:'#888' }}>{checkAberto ? '▲' : '▼'}</span>
+                              </div>
+                            </div>
+                            {checkAberto && (
+                              <div style={{ border:'1px solid #E0E8F0', borderTop:'none', borderRadius:'0 0 10px 10px', background:'#FAFBFF', padding:'8px 12px' }}>
+                                {lista.map(item => (
+                                  <div key={item.id} style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'8px 0', borderBottom:'1px solid #F0F4F8' }}>
+                                    <div onClick={() => toggleItem(obra, item.id)}
+                                      style={{ width:20, height:20, borderRadius:5, border: item.feito ? 'none' : `1.5px solid ${item.obrigatorio ? '#FCA5A5' : '#B5D4F4'}`, background: item.feito ? '#1A6B4A' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0, marginTop:1 }}>
+                                      {item.feito && <span style={{ color:'#fff', fontSize:12, fontWeight:700 }}>✓</span>}
+                                    </div>
+                                    <div style={{ flex:1 }}>
+                                      <span style={{ fontSize:12, color: item.feito ? '#888' : '#1A2340', textDecoration: item.feito ? 'line-through' : 'none' }}>
+                                        {item.texto}
+                                        {item.link && !item.feito && (
+                                          <a href="https://drive.google.com" target="_blank" rel="noreferrer"
+                                            style={{ marginLeft:6, fontSize:11, color:'#2D3A8C', textDecoration:'underline' }}>
+                                            Acessar termos ↗
+                                          </a>
+                                        )}
+                                      </span>
+                                      {item.obrigatorio && !item.feito && (
+                                        <span style={{ display:'block', fontSize:10, color:'#E24B4A', marginTop:2 }}>⚠ Obrigatório</span>
+                                      )}
+                                    </div>
+                                    {item.extra && (
+                                      <span onClick={() => removerItemExtra(obra, item.id)} style={{ fontSize:16, color:'#ccc', cursor:'pointer', flexShrink:0 }}>×</span>
+                                    )}
+                                  </div>
+                                ))}
+                                <div style={{ display:'flex', gap:8, marginTop:10 }}>
+                                  <input value={novoItemChecklist} onChange={e => setNovoItemChecklist(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && adicionarItemChecklist(obra)}
+                                    placeholder="Adicionar item extra..."
+                                    style={{ flex:1, padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340' }} />
+                                  <button onClick={() => adicionarItemChecklist(obra)}
+                                    style={{ padding:'8px 14px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
+
                       <button onClick={() => { setModal(obra); setNovoStatus(obra.status); setNovaObs(obra.obs||''); setEmNegociacao(obra.em_negociacao || false) }}
                         style={{ width:'100%', padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                         Atualizar status
