@@ -326,7 +326,11 @@ export default function App() {
   function getChecklist(obra) {
     if (!obra.checklist) return CHECKLIST_PADRAO.map(i => ({ ...i, feito: false }))
     const salvo = typeof obra.checklist === 'string' ? JSON.parse(obra.checklist) : obra.checklist
-    const base = CHECKLIST_PADRAO.map(i => ({ ...i, feito: salvo.find(s => s.id === i.id)?.feito || false }))
+    const base = CHECKLIST_PADRAO.map(i => {
+      const salvoItem = salvo.find(s => s.id === i.id)
+      if (!salvoItem) return { ...i, feito: false }
+      return { ...i, feito: salvoItem.feito || false, valor: salvoItem.valor || null, qtd: salvoItem.qtd || null }
+    })
     const extras = salvo.filter(s => !CHECKLIST_PADRAO.find(p => p.id === s.id))
     return [...base, ...extras]
   }
