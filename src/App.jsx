@@ -228,7 +228,6 @@ export default function App() {
   const [senha, setSenha] = useState('')
   const [erroLogin, setErroLogin] = useState('')
   const [carregandoLogin, setCarregandoLogin] = useState(false)
-  const [importando, setImportando] = useState(false)
   const [modalAcionamento, setModalAcionamento] = useState(null)
   const [termosSelecionados, setTermosSelecionados] = useState({})
   const [checklistAberto, setChecklistAberto] = useState(null)
@@ -407,79 +406,292 @@ export default function App() {
     const servicos = checklist.filter(i => i.feito && !i.obrigatorio)
     const dataHoje = new Date().toLocaleDateString('pt-BR')
     const dataInicio = obra.data_inicio ? new Date(obra.data_inicio + 'T12:00:00').toLocaleDateString('pt-BR') : '___/___/______'
+    const nomeObra = obra.nome || ''
+    const enderecoObra = obra.local || ''
 
-    let html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-    <title>Acionamento - ${obra.nome}</title>
-    <style>
-      body { font-family: Arial, sans-serif; margin: 0; padding: 0; color: #1A2340; }
-      .page { padding: 30px 40px; max-width: 800px; margin: 0 auto; }
-      .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #2D3A8C; padding-bottom: 16px; margin-bottom: 24px; }
-      .logo-txt { font-size: 28px; font-weight: 800; color: #2D3A8C; }
-      .logo-sub { font-size: 11px; color: #888; }
-      .badge { background: #2D3A8C; color: #fff; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; }
-      h2 { font-size: 14px; color: #2D3A8C; border-left: 4px solid #2D3A8C; padding-left: 10px; margin: 20px 0 10px; text-transform: uppercase; letter-spacing: 0.5px; }
-      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
-      .campo { background: #F8FAFC; border: 1px solid #E0E8F0; border-radius: 8px; padding: 10px 14px; }
-      .campo label { font-size: 10px; color: #888; text-transform: uppercase; display: block; margin-bottom: 4px; }
-      .campo span { font-size: 13px; font-weight: 600; color: #1A2340; }
-      .servico { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #F0F4F8; font-size: 13px; }
-      .check { width: 16px; height: 16px; border: 2px solid #1A6B4A; border-radius: 4px; background: #1A6B4A; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; flex-shrink: 0; }
-      .termos-lista { margin-top: 16px; }
-      .termo-item { padding: 8px 12px; border-bottom: 1px solid #F0F4F8; font-size: 13px; color: #4A7FC1; }
-      .assinatura { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
-      .ass-campo { border-top: 1px solid #333; padding-top: 6px; font-size: 11px; color: #666; }
-      .footer { margin-top: 40px; border-top: 1px solid #E0E8F0; padding-top: 12px; display: flex; justify-content: space-between; font-size: 10px; color: #aaa; }
-      @media print { body { margin: 0; } }
-    </style></head><body>
+    const estiloGeral = `
+      body { font-family: Arial, sans-serif; margin: 0; padding: 0; color: #000; font-size: 11px; }
+      .page { padding: 20px 30px; max-width: 780px; margin: 0 auto; page-break-after: always; }
+      .page:last-child { page-break-after: auto; }
+      .tecban-header { display: flex; align-items: flex-start; gap: 16px; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
+      .tecban-logo { font-size: 18px; font-weight: 900; color: #cc0000; border: 2px solid #cc0000; padding: 4px 8px; border-radius: 4px; }
+      .tecban-title { flex: 1; }
+      .tecban-title .proj { font-size: 13px; }
+      .tecban-title .proj b { font-size: 14px; }
+      .tecban-title .doc { font-size: 12px; }
+      .sec-header { background: #666; color: #fff; font-weight: 700; padding: 4px 8px; font-size: 11px; margin: 10px 0 6px; }
+      .sec-header.blue { background: #003399; }
+      .sec-header.red { background: #990000; }
+      .linha { border-bottom: 1px solid #000; margin: 6px 0; min-height: 18px; }
+      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+      .campo { margin-bottom: 6px; }
+      .campo label { font-weight: 700; display: block; margin-bottom: 2px; }
+      .campo .linha { margin-top: 2px; }
+      .check-opt { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+      .check-box { width: 14px; height: 14px; border: 1px solid #000; display: inline-block; flex-shrink: 0; }
+      table.form { width: 100%; border-collapse: collapse; }
+      table.form th { background: #666; color: #fff; font-size: 10px; padding: 3px 6px; text-align: left; }
+      table.form td { border: 1px solid #ccc; padding: 3px 6px; min-height: 20px; font-size: 10px; }
+      table.form tr.eq { background: #e8e8e8; font-weight: 700; }
+      .footer-bar { background: #333; color: #fff; display: flex; justify-content: space-between; padding: 3px 8px; font-size: 10px; margin-top: 20px; }
+      .ass-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 20px; }
+      .ass-campo { border-top: 1px solid #000; padding-top: 4px; font-size: 10px; }
+
+      /* Página OS */
+      .os-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #2D3A8C; padding-bottom: 12px; margin-bottom: 20px; }
+      .os-logo { font-size: 26px; font-weight: 900; color: #2D3A8C; }
+      .os-badge { background: #2D3A8C; color: #fff; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+      .os-sec { font-size: 11px; color: #2D3A8C; border-left: 3px solid #2D3A8C; padding-left: 8px; margin: 16px 0 8px; font-weight: 700; text-transform: uppercase; }
+      .os-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+      .os-campo { background: #F8FAFC; border: 1px solid #ddd; border-radius: 6px; padding: 8px 12px; }
+      .os-campo label { font-size: 9px; color: #888; text-transform: uppercase; display: block; margin-bottom: 3px; }
+      .os-campo span { font-size: 12px; font-weight: 700; }
+      .os-serv { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #f0f0f0; font-size: 11px; }
+      .os-check { width: 14px; height: 14px; background: #1A6B4A; border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 9px; flex-shrink: 0; }
+      .os-termo { padding: 6px 10px; border-bottom: 1px solid #f0f0f0; font-size: 11px; color: #2D3A8C; }
+      @media print { .page { padding: 15px 20px; } }
+    `
+
+    // Página 1 - OS
+    const pg1 = `
     <div class="page">
-      <div class="header">
+      <div class="os-header">
         <div>
-          <div class="logo-txt">GRUPO PG</div>
-          <div class="logo-sub">Construtora · Infraestrutura · Telecomunicações</div>
+          <div class="os-logo">GRUPO PG</div>
+          <div style="font-size:10px;color:#888">Construtora · Infraestrutura · Telecomunicações</div>
         </div>
-        <div>
-          <div class="badge">ORDEM DE ACIONAMENTO</div>
-          <div style="font-size:11px;color:#888;text-align:right;margin-top:4px">Gerado em ${dataHoje}</div>
+        <div style="text-align:right">
+          <div class="os-badge">ORDEM DE ACIONAMENTO</div>
+          <div style="font-size:10px;color:#888;margin-top:3px">Gerado em ${dataHoje}</div>
         </div>
       </div>
-
-      <h2>Dados da Obra</h2>
-      <div class="grid2">
-        <div class="campo"><label>Nome</label><span>${obra.nome}</span></div>
-        <div class="campo"><label>Tipo</label><span>${obra.tipo}</span></div>
-        <div class="campo"><label>Local</label><span>${obra.local || '—'}</span></div>
-        <div class="campo"><label>Data de Início</label><span>${dataInicio}</span></div>
-        <div class="campo"><label>SIGE</label><span>${obra.sige || '—'}</span></div>
-        <div class="campo"><label>Pedido</label><span>${obra.pedido || '—'}</span></div>
+      <div class="os-sec">Dados da Obra</div>
+      <div class="os-grid">
+        <div class="os-campo"><label>Nome</label><span>${nomeObra}</span></div>
+        <div class="os-campo"><label>Tipo</label><span>${obra.tipo}</span></div>
+        <div class="os-campo"><label>Local</label><span>${enderecoObra || '—'}</span></div>
+        <div class="os-campo"><label>Data de Início</label><span>${dataInicio}</span></div>
+        <div class="os-campo"><label>SIGE</label><span>${obra.sige || '—'}</span></div>
+        <div class="os-campo"><label>Pedido</label><span>${obra.pedido || '—'}</span></div>
       </div>
-
-      <h2>Serviços a Executar</h2>
-      <div style="border:1px solid #E0E8F0;border-radius:8px;overflow:hidden;">
+      <div class="os-sec">Serviços a Executar</div>
+      <div style="border:1px solid #ddd;border-radius:6px;overflow:hidden">
         ${servicos.length > 0 ? servicos.map(s => {
           let txt = s.texto
           if (s.selecao && s.valor) txt += ': ' + s.valor
-          if (s.quantidade && s.qtd) txt += ': ' + s.qtd + ' un.'
-          return `<div class="servico"><span class="check">✓</span>${txt}</div>`
-        }).join('') : '<div class="servico" style="color:#888">Checklist ainda não preenchido</div>'}
+          if (s.quantidade && s.qtd) txt += ' — ' + s.qtd + ' un.'
+          return `<div class="os-serv"><span class="os-check">✓</span>${txt}</div>`
+        }).join('') : '<div class="os-serv" style="color:#888">Checklist ainda não preenchido</div>'}
       </div>
-
-      <h2>Documentos Incluídos neste Kit</h2>
-      <div style="border:1px solid #E0E8F0;border-radius:8px;overflow:hidden;" class="termos-lista">
-        ${TERMOS_DISPONIVEIS.filter(t => termosSelecionados[t.id]).map((t,i) => 
-          `<div class="termo-item">${i+2}. ${t.label}</div>`
+      <div class="os-sec">Documentos Incluídos neste Kit</div>
+      <div style="border:1px solid #ddd;border-radius:6px;overflow:hidden">
+        <div class="os-termo">1. Ordem de Acionamento (esta página)</div>
+        ${TERMOS_DISPONIVEIS.filter(t => termosSelecionados[t.id]).map((t,i) =>
+          `<div class="os-termo">${i+2}. ${t.label}</div>`
         ).join('')}
       </div>
-
-      <div class="assinatura">
+      <div class="ass-grid" style="margin-top:30px">
         <div><div class="ass-campo">Responsável Grupo PG / Data</div></div>
         <div><div class="ass-campo">Responsável Estabelecimento / Data</div></div>
       </div>
-
-      <div class="footer">
-        <span>GRUPO PG Construtora — Documento gerado em ${dataHoje}</span>
-        <span>Pg: 1 / 1</span>
+      <div class="footer-bar" style="background:#2D3A8C;margin-top:16px">
+        <span>GRUPO PG Construtora — ${dataHoje}</span><span>Pg: 1</span>
       </div>
-    </div>
+    </div>`
+
+    // Termo 5 - Antena
+    const pgAntena = !termosSelecionados['antena'] ? '' : `
+    <div class="page">
+      <div class="tecban-header">
+        <div class="tecban-logo">TecBan</div>
+        <div class="tecban-title">
+          <div>Projeto: <b>Descaracterização de PA/Agência (Devolução de Imóvel)</b></div>
+          <div class="doc">TERMO DE RECEBIMENTO - ANTENA DE COMUNICAÇÃO</div>
+        </div>
+        <div style="font-size:10px;text-align:right">Processo: ___________<br>Revisão 01</div>
+      </div>
+      <table class="form" style="margin-bottom:10px">
+        <tr><td style="width:15%"><b>PA:</b></td><td>${nomeObra}</td><td style="width:15%"><b>Município:</b></td><td>${enderecoObra}</td></tr>
+        <tr><td><b>Agência Detentora:</b></td><td colspan="3"></td></tr>
+        <tr><td><b>Lote:</b></td><td colspan="3"></td></tr>
+        <tr><td><b>Construtora:</b></td><td>PG CONSTRUTORA</td><td><b>Gerenciadora:</b></td><td></td></tr>
+      </table>
+      <div class="sec-header">AGÊNCIA: ____ – nome agência receptora</div>
+      <p style="margin:10px 0;line-height:1.6">Dando continuidade ao atendimento do projeto de devolução de imóveis – Lote _______________, seguindo orientações do Patrimônio, declaramos que recebemos a antena de comunicação do PA descrito acima o qual foi desativado, uma vez que não houve o recolhimento do equipamento por parte do DITI-Comunicação no período programado, prejudicando assim a devolução do imóvel ao proprietário.</p>
+      <p><b>Data do Recebimento:</b> _____/______/_____</p>
+      <div class="ass-grid" style="margin-top:30px">
+        <div>
+          <div class="sec-header" style="margin-bottom:10px">Gerência da Agência</div>
+          <div class="campo"><label>Nome completo:</label><div class="linha"></div></div>
+          <div class="campo"><label>Assinatura:</label><div class="linha"></div></div>
+          <div class="campo"><label>Data:</label><div class="linha"></div></div>
+        </div>
+        <div>
+          <div class="sec-header" style="margin-bottom:10px">Construtora</div>
+          <div class="campo"><label>Nome completo:</label><div class="linha"></div></div>
+          <div class="campo"><label>Assinatura:</label><div class="linha"></div></div>
+          <div class="campo"><label>Data:</label><div class="linha"></div></div>
+        </div>
+      </div>
+      <div style="margin-top:20px">
+        <div class="sec-header">Gerenciadora</div>
+        <div class="campo"><label>Nome completo:</label><div class="linha"></div></div>
+        <div class="campo"><label>Assinatura:</label><div class="linha"></div></div>
+        <div class="campo"><label>Data:</label><div class="linha"></div></div>
+      </div>
+      <div class="footer-bar"><span>Termo de Entrega – Revisão 01</span><span>Pg: 1 / 1</span></div>
+    </div>`
+
+    // Termo 6 - Ar Condicionado
+    const pgAC = !termosSelecionados['ar_cond'] ? '' : `
+    <div class="page">
+      <div class="tecban-header">
+        <div class="tecban-logo">TecBan</div>
+        <div class="tecban-title">
+          <div>Projeto: <b>Descaracterização de PA (Devolução de Imóvel)</b></div>
+          <div class="doc">TERMO DE SISTEMA/APARELHOS DE AR CONDICIONADO</div>
+        </div>
+        <div style="font-size:10px;text-align:right">Processo: ___________<br>Revisão 00</div>
+      </div>
+      <table class="form" style="margin-bottom:10px">
+        <tr><td style="width:20%"><b>Nº agência:</b></td><td></td><td style="width:20%"><b>Munic/UF:</b></td><td>${enderecoObra}</td></tr>
+        <tr><td><b>Nº/Nome PA:</b></td><td colspan="3">${nomeObra}</td></tr>
+        <tr><td><b>Lote:</b></td><td colspan="3"></td></tr>
+        <tr><td><b>Construtora:</b></td><td>PG CONSTRUTORA</td><td><b>CNPJ:</b></td><td></td></tr>
+      </table>
+      <div class="sec-header">Escopo</div>
+      <p style="margin:10px 0;line-height:1.6">Dando continuidade ao atendimento do projeto de Incorporação de Agências – Lote ____________, seguindo orientações do Patrimônio, informamos que os itens relacionados a sistema de climatização (aparelhos e infraestruturas) foram incorporados como benfeitorias na devolução do imóvel ao proprietário.</p>
+      <p style="margin:10px 0"><b>Cientes:</b></p>
+      <div class="ass-grid" style="margin-top:20px">
+        <div>
+          <div class="sec-header" style="margin-bottom:10px">Gerência da Agência</div>
+          <div class="campo"><label>Nome completo:</label><div class="linha"></div></div>
+          <div class="campo"><label>Assinatura:</label><div class="linha"></div></div>
+          <div class="campo"><label>Data:</label><div class="linha"></div></div>
+        </div>
+        <div>
+          <div class="sec-header" style="margin-bottom:10px">Construtora</div>
+          <div class="campo"><label>Nome completo:</label><div class="linha"></div></div>
+          <div class="campo"><label>Assinatura:</label><div class="linha"></div></div>
+          <div class="campo"><label>Data:</label><div class="linha"></div></div>
+        </div>
+      </div>
+      <div class="footer-bar"><span>Termo de sistema/aparelhos do ar condicionado (PA) – Revisão 00</span><span>Pg: 1 / 1</span></div>
+    </div>`
+
+    // Termo 7 - Descarte
+    const pgDescarte = !termosSelecionados['descarte'] ? '' : `
+    <div class="page">
+      <div class="tecban-header">
+        <div class="tecban-logo">TecBan</div>
+        <div class="tecban-title">
+          <div>Projeto: <b>Descaracterização PA</b></div>
+          <div class="doc">TERMO DE DESCARTE</div>
+        </div>
+        <div style="font-size:10px;text-align:right">Processo: ___________<br>Revisão 01</div>
+      </div>
+      <table class="form" style="margin-bottom:10px">
+        <tr><td style="width:20%"><b>Nº agência:</b></td><td></td><td style="width:20%"><b>Município:</b></td><td>${enderecoObra}</td></tr>
+        <tr><td><b>Lote:</b></td><td colspan="3"></td></tr>
+        <tr><td><b>Construtora:</b></td><td>PG CONSTRUTORA</td><td><b>CNPJ:</b></td><td></td></tr>
+      </table>
+      <div class="sec-header">Escopo de Serviço</div>
+      <p style="margin:10px 0;line-height:1.6">Dando continuidade ao atendimento do projeto de devolução de imóveis – Lote ____________, seguindo orientações do Patrimônio, informamos que os itens abaixo relacionados serão sequenciados com descarte de itens não reutilizados pela unidade, sendo o mesmo removido, transportado e descartado de forma correta de acordo com regras legais, tendo-se em vista que a agência, após consultar o normativo 05.1120 item 15, autorizou tal descarte, pela construtora, dos seguintes itens:</p>
+      <table class="form" style="margin:10px 0">
+        <tr><th style="width:15%">Tipo</th><th>Material Entregue</th><th style="width:15%">Quantidade</th></tr>
+        <tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+        <tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+        <tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+        <tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+      </table>
+      <p style="font-size:10px;margin:8px 0"><i>Importante: conforme diretriz, firmado que os componentes eletrônicos da Porta Giratória foram entregues para o gerente da agência para o descarte correto conforme normativo.</i></p>
+      <p style="margin:10px 0">Analisado e checado este termo de descarte, declaramos que estamos de acordo com os serviços prestados no escopo do processo em referência acima.</p>
+      <div class="ass-grid" style="margin-top:20px">
+        <div>
+          <div class="sec-header" style="margin-bottom:10px">Gerência da Agência</div>
+          <div class="campo"><label>Nome completo:</label><div class="linha"></div></div>
+          <div class="campo"><label>Assinatura:</label><div class="linha"></div></div>
+          <div class="campo"><label>Data:</label><div class="linha"></div></div>
+        </div>
+        <div>
+          <div class="sec-header" style="margin-bottom:10px">Construtora</div>
+          <div class="campo"><label>Nome completo:</label><div class="linha"></div></div>
+          <div class="campo"><label>Assinatura:</label><div class="linha"></div></div>
+          <div class="campo"><label>Data:</label><div class="linha"></div></div>
+        </div>
+      </div>
+      <div class="footer-bar"><span>Termo de Entrega – Revisão 01</span><span>Pg: 1 / 1</span></div>
+    </div>`
+
+    // Termo 8 - Recebimento Definitivo de Obra
+    const pgEntrega = !termosSelecionados['entrega_obra'] ? '' : `
+    <div class="page">
+      <div class="tecban-header">
+        <div class="tecban-logo">TecBan</div>
+        <div class="tecban-title">
+          <div class="proj">Projeto: <b>Fornecedor Único Bradesco</b></div>
+          <div class="doc">TERMO DE RECEBIMENTO DEFINITIVO DE OBRA</div>
+        </div>
+      </div>
+      <div class="sec-header">INFORMAÇÕES GERAIS</div>
+      <div class="campo"><label>Junção / Local:</label><div class="linha">${nomeObra}</div></div>
+      <div class="campo"><label>Endereço:</label><div class="linha">${enderecoObra}</div></div>
+      <div class="campo"><label>Tipo de Serviço:</label><div class="linha"></div></div>
+      <div class="grid2" style="gap:12px;margin-top:8px">
+        <div class="campo"><label>Patrimônio - Responsável de Projeto:</label><div class="linha"></div></div>
+        <div class="campo"><label>Patrimônio - Responsável de Obra:</label><div class="linha"></div></div>
+      </div>
+      <div class="campo"><label>Acompanhamento da obra:</label><div class="linha">SERVIÇOS INTEGRADOS TECBAN LTDA</div></div>
+      <div class="grid2" style="gap:12px">
+        <div class="campo"><label>Construtora/Executora:</label><div class="linha">PG CONSTRUTORA</div></div>
+        <div class="campo"><label>Responsável Construtora:</label><div class="linha"></div></div>
+        <div class="campo"><label>Gerenciadora / Mantenedora:</label><div class="linha">TECBAN</div></div>
+        <div class="campo"><label>Responsável Gerenciadora:</label><div class="linha"></div></div>
+      </div>
+      <div class="sec-header" style="margin-top:10px">PROGRAMAÇÃO INICIAL</div>
+      <div class="grid2" style="gap:12px">
+        <div class="campo"><label>Início:</label><div class="linha">${dataInicio}</div></div>
+        <div class="campo"><label>Término:</label><div class="linha"></div></div>
+      </div>
+      <p style="margin:8px 0;font-size:10px">Constatamos para os devidos fins que a obra realizada está em conformidade com o escopo contratado.</p>
+      <div class="sec-header">ESCOPO DOS PRINCIPAIS SERVIÇOS</div>
+      <div style="border:1px solid #ccc;min-height:60px;padding:6px;margin-bottom:8px;font-size:10px">
+        ${servicos.map(s => {
+          let txt = s.texto
+          if (s.selecao && s.valor) txt += ': ' + s.valor
+          return `• ${txt}<br>`
+        }).join('')}
+      </div>
+      <div class="sec-header">AVALIAÇÃO PELA GERÊNCIA DO RECEBIMENTO DA OBRA</div>
+      <table class="form" style="margin:8px 0">
+        <tr><th>Avaliador</th><th>Ótimo</th><th>Bom</th><th>Regular</th><th>Ruim</th></tr>
+        <tr><td>Patrimônio</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td>Construtora/Empresa executora</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td>Gerenciadora / Mantenedora</td><td></td><td></td><td></td><td></td></tr>
+      </table>
+      <div class="campo"><label>Outros. Especifique:</label><div class="linha"></div></div>
+      <div class="sec-header">COMENTÁRIOS</div>
+      <div class="linha" style="min-height:30px"></div>
+      <div class="sec-header">ASSINATURA DOS ENVOLVIDOS</div>
+      <p style="font-size:10px;margin:6px 0">Considerando que os trabalhos do escopo do processo foram concluídos, os abaixo assinados atestam o recebimento definitivo da obra.</p>
+      <div class="ass-grid">
+        <div>
+          <div class="ass-campo">Assinatura da Gerência / Visto e Carimbo</div>
+          <div class="campo" style="margin-top:10px"><label>Data:</label><div class="linha"></div></div>
+        </div>
+        <div>
+          <div class="ass-campo">Assinatura da Construtora/Executora / Visto e Carimbo</div>
+          <div class="campo" style="margin-top:10px"><label>Data:</label><div class="linha"></div></div>
+        </div>
+      </div>
+      <div class="footer-bar"><span>Termo de Recebimento Definitivo – R00</span><span>Pg: 1 / 1</span></div>
+    </div>`
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Acionamento - ${nomeObra}</title>
+    <style>${estiloGeral}</style></head><body>
+    ${pg1}${pgAntena}${pgAC}${pgDescarte}${pgEntrega}
     <script>window.onload = function(){ window.print(); }</script>
     </body></html>`
 
