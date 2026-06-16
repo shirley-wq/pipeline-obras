@@ -1,3 +1,4 @@
+// PipelineAppV18 - checklist pre-obra
 import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 
@@ -114,11 +115,16 @@ function fmt(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFracti
 
 const CHECKLIST_PADRAO = [
   { id:'book_vistoria',    texto:'Verificar book de vistoria', obrigatorio:true },
-  { id:'parede',           texto:'Verificar: tem parede de drywall / divisória naval / não precisa fazer parede?', obrigatorio:false },
+  { id:'parede',           texto:'Tipo de parede necessária?', obrigatorio:false, selecao:true, opcoes:['Não verificado','Drywall','Divisória naval','Não precisa fazer parede'] },
   { id:'carpete',          texto:'Remover carpete?', obrigatorio:false },
   { id:'piso_tatil_rem',   texto:'Remover piso tátil?', obrigatorio:false },
   { id:'piso_tatil_apl',   texto:'Reaplicar piso tátil?', obrigatorio:false },
-  { id:'adesivos',         texto:'Aplicar adesivos nos vidros?', obrigatorio:false },
+  { id:'adesivo_vidro_apl',texto:'Aplicar adesivos nos vidros?', obrigatorio:false },
+  { id:'adesivo_piso_rem', texto:'Remover adesivo de piso?', obrigatorio:false },
+  { id:'adesivo_vidro_rem',texto:'Remover adesivo em vidro?', obrigatorio:false },
+  { id:'tapume',           texto:'Precisa fechar com tapume?', obrigatorio:false },
+  { id:'luminoso',         texto:'Precisa remover luminoso?', obrigatorio:false },
+  { id:'remover_bdn',      texto:'Precisa remover BDN?', obrigatorio:false, quantidade:true },
   { id:'cacamba',          texto:'Necessário caçamba?', obrigatorio:false },
   { id:'carro_transporte', texto:'Necessário carro de transporte?', obrigatorio:false },
   { id:'dcm_impressos',    texto:'Termos de DCM estão impressos?', obrigatorio:true },
@@ -558,12 +564,14 @@ export default function App() {
                               <div style={{ border:'1px solid #E0E8F0', borderTop:'none', borderRadius:'0 0 10px 10px', background:'#FAFBFF', padding:'8px 12px' }}>
                                 {lista.map(item => (
                                   <div key={item.id} style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'8px 0', borderBottom:'1px solid #F0F4F8' }}>
-                                    <div onClick={() => toggleItem(obra, item.id)}
-                                      style={{ width:20, height:20, borderRadius:5, border: item.feito ? 'none' : `1.5px solid ${item.obrigatorio ? '#FCA5A5' : '#B5D4F4'}`, background: item.feito ? '#1A6B4A' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0, marginTop:1 }}>
-                                      {item.feito && <span style={{ color:'#fff', fontSize:12, fontWeight:700 }}>✓</span>}
-                                    </div>
+                                    {!item.selecao && (
+                                      <div onClick={() => toggleItem(obra, item.id)}
+                                        style={{ width:20, height:20, borderRadius:5, border: item.feito ? 'none' : `1.5px solid ${item.obrigatorio ? '#FCA5A5' : '#B5D4F4'}`, background: item.feito ? '#1A6B4A' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0, marginTop:1 }}>
+                                        {item.feito && <span style={{ color:'#fff', fontSize:12, fontWeight:700 }}>✓</span>}
+                                      </div>
+                                    )}
                                     <div style={{ flex:1 }}>
-                                      <span style={{ fontSize:12, color: item.feito ? '#888' : '#1A2340', textDecoration: item.feito ? 'line-through' : 'none' }}>
+                                      <span style={{ fontSize:12, color: item.feito ? '#888' : '#1A2340', textDecoration: item.feito && !item.selecao ? 'line-through' : 'none' }}>
                                         {item.texto}
                                         {item.link && !item.feito && (
                                           <a href="https://drive.google.com" target="_blank" rel="noreferrer"
@@ -572,7 +580,32 @@ export default function App() {
                                           </a>
                                         )}
                                       </span>
-                                      {item.obrigatorio && !item.feito && (
+                                      {item.selecao && (
+                                        <select
+                                          value={item.valor || 'Não verificado'}
+                                          onChange={e => {
+                                            const lista2 = getChecklist(obra).map(i => i.id === item.id ? { ...i, valor: e.target.value, feito: e.target.value !== 'Não verificado' } : i)
+                                            setObras(obras.map(o => o.id === obra.id ? { ...o, checklist: lista2 } : o))
+                                            supabase.from('pipeline_obras').update({ checklist: lista2 }).eq('id', obra.id)
+                                          }}
+                                          style={{ display:'block', marginTop:4, width:'100%', padding:'6px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                                          {item.opcoes.map(op => <option key={op}>{op}</option>)}
+                                        </select>
+                                      )}
+                                      {item.quantidade && item.feito && (
+                                        <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:4 }}>
+                                          <span style={{ fontSize:11, color:'#4A7FC1' }}>Quantidade:</span>
+                                          <input type="number" min="1" max="10"
+                                            value={item.qtd || ''}
+                                            onChange={e => {
+                                              const lista2 = getChecklist(obra).map(i => i.id === item.id ? { ...i, qtd: e.target.value } : i)
+                                              setObras(obras.map(o => o.id === obra.id ? { ...o, checklist: lista2 } : o))
+                                              supabase.from('pipeline_obras').update({ checklist: lista2 }).eq('id', obra.id)
+                                            }}
+                                            style={{ width:60, padding:'4px 8px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+                                        </div>
+                                      )}
+                                      {item.obrigatorio && !item.feito && !item.selecao && (
                                         <span style={{ display:'block', fontSize:10, color:'#E24B4A', marginTop:2 }}>⚠ Obrigatório</span>
                                       )}
                                     </div>
