@@ -115,7 +115,7 @@ function fmt(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFracti
 
 const CHECKLIST_PADRAO = [
   { id:'book_vistoria',    texto:'Verificar book de vistoria', obrigatorio:true },
-  { id:'parede',           texto:'Tipo de parede necessária?', obrigatorio:false, selecao:true, opcoes:['Não verificado','Drywall','Divisória naval','Não precisa fazer parede'] },
+  { id:'parede',           texto:'Tipo de parede necessária?', obrigatorio:false, selecao:true, opcoes:['Não verificado','Construir drywall','Construir divisória naval','Retirar drywall','Retirar divisória naval','Não precisa fazer parede'] },
   { id:'carpete',          texto:'Remover carpete?', obrigatorio:false },
   { id:'piso_tatil_rem',   texto:'Remover piso tátil?', obrigatorio:false },
   { id:'piso_tatil_apl',   texto:'Reaplicar piso tátil?', obrigatorio:false },
