@@ -134,6 +134,8 @@ const CHECKLIST_PADRAO = [
   { id:'guarda_volumes',   texto:'Remover guarda volumes?', obrigatorio:false },
   { id:'instalar_porta',   texto:'Instalar porta de vidro?', obrigatorio:false },
   { id:'trocar_vidro',     texto:'Trocar vidro fixo ou porta de vidro?', obrigatorio:false },
+  { id:'antena',           texto:'Remover antena?', obrigatorio:false },
+  { id:'ar_condicionado',  texto:'Qtd. de aparelhos de ar condicionado que ficam no local', obrigatorio:false, quantidade:true },
   { id:'remover_bdn',      texto:'Precisa remover BDN?', obrigatorio:false, quantidade:true },
   { id:'cacamba',          texto:'Necessário caçamba?', obrigatorio:false },
   { id:'carro_transporte', texto:'Necessário carro de transporte?', obrigatorio:false },
@@ -226,7 +228,8 @@ export default function App() {
   const [senha, setSenha] = useState('')
   const [erroLogin, setErroLogin] = useState('')
   const [carregandoLogin, setCarregandoLogin] = useState(false)
-  const [importando, setImportando] = useState(false)
+  const [modalAcionamento, setModalAcionamento] = useState(null)
+  const [termosSelecionados, setTermosSelecionados] = useState({})
   const [checklistAberto, setChecklistAberto] = useState(null)
   const [novoItemChecklist, setNovoItemChecklist] = useState('')
   const [salvandoChecklist, setSalvandoChecklist] = useState(false)
@@ -367,6 +370,122 @@ export default function App() {
     const lista = getChecklist(obra).filter(i => i.id !== itemId)
     setObras(obras.map(o => o.id === obra.id ? { ...o, checklist: lista } : o))
     await supabase.from('pipeline_obras').update({ checklist: lista }).eq('id', obra.id)
+  }
+
+  const TERMOS_DISPONIVEIS = [
+    { id:'conclusao',    label:'Relatório de Conclusão de Obra' },
+    { id:'piso',         label:'Termo de Responsabilidade de Piso' },
+    { id:'checklist_bdn',label:'Check List de Remoção (por BDN)' },
+    { id:'chaves',       label:'Protocolo de Entrega das Chaves' },
+    { id:'antena',       label:'Termo de Recebimento de Antena' },
+    { id:'ar_cond',      label:'Termo de Ar Condicionado' },
+    { id:'descarte',     label:'Termo de Descarte' },
+    { id:'entrega_obra', label:'Termo de Recebimento Definitivo de Obra' },
+  ]
+
+  function abrirModalAcionamento(obra) {
+    const checklist = getChecklist(obra)
+    const temAntena = checklist.find(i => i.id === 'antena')?.feito
+    const temBDN = checklist.find(i => i.id === 'remover_bdn')?.feito
+    const temAC = checklist.find(i => i.id === 'ar_condicionado')?.qtd > 0
+    setTermosSelecionados({
+      conclusao: true,
+      piso: true,
+      checklist_bdn: temBDN || false,
+      chaves: true,
+      antena: temAntena || false,
+      ar_cond: temAC || false,
+      descarte: true,
+      entrega_obra: true,
+    })
+    setModalAcionamento(obra)
+  }
+
+  function gerarPDFAcionamento(obra) {
+    const checklist = getChecklist(obra)
+    const servicos = checklist.filter(i => i.feito && !i.obrigatorio)
+    const dataHoje = new Date().toLocaleDateString('pt-BR')
+    const dataInicio = obra.data_inicio ? new Date(obra.data_inicio + 'T12:00:00').toLocaleDateString('pt-BR') : '___/___/______'
+
+    let html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Acionamento - ${obra.nome}</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; padding: 0; color: #1A2340; }
+      .page { padding: 30px 40px; max-width: 800px; margin: 0 auto; }
+      .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #2D3A8C; padding-bottom: 16px; margin-bottom: 24px; }
+      .logo-txt { font-size: 28px; font-weight: 800; color: #2D3A8C; }
+      .logo-sub { font-size: 11px; color: #888; }
+      .badge { background: #2D3A8C; color: #fff; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; }
+      h2 { font-size: 14px; color: #2D3A8C; border-left: 4px solid #2D3A8C; padding-left: 10px; margin: 20px 0 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+      .campo { background: #F8FAFC; border: 1px solid #E0E8F0; border-radius: 8px; padding: 10px 14px; }
+      .campo label { font-size: 10px; color: #888; text-transform: uppercase; display: block; margin-bottom: 4px; }
+      .campo span { font-size: 13px; font-weight: 600; color: #1A2340; }
+      .servico { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #F0F4F8; font-size: 13px; }
+      .check { width: 16px; height: 16px; border: 2px solid #1A6B4A; border-radius: 4px; background: #1A6B4A; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; flex-shrink: 0; }
+      .termos-lista { margin-top: 16px; }
+      .termo-item { padding: 8px 12px; border-bottom: 1px solid #F0F4F8; font-size: 13px; color: #4A7FC1; }
+      .assinatura { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+      .ass-campo { border-top: 1px solid #333; padding-top: 6px; font-size: 11px; color: #666; }
+      .footer { margin-top: 40px; border-top: 1px solid #E0E8F0; padding-top: 12px; display: flex; justify-content: space-between; font-size: 10px; color: #aaa; }
+      @media print { body { margin: 0; } }
+    </style></head><body>
+    <div class="page">
+      <div class="header">
+        <div>
+          <div class="logo-txt">GRUPO PG</div>
+          <div class="logo-sub">Construtora · Infraestrutura · Telecomunicações</div>
+        </div>
+        <div>
+          <div class="badge">ORDEM DE ACIONAMENTO</div>
+          <div style="font-size:11px;color:#888;text-align:right;margin-top:4px">Gerado em ${dataHoje}</div>
+        </div>
+      </div>
+
+      <h2>Dados da Obra</h2>
+      <div class="grid2">
+        <div class="campo"><label>Nome</label><span>${obra.nome}</span></div>
+        <div class="campo"><label>Tipo</label><span>${obra.tipo}</span></div>
+        <div class="campo"><label>Local</label><span>${obra.local || '—'}</span></div>
+        <div class="campo"><label>Data de Início</label><span>${dataInicio}</span></div>
+        <div class="campo"><label>SIGE</label><span>${obra.sige || '—'}</span></div>
+        <div class="campo"><label>Pedido</label><span>${obra.pedido || '—'}</span></div>
+      </div>
+
+      <h2>Serviços a Executar</h2>
+      <div style="border:1px solid #E0E8F0;border-radius:8px;overflow:hidden;">
+        ${servicos.length > 0 ? servicos.map(s => {
+          let txt = s.texto
+          if (s.selecao && s.valor) txt += ': ' + s.valor
+          if (s.quantidade && s.qtd) txt += ': ' + s.qtd + ' un.'
+          return `<div class="servico"><span class="check">✓</span>${txt}</div>`
+        }).join('') : '<div class="servico" style="color:#888">Checklist ainda não preenchido</div>'}
+      </div>
+
+      <h2>Documentos Incluídos neste Kit</h2>
+      <div style="border:1px solid #E0E8F0;border-radius:8px;overflow:hidden;" class="termos-lista">
+        ${TERMOS_DISPONIVEIS.filter(t => termosSelecionados[t.id]).map((t,i) => 
+          `<div class="termo-item">${i+2}. ${t.label}</div>`
+        ).join('')}
+      </div>
+
+      <div class="assinatura">
+        <div><div class="ass-campo">Responsável Grupo PG / Data</div></div>
+        <div><div class="ass-campo">Responsável Estabelecimento / Data</div></div>
+      </div>
+
+      <div class="footer">
+        <span>GRUPO PG Construtora — Documento gerado em ${dataHoje}</span>
+        <span>Pg: 1 / 1</span>
+      </div>
+    </div>
+    <script>window.onload = function(){ window.print(); }</script>
+    </body></html>`
+
+    const blob = new Blob([html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank')
+    setModalAcionamento(null)
   }
 
   const estilo = { fontFamily:'system-ui,sans-serif', minHeight:'100vh', background:'#F0F4F8' }
@@ -647,9 +766,15 @@ export default function App() {
                       })()}
 
                       <button onClick={() => { setModal(obra); setNovoStatus(obra.status); setNovaObs(obra.obs||''); setEmNegociacao(obra.em_negociacao || false) }}
-                        style={{ width:'100%', padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                        style={{ width:'100%', padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer', marginBottom:8 }}>
                         Atualizar status
                       </button>
+                      {statusAprovado(obra.status) && (
+                        <button onClick={() => abrirModalAcionamento(obra)}
+                          style={{ width:'100%', padding:'10px', background:'#1A6B4A', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                          📋 Gerar Acionamento de Campo
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -766,6 +891,32 @@ export default function App() {
             </button>
             <button onClick={() => setModal(null)}
               style={{ width:'100%', padding:11, background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:12, fontSize:13, cursor:'pointer', marginTop:8 }}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {modalAcionamento && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:100, display:'flex', alignItems:'flex-end' }}
+          onClick={e => { if(e.target === e.currentTarget) setModalAcionamento(null) }}>
+          <div style={{ background:'#fff', borderRadius:'16px 16px 0 0', padding:20, width:'100%', maxHeight:'85vh', overflowY:'auto' }}>
+            <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:4 }}>📋 Gerar Acionamento</div>
+            <div style={{ fontSize:12, color:'#888', marginBottom:16 }}>{modalAcionamento.nome}</div>
+            <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, marginBottom:10 }}>Selecione os termos a incluir:</div>
+            {TERMOS_DISPONIVEIS.map(t => (
+              <label key={t.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', border:'1px solid #E0E8F0', borderRadius:10, marginBottom:8, cursor:'pointer', background: termosSelecionados[t.id] ? '#E6F1FB' : '#fff' }}>
+                <input type="checkbox" checked={!!termosSelecionados[t.id]} onChange={e => setTermosSelecionados(prev => ({...prev, [t.id]: e.target.checked}))}
+                  style={{ width:18, height:18, cursor:'pointer', accentColor:'#2D3A8C' }} />
+                <span style={{ fontSize:13, color:'#1A2340' }}>{t.label}</span>
+              </label>
+            ))}
+            <button onClick={() => gerarPDFAcionamento(modalAcionamento)}
+              style={{ width:'100%', padding:13, background:'#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor:'pointer', marginTop:8, marginBottom:8 }}>
+              📄 Gerar e Imprimir PDF
+            </button>
+            <button onClick={() => setModalAcionamento(null)}
+              style={{ width:'100%', padding:11, background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:12, fontSize:13, cursor:'pointer' }}>
               Cancelar
             </button>
           </div>
