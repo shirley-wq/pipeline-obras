@@ -124,6 +124,16 @@ const CHECKLIST_PADRAO = [
   { id:'adesivo_vidro_rem',texto:'Remover adesivo em vidro?', obrigatorio:false },
   { id:'tapume',           texto:'Precisa fechar com tapume?', obrigatorio:false },
   { id:'luminoso',         texto:'Precisa remover luminoso?', obrigatorio:false },
+  { id:'persianas',        texto:'Remover persianas?', obrigatorio:false },
+  { id:'cvi',              texto:'Remover CVI?', obrigatorio:false },
+  { id:'mesas',            texto:'Remover mesas?', obrigatorio:false },
+  { id:'cadeiras',         texto:'Remover cadeiras?', obrigatorio:false },
+  { id:'armarios',         texto:'Remover armários?', obrigatorio:false },
+  { id:'mesa_envelope',    texto:'Remover mesa de envelope?', obrigatorio:false },
+  { id:'porta_giratoria',  texto:'Remover porta giratória?', obrigatorio:false },
+  { id:'guarda_volumes',   texto:'Remover guarda volumes?', obrigatorio:false },
+  { id:'instalar_porta',   texto:'Instalar porta de vidro?', obrigatorio:false },
+  { id:'trocar_vidro',     texto:'Trocar vidro fixo ou porta de vidro?', obrigatorio:false },
   { id:'remover_bdn',      texto:'Precisa remover BDN?', obrigatorio:false, quantidade:true },
   { id:'cacamba',          texto:'Necessário caçamba?', obrigatorio:false },
   { id:'carro_transporte', texto:'Necessário carro de transporte?', obrigatorio:false },
@@ -566,6 +576,7 @@ export default function App() {
                             </div>
                             {checkAberto && (
                               <div style={{ border:'1px solid #E0E8F0', borderTop:'none', borderRadius:'0 0 10px 10px', background:'#FAFBFF', padding:'8px 12px' }}>
+                                <div style={{ display:'grid', gridTemplateColumns: window.innerWidth > 768 ? '1fr 1fr' : '1fr', gap:'0 16px' }}>
                                 {lista.map(item => (
                                   <div key={item.id} style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'8px 0', borderBottom:'1px solid #F0F4F8' }}>
                                     {!item.selecao && (
@@ -618,6 +629,7 @@ export default function App() {
                                     )}
                                   </div>
                                 ))}
+                                </div>
                                 <div style={{ display:'flex', gap:8, marginTop:10 }}>
                                   <input value={novoItemChecklist} onChange={e => setNovoItemChecklist(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && adicionarItemChecklist(obra)}
