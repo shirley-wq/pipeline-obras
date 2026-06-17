@@ -1,0 +1,30 @@
+[33m1559a65[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m restaura Pipeline V19 original
+[33m0c1bd66[m restaura Pipeline de Obras original
+[33mf1fc4e8[m Revert "v20 campo qtd BDN livre + campos numero serial por BDN"
+[33mb7b1d9d[m v20 campo qtd BDN livre + campos numero serial por BDN
+[33m9e4d755[m v20 campo qtd BDN livre + campos numero serial por BDN
+[33m4cd464d[m v19 acionamento simplificado link Drive
+[33m0ca66d1[m fix importando definitivo
+[33mb65f5e5[m v19 termos HTML no acionamento
+[33m2d70ec8[m fix importando v19
+[33mdf2607a[m v19 acionamento campo + 2 novos itens checklist
+[33m6460944[m v19 checklist 2 colunas
+[33m411770b[m v19 fix selecao parede
+[33ma019394[m force redeploy v19
+[33m4925bc3[m v19 parede construir ou retirar
+[33m3061e6e[m v19 checklist atualizado
+[33mf94990a[m v18 fix importando
+[33m0c622cc[m v18 checklist pre-obra
+[33mbe064cd[m alerta orcamento em negociacao
+[33mad60db5[m corrigir campo valor aceitar virgula
+[33mb697faa[m campo editar valor obra
+[33m8288754[m destacar data inicio no card
+[33mec80e16[m campo data inicio obra
+[33m9969225[m corrigir duplicatas nos grupos
+[33m3c1134f[m atualizar 12 etapas finais
+[33mc29a371[m corrigir elaborar book etapa 9
+[33m1ec9a5d[m atualizar regua apos salvar status
+[33m08c19aa[m simplificar status dropdown
+[33m3b59d74[m corrigir 3 pontinhos e status regua
+[33mabbc645[m excluir obra apenas adm
+[33m698578c[m adicionar nova obra
