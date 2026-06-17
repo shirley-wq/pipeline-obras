@@ -1,84 +1,84 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 
 const OBRAS_INICIAIS = [
-  {tipo:'TRANSF PAE',nome:'PAB VIA├çAO OSASCO LTDA',local:'OSASCO-SP',inicio:'02/04/2026',termino:'05/04/2026',status:'NF EMITIDO',valor:5126.03,sige:'13653',pedido:'4501792509',nf:'3101'},
-  {tipo:'TRANSF PAE',nome:'PAB TRANSPPASS TRANSPORTE DE PASSAGEIROS LTDA',local:'S├âO PAULO-SP',inicio:'02/04/2026',termino:'06/04/2026',status:'NF EMITIDO',valor:7562.03,sige:'13652',pedido:'4501792506',nf:'3101'},
-  {tipo:'TRANSF PAE',nome:'PAE - EC PINHEIROS SOCIOS',local:'S├âO PAULO-SP',inicio:'16/04/2026',termino:'21/04/2026',status:'NF EMITIDO',valor:11044.53,sige:'13920',pedido:'4501792505',nf:'3101'},
-  {tipo:'DESC. PAB',nome:'PAB SECRET├üRIA DE ESTADO ADM PENITENCI├üRIA',local:'RIO DE JANEIRO-RJ',inicio:'09/02/2026',termino:'14/02/2026',status:'NF EMITIDO',valor:12720.96,sige:'13343',pedido:'4501792544',nf:'10'},
+  {tipo:'TRANSF PAE',nome:'PAB VIAâ”œÃ§AO OSASCO LTDA',local:'OSASCO-SP',inicio:'02/04/2026',termino:'05/04/2026',status:'NF EMITIDO',valor:5126.03,sige:'13653',pedido:'4501792509',nf:'3101'},
+  {tipo:'TRANSF PAE',nome:'PAB TRANSPPASS TRANSPORTE DE PASSAGEIROS LTDA',local:'Sâ”œÃ¢O PAULO-SP',inicio:'02/04/2026',termino:'06/04/2026',status:'NF EMITIDO',valor:7562.03,sige:'13652',pedido:'4501792506',nf:'3101'},
+  {tipo:'TRANSF PAE',nome:'PAE - EC PINHEIROS SOCIOS',local:'Sâ”œÃ¢O PAULO-SP',inicio:'16/04/2026',termino:'21/04/2026',status:'NF EMITIDO',valor:11044.53,sige:'13920',pedido:'4501792505',nf:'3101'},
+  {tipo:'DESC. PAB',nome:'PAB SECRETâ”œÃ¼RIA DE ESTADO ADM PENITENCIâ”œÃ¼RIA',local:'RIO DE JANEIRO-RJ',inicio:'09/02/2026',termino:'14/02/2026',status:'NF EMITIDO',valor:12720.96,sige:'13343',pedido:'4501792544',nf:'10'},
   {tipo:'TRANSF UN',nome:'BR_UN 583 - LIDO-URJ',local:'RIO DE JANEIRO-RJ',inicio:'07/02/2026',termino:'09/02/2026',status:'NF EMITIDO',valor:14059.62,sige:'13126',pedido:'4501807948',nf:'16'},
   {tipo:'TRANSF UN',nome:'BR_UN 1803-AV.PRES.VARGAS-URJ',local:'RIO DE JANEIRO-RJ',inicio:'09/01/2026',termino:'07/03/2026',status:'NF EMITIDO',valor:12860.74,sige:'12885',pedido:'4501807949',nf:'16'},
   {tipo:'DESC. PA',nome:'PA 111 - CANAA',local:'CANAA-MG',inicio:'30/04/2026',termino:'05/05/2026',status:'NF EMITIDO',valor:19840.11,sige:'13648',pedido:'4501792580',nf:'1'},
   {tipo:'DESC. PAB',nome:'PAB ALPARGATAS S.A.',local:'MONTES CLAROS-MG',inicio:'20/03/2026',termino:'12/04/2026',status:'NF EMITIDO',valor:11237.93,sige:'13654',pedido:'4501792508',nf:'17'},
   {tipo:'DESC. PA',nome:'PA 131 - ITAMARATI DE MINAS',local:'ITAMARATI DE MINAS-MG',inicio:'26/05/2026',termino:'31/05/2026',status:'NF EMITIDO',valor:8512.27,sige:'13649',pedido:'4501792579',nf:'17'},
-  {tipo:'DESC. PAB',nome:'PAB WEG S.A. UND. SB CAMPO',local:'S├âO BERNARDO DO CAMPO-SP',inicio:'13/03/2026',termino:'13/03/2026',status:'NF EMITIDO',valor:647.07,sige:'13651',pedido:'4501864281',nf:'3181'},
-  {tipo:'REFORMA',nome:'BRADESCO AG 354 CARAPICU├ìBA',local:'CARAPICU├ìBA-SP',inicio:'22/04/2026',termino:'24/04/2026',status:'NF EMITIDO',valor:3467,sige:'14221',pedido:'4501864279',nf:'3181'},
+  {tipo:'DESC. PAB',nome:'PAB WEG S.A. UND. SB CAMPO',local:'Sâ”œÃ¢O BERNARDO DO CAMPO-SP',inicio:'13/03/2026',termino:'13/03/2026',status:'NF EMITIDO',valor:647.07,sige:'13651',pedido:'4501864281',nf:'3181'},
+  {tipo:'REFORMA',nome:'BRADESCO AG 354 CARAPICUâ”œÃ¬BA',local:'CARAPICUâ”œÃ¬BA-SP',inicio:'22/04/2026',termino:'24/04/2026',status:'NF EMITIDO',valor:3467,sige:'14221',pedido:'4501864279',nf:'3181'},
   {tipo:'REFORMA',nome:'BRADESCO AG 0593 ENDRES - GUARULHOS',local:'GUARULHOS-SP',inicio:'23/04/2026',termino:'28/04/2026',status:'NF EMITIDO',valor:5018.35,sige:'14222',pedido:'4501864280',nf:'3181'},
-  {tipo:'DESC. PA',nome:'PA 083 - ICARAI DE MINAS - AG 1151',local:'ICARA├ì DE MINAS-MG',inicio:'26/05/2026',termino:'31/05/2026',status:'NF EMITIDO',valor:8493.50,sige:'14224',pedido:'4501863922',nf:'57'},
+  {tipo:'DESC. PA',nome:'PA 083 - ICARAI DE MINAS - AG 1151',local:'ICARAâ”œÃ¬ DE MINAS-MG',inicio:'26/05/2026',termino:'31/05/2026',status:'NF EMITIDO',valor:8493.50,sige:'14224',pedido:'4501863922',nf:'57'},
   {tipo:'DESC. PA',nome:'PA DIVINESIA',local:'DIVINESIA-MG',inicio:'08/06/2026',termino:'10/06/2026',status:'NF EMITIDO',valor:7477.04,sige:'14439',pedido:'4501863923',nf:'57'},
   {tipo:'DESC. PA',nome:'PA BICAS',local:'BICAS-MG',inicio:'08/06/2026',termino:'10/06/2026',status:'NF EMITIDO',valor:9796.19,sige:'14440',pedido:'4501863924',nf:'57'},
   {tipo:'TRANSF UN',nome:'BR_UN 2774-N.ALPHA.-USPARNAIBA',local:'SANTANA PARNAIBA-SP',inicio:'11/06/2026',termino:'12/06/2026',status:'NF EMITIDO',valor:5248.60,sige:'14227',pedido:'4501864924',nf:'3182'},
-  {tipo:'TRANSF UN',nome:'BR_UN 302-RUDGE RAMOS-USBC',local:'S├âO BERNARDO DO CAMPO-SP',inicio:'14/06/2026',termino:'15/06/2026',status:'NF EMITIDO',valor:15389.86,sige:'14225',pedido:'4501864925',nf:'3182'},
+  {tipo:'TRANSF UN',nome:'BR_UN 302-RUDGE RAMOS-USBC',local:'Sâ”œÃ¢O BERNARDO DO CAMPO-SP',inicio:'14/06/2026',termino:'15/06/2026',status:'NF EMITIDO',valor:15389.86,sige:'14225',pedido:'4501864925',nf:'3182'},
   {tipo:'TRANSF UN',nome:'BR_UN 1056-PRIME SAO LUCAS-UBH',local:'BELO HORIZONTE-MG',inicio:'13/06/2026',termino:'18/06/2026',status:'NF EMITIDO',valor:8895.95,sige:'14228',pedido:'4501863920',nf:'57'},
   {tipo:'TRANSF UN',nome:'BR_UN 1696-PRIME PAMPULHA-UBH',local:'BELO HORIZONTE-MG',inicio:'11/06/2026',termino:'26/06/2026',status:'NF EMITIDO',valor:7331.51,sige:'14229',pedido:'4501863921',nf:'57'},
   {tipo:'TRANSF UN',nome:'BR_UN 870-PRIME CIDADE DE DEUS',local:'OSASCO-SP',inicio:'13/06/2026',termino:'27/06/2026',status:'NF EMITIDO',valor:4351.78,sige:'14226',pedido:'4501864926',nf:'3182'},
   {tipo:'DESC. PA',nome:'PA RIO VERMELHO',local:'RIO VERMELHO-MG',inicio:'08/06/2026',termino:'10/06/2026',status:'NF EMITIDO',valor:9540.07,sige:'14438',pedido:'4501866855',nf:'65'},
-  {tipo:'TB FORTE',nome:'SC - SERVI├çOS EMERGENCIAIS (BASE + GARAGEM)',local:'RIO DE JANEIRO-RJ',status:'AG. PEDIDO',valor:10229.93,sige:'14525',obs:'Aguardando emiss├úo de pedido'},
-  {tipo:'TB FORTE',nome:'SC - SERVI├çOS EMERGENCIAIS (CUMEEIRA - TELHADO GARAGEM)',local:'RIO DE JANEIRO-RJ',status:'AG. PEDIDO',valor:1560,sige:'15310',obs:'Aguardando emiss├úo de pedido'},
+  {tipo:'TB FORTE',nome:'SC - SERVIâ”œÃ§OS EMERGENCIAIS (BASE + GARAGEM)',local:'RIO DE JANEIRO-RJ',status:'AG. PEDIDO',valor:10229.93,sige:'14525',obs:'Aguardando emissâ”œÃºo de pedido'},
+  {tipo:'TB FORTE',nome:'SC - SERVIâ”œÃ§OS EMERGENCIAIS (CUMEEIRA - TELHADO GARAGEM)',local:'RIO DE JANEIRO-RJ',status:'AG. PEDIDO',valor:1560,sige:'15310',obs:'Aguardando emissâ”œÃºo de pedido'},
   {tipo:'DESC. PAB',nome:'PAB 012 - B2W LOJAS AMERICANAS - AG 1803',local:'RIO DE JANEIRO-RJ',status:'RM ENVIADA',valor:5728.20,sige:'14171',pedido:'ORDEM 1000077028'},
-  {tipo:'TRANSF UN',nome:'BR_UN 1417 - MERC.S.SEBASTIAO-URJ',local:'RIO DE JANEIRO-RJ',status:'ENVIAR RM',valor:84.18,sige:'14535',obs:'Item cancelado ÔÇö enviar RM'},
+  {tipo:'TRANSF UN',nome:'BR_UN 1417 - MERC.S.SEBASTIAO-URJ',local:'RIO DE JANEIRO-RJ',status:'ENVIAR RM',valor:84.18,sige:'14535',obs:'Item cancelado Ã”Ã‡Ã¶ enviar RM'},
   {tipo:'LINK',nome:'PAB 016 - TILIBRA - AG. 0013',local:'BAURU-SP',status:'RM ENVIADA',valor:3293.12,sige:'14170',pedido:'ORDEM 1000079178'},
   {tipo:'DESC. PA',nome:'PA MARIO CAMPOS',local:'MARIO CAMPOS-MG',status:'RM ENVIADA',valor:8511.46,sige:'14582',pedido:'ORDEM 1000079423'},
   {tipo:'DESC. PA',nome:'PA PEDRA BONITA',local:'PEDRA BONITA-MG',status:'RM ENVIADA',valor:7892.25,sige:'14583',pedido:'ORDEM 1000079424'},
   {tipo:'DESC. PAB',nome:'PAB PREFEITURA DE RIO NEGRINHO',local:'RIO NEGRINHO-SC',status:'RM ENVIADA (ART)',valor:5620.61,sige:'14841',pedido:'ORDEM 1000079863',obs:'ART pendente'},
   {tipo:'DESC. PAB',nome:'PAB PREFEITURA DE CANOINHAS',local:'CANOINHAS-SC',status:'RM ENVIADA (ART)',valor:8688.98,sige:'14839',pedido:'ORDEM 1000079862',obs:'ART pendente'},
-  {tipo:'TRANSF UN',nome:'BR_UN 926 - COLON.MURICI-USJPIN',local:'S├âO JOS├ë DOS PINHAIS-PR',status:'PRECISA DE ARQUIVO RM',valor:11574.87,sige:'14538',pedido:'ORDEM 1000079897',obs:'Pend├¬ncia: arquivo RM de CWB'},
+  {tipo:'TRANSF UN',nome:'BR_UN 926 - COLON.MURICI-USJPIN',local:'Sâ”œÃ¢O JOSâ”œÃ« DOS PINHAIS-PR',status:'PRECISA DE ARQUIVO RM',valor:11574.87,sige:'14538',pedido:'ORDEM 1000079897',obs:'Pendâ”œÂ¬ncia: arquivo RM de CWB'},
   {tipo:'TRANSF UN',nome:'BR_UN 6592 - PRIME AV.AMERIC-URJ',local:'RIO DE JANEIRO-RJ',status:'RM ENVIADA',valor:6315.62,sige:'14531',pedido:'ORDEM 1000079911'},
-  {tipo:'TRANSF UN',nome:'BR_UN 2282 - R.BORGES LAGOA-USP',local:'S├âO PAULO-SP',status:'RM ENVIADA',valor:9321.36,sige:'14529',pedido:'ORDEM 1000079913'},
-  {tipo:'TRANSF UN',nome:'BR_UN 498 - PC.BEN.CALIXTO-USP',local:'S├âO PAULO-SP',status:'RM ENVIADA',valor:6969.15,sige:'14528',pedido:'ORDEM 1000079903'},
+  {tipo:'TRANSF UN',nome:'BR_UN 2282 - R.BORGES LAGOA-USP',local:'Sâ”œÃ¢O PAULO-SP',status:'RM ENVIADA',valor:9321.36,sige:'14529',pedido:'ORDEM 1000079913'},
+  {tipo:'TRANSF UN',nome:'BR_UN 498 - PC.BEN.CALIXTO-USP',local:'Sâ”œÃ¢O PAULO-SP',status:'RM ENVIADA',valor:6969.15,sige:'14528',pedido:'ORDEM 1000079903'},
   {tipo:'TRANSF UN',nome:'BR_UN 2938 - PLANALTO-UBH',local:'BELO HORIZONTE-MG',status:'RM ENVIADA',valor:8665.37,sige:'14783',pedido:'ORDEM 1000079901'},
-  {tipo:'TRANSF UN',nome:'BR_UN 3435 - PROF.ALFR.BALENA-UBH',local:'BELO HORIZONTE-MG',status:'RM PRONTA AGUARDANDO ORDEM',valor:10208.43,sige:'14784',pedido:'ORDEM 1000079898',obs:'RM pronta ÔÇö aguardando emiss├úo de ordem'},
-  {tipo:'TRANSF UN',nome:'BR_UN 2423 - JD AN├üLIA FRANCO-USP',local:'S├âO PAULO-SP',status:'RM ENVIADA',valor:7933.95,sige:'14684',pedido:'ORDEM 1000079902'},
+  {tipo:'TRANSF UN',nome:'BR_UN 3435 - PROF.ALFR.BALENA-UBH',local:'BELO HORIZONTE-MG',status:'RM PRONTA AGUARDANDO ORDEM',valor:10208.43,sige:'14784',pedido:'ORDEM 1000079898',obs:'RM pronta Ã”Ã‡Ã¶ aguardando emissâ”œÃºo de ordem'},
+  {tipo:'TRANSF UN',nome:'BR_UN 2423 - JD ANâ”œÃ¼LIA FRANCO-USP',local:'Sâ”œÃ¢O PAULO-SP',status:'RM ENVIADA',valor:7933.95,sige:'14684',pedido:'ORDEM 1000079902'},
   {tipo:'TRANSF UN',nome:'BR_UN 1088 - PRIME L.MACHADO-URJ',local:'RIO DE JANEIRO-RJ',status:'RM ENVIADA',valor:6223.47,sige:'14533',pedido:'ORDEM 1000079906'},
   {tipo:'TRANSF UN',nome:'BR_UN 6074 - PRIME MEIER-URJ',local:'RIO DE JANEIRO-RJ',status:'RM ENVIADA',valor:4188.21,sige:'14536',pedido:'ORDEM 1000079909'},
   {tipo:'TRANSF UN',nome:'BR_UN 2435 - PRIME CENTRAL-URJ',local:'RIO DE JANEIRO-RJ',status:'RM ENVIADA',valor:7758.51,sige:'14534',pedido:'ORDEM 1000079914'},
-  {tipo:'DESC. PAB',nome:'PAB SADIA PONTA GROSSA',local:'PONTA GROSSA-PR',status:'BOOK PENDENTE',valor:13986.59,sige:'14874',obs:'Book de conclus├úo pendente + or├ºamento telhado'},
-  {tipo:'TRANSF PAE',nome:'PAB HOSPITAL CENTRAL DA POL├ìCIA MILITAR',local:'RIO DE JANEIRO-RJ',status:'BOOK PENDENTE',valor:9088.14,sige:'14912',obs:'Book Daniel ÔÇö etapa 2: descarte, ART, croqui'},
+  {tipo:'DESC. PAB',nome:'PAB SADIA PONTA GROSSA',local:'PONTA GROSSA-PR',status:'BOOK PENDENTE',valor:13986.59,sige:'14874',obs:'Book de conclusâ”œÃºo pendente + orâ”œÂºamento telhado'},
+  {tipo:'TRANSF PAE',nome:'PAB HOSPITAL CENTRAL DA POLâ”œÃ¬CIA MILITAR',local:'RIO DE JANEIRO-RJ',status:'BOOK PENDENTE',valor:9088.14,sige:'14912',obs:'Book Daniel Ã”Ã‡Ã¶ etapa 2: descarte, ART, croqui'},
   {tipo:'ENCER. AG',nome:'AG 6170 - PRIME BELVEDERE-UBH',local:'BELO HORIZONTE-MG',status:'BOOK PENDENTE',valor:32051.37,sige:'14537',obs:'Book + ART pendentes'},
-  {tipo:'TRANSF PAE',nome:'PAB 300 - EDITORA FTD - GRUPO MARISTA - AG. 2514',local:'GUARULHOS-SP',status:'BOOK PENDENTE',valor:9829.31,obs:'Book Daniel ÔÇö etapa 2: descarte, ART, croqui'},
-  {tipo:'TRANSF PAE',nome:'PAB 007 - EMPRESA FOLHA DA MANHA - AG. 0296',local:'S├âO PAULO-SP',status:'BOOK PENDENTE',valor:15780.99,sige:'14581',obs:'Book Daniel ÔÇö etapa 2: descarte, ART, croqui'},
-  {tipo:'DESC. PAB',nome:'PAB IBQ IND. QUIMICA',local:'',status:'RM ENVIADA',valor:6884.66,obs:'ART + termos + relat├│rio final pendentes'},
-  {tipo:'TRANSF UN',nome:'BR_UN 2512 - PIABETA DISTR.M.MAGE',local:'',status:'ELABORAR BOOK',valor:8846.97,obs:'Book p├│s-obra a elaborar'},
-  {tipo:'TRANSF UN',nome:'BR_UN 2187 - ITAIPU-UNITEROI',local:'',status:'ELABORAR BOOK',valor:9078.70,obs:'Book p├│s-obra a elaborar'},
+  {tipo:'TRANSF PAE',nome:'PAB 300 - EDITORA FTD - GRUPO MARISTA - AG. 2514',local:'GUARULHOS-SP',status:'BOOK PENDENTE',valor:9829.31,obs:'Book Daniel Ã”Ã‡Ã¶ etapa 2: descarte, ART, croqui'},
+  {tipo:'TRANSF PAE',nome:'PAB 007 - EMPRESA FOLHA DA MANHA - AG. 0296',local:'Sâ”œÃ¢O PAULO-SP',status:'BOOK PENDENTE',valor:15780.99,sige:'14581',obs:'Book Daniel Ã”Ã‡Ã¶ etapa 2: descarte, ART, croqui'},
+  {tipo:'DESC. PAB',nome:'PAB IBQ IND. QUIMICA',local:'',status:'RM ENVIADA',valor:6884.66,obs:'ART + termos + relatâ”œâ”‚rio final pendentes'},
+  {tipo:'TRANSF UN',nome:'BR_UN 2512 - PIABETA DISTR.M.MAGE',local:'',status:'ELABORAR BOOK',valor:8846.97,obs:'Book pâ”œâ”‚s-obra a elaborar'},
+  {tipo:'TRANSF UN',nome:'BR_UN 2187 - ITAIPU-UNITEROI',local:'',status:'ELABORAR BOOK',valor:9078.70,obs:'Book pâ”œâ”‚s-obra a elaborar'},
   {tipo:'TRANSF UN',nome:'BR_UN 1625 - PC D PED II-UPCALDAS',local:'',status:'EM ANDAMENTO',valor:12814.82,obs:'Prev: 22/06 a 30/06'},
-  {tipo:'TRANSF UN',nome:'BR_UN 0095 - NOVA CENTRAL-USP',local:'S├âO PAULO-SP',status:'EM ANDAMENTO',valor:3663.57,obs:'Prev: 22/06 a 30/06'},
+  {tipo:'TRANSF UN',nome:'BR_UN 0095 - NOVA CENTRAL-USP',local:'Sâ”œÃ¢O PAULO-SP',status:'EM ANDAMENTO',valor:3663.57,obs:'Prev: 22/06 a 30/06'},
   {tipo:'TRANSF UN',nome:'BR_UN 2646 - JD DO TREVO-UCAMPIN',local:'CAMPINAS-SP',status:'EM ANDAMENTO',valor:13974.82,obs:'Prev: 22/06 a 30/06'},
   {tipo:'TRANSF UN',nome:'BR_UN 2013 - ESTACIO-URJ',local:'RIO DE JANEIRO-RJ',status:'EM ANDAMENTO',valor:12084.82,obs:'Prev: 22/06 a 30/06'},
   {tipo:'TRANSF UN',nome:'BR_UN 2900 - BETANIA-UBH',local:'BELO HORIZONTE-MG',status:'EM ANDAMENTO',valor:9995.54,obs:'Prev: 22/06 a 30/06'},
-  {tipo:'ENCER. AG',nome:'AG 1997 - V. BARCELONA-USCS',local:'S├âO CAETANO DO SUL-SP',status:'RM ENVIADA',valor:46661.56,obs:'ART + termos + book final pendentes'},
-  {tipo:'DESC. PA',nome:'PA - ITAVERAVA',local:'MG',status:'ELABORAR BOOK',valor:9065,obs:'Book p├│s-obra a elaborar'},
-  {tipo:'DESC. PA',nome:'PA - TRES MARIA',local:'MG',status:'ELABORAR BOOK',valor:11523.25,obs:'Book p├│s-obra a elaborar'},
-  {tipo:'DESC. PA',nome:'PA - TOCOS DO MOJI',local:'MG',status:'ELABORAR BOOK',valor:10793.95,obs:'Book p├│s-obra a elaborar'},
-  {tipo:'DESC. PA',nome:'PA - PIRANGUCU',local:'MG',status:'ELABORAR BOOK',valor:9449.92,obs:'Book p├│s-obra a elaborar'},
-  {tipo:'DESC. PA',nome:'PA - SIMAO PEREIRA',local:'MG',status:'ELABORAR BOOK',valor:6631.47,obs:'Book p├│s-obra a elaborar'},
-  {tipo:'DESC. PA',nome:'PA - CAMPO DO MEIO',local:'MG',status:'ELABORAR BOOK',valor:13796.72,obs:'Book p├│s-obra a elaborar'},
-  {tipo:'DESC. PA',nome:'PA - RESERVA',local:'PR',status:'ELABORAR BOOK',valor:18018.92,obs:'Book p├│s-obra a elaborar'},
-  {tipo:'DESC. PA',nome:'PA - IPIGUA',local:'SP',status:'ELABORAR BOOK',valor:12038.51,obs:'Book p├│s-obra a elaborar'},
-  {tipo:'DESC. PA',nome:'PA - NIPOA',local:'SP',status:'ELABORAR BOOK',valor:12917.90,obs:'Book p├│s-obra a elaborar'},
-  {tipo:'DESC. PA',nome:'PA - GUZOL├éNDIA',local:'SP',status:'ELABORAR BOOK',valor:7054.83,obs:'Book p├│s-obra a elaborar'},
-  {tipo:'DESC. PA',nome:'PA - PAULISTAS',local:'MG',status:'ELABORAR BOOK',valor:9294.47,obs:'Book p├│s-obra a elaborar'},
-  {tipo:'DESC. PA',nome:'PA - CAFELANDIA',local:'SP',status:'ELABORAR BOOK',valor:19601.48,obs:'Book p├│s-obra a elaborar'},
-  {tipo:'DESC. PA',nome:'PA - SAO TOME',local:'',status:'ELABORAR BOOK',valor:11335.28,obs:'Book p├│s-obra a elaborar'},
-  {tipo:'TRANSF EN',nome:'BR_EN AG 2337 - PC BATEL-UCTBA-PR',local:'CURITIBA-PR',status:'ELABORAR BOOK',valor:0,obs:'Book p├│s-obra a elaborar'},
-  {tipo:'TRANSF EN',nome:'BR_EN AG 5755 - R.JOAO NEGRAO-UCTBA',local:'CURITIBA-PR',status:'PEND├èNCIA',valor:7580.54,obs:'PEND├èNCIA: colocar rodap├®'},
-  {tipo:'TRANSF EN',nome:'BR_EN AG 313 - V. LEOPOLDINA-USP',local:'S├âO PAULO-SP',status:'ELABORAR BOOK',valor:7696.74,obs:'Book p├│s-obra a elaborar'},
-  {tipo:'TRANSF EN',nome:'BR_EN AG 1998 - CERRO CORA-USP',local:'S├âO PAULO-SP',status:'ELABORAR BOOK',valor:11862.05,obs:'Book p├│s-obra a elaborar'},
+  {tipo:'ENCER. AG',nome:'AG 1997 - V. BARCELONA-USCS',local:'Sâ”œÃ¢O CAETANO DO SUL-SP',status:'RM ENVIADA',valor:46661.56,obs:'ART + termos + book final pendentes'},
+  {tipo:'DESC. PA',nome:'PA - ITAVERAVA',local:'MG',status:'ELABORAR BOOK',valor:9065,obs:'Book pâ”œâ”‚s-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - TRES MARIA',local:'MG',status:'ELABORAR BOOK',valor:11523.25,obs:'Book pâ”œâ”‚s-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - TOCOS DO MOJI',local:'MG',status:'ELABORAR BOOK',valor:10793.95,obs:'Book pâ”œâ”‚s-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - PIRANGUCU',local:'MG',status:'ELABORAR BOOK',valor:9449.92,obs:'Book pâ”œâ”‚s-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - SIMAO PEREIRA',local:'MG',status:'ELABORAR BOOK',valor:6631.47,obs:'Book pâ”œâ”‚s-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - CAMPO DO MEIO',local:'MG',status:'ELABORAR BOOK',valor:13796.72,obs:'Book pâ”œâ”‚s-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - RESERVA',local:'PR',status:'ELABORAR BOOK',valor:18018.92,obs:'Book pâ”œâ”‚s-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - IPIGUA',local:'SP',status:'ELABORAR BOOK',valor:12038.51,obs:'Book pâ”œâ”‚s-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - NIPOA',local:'SP',status:'ELABORAR BOOK',valor:12917.90,obs:'Book pâ”œâ”‚s-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - GUZOLâ”œÃ©NDIA',local:'SP',status:'ELABORAR BOOK',valor:7054.83,obs:'Book pâ”œâ”‚s-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - PAULISTAS',local:'MG',status:'ELABORAR BOOK',valor:9294.47,obs:'Book pâ”œâ”‚s-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - CAFELANDIA',local:'SP',status:'ELABORAR BOOK',valor:19601.48,obs:'Book pâ”œâ”‚s-obra a elaborar'},
+  {tipo:'DESC. PA',nome:'PA - SAO TOME',local:'',status:'ELABORAR BOOK',valor:11335.28,obs:'Book pâ”œâ”‚s-obra a elaborar'},
+  {tipo:'TRANSF EN',nome:'BR_EN AG 2337 - PC BATEL-UCTBA-PR',local:'CURITIBA-PR',status:'ELABORAR BOOK',valor:0,obs:'Book pâ”œâ”‚s-obra a elaborar'},
+  {tipo:'TRANSF EN',nome:'BR_EN AG 5755 - R.JOAO NEGRAO-UCTBA',local:'CURITIBA-PR',status:'PENDâ”œÃ¨NCIA',valor:7580.54,obs:'PENDâ”œÃ¨NCIA: colocar rodapâ”œÂ®'},
+  {tipo:'TRANSF EN',nome:'BR_EN AG 313 - V. LEOPOLDINA-USP',local:'Sâ”œÃ¢O PAULO-SP',status:'ELABORAR BOOK',valor:7696.74,obs:'Book pâ”œâ”‚s-obra a elaborar'},
+  {tipo:'TRANSF EN',nome:'BR_EN AG 1998 - CERRO CORA-USP',local:'Sâ”œÃ¢O PAULO-SP',status:'ELABORAR BOOK',valor:11862.05,obs:'Book pâ”œâ”‚s-obra a elaborar'},
 ]
 
 const STATUS_OPCOES = [
   'EM ANDAMENTO','NF EMITIDO','RM ENVIADA','RM ENVIADA (ART)','ELABORAR BOOK',
   'BOOK PENDENTE','AG. PEDIDO','ENVIAR RM','RM PRONTA AGUARDANDO ORDEM',
-  'PRECISA DE ARQUIVO RM','PEND├èNCIA','CANCELADO'
+  'PRECISA DE ARQUIVO RM','PENDâ”œÃ¨NCIA','CANCELADO'
 ]
 
 const STATUS_COR = {
@@ -92,7 +92,7 @@ const STATUS_COR = {
   'ENVIAR RM':{ bg:'#FEE2E2',text:'#991B1B' },
   'RM PRONTA AGUARDANDO ORDEM':{ bg:'#F0FDF4',text:'#166534' },
   'PRECISA DE ARQUIVO RM':{ bg:'#FEE2E2',text:'#991B1B' },
-  'PEND├èNCIA':{ bg:'#FEE2E2',text:'#991B1B' },
+  'PENDâ”œÃ¨NCIA':{ bg:'#FEE2E2',text:'#991B1B' },
   'CANCELADO':{ bg:'#F1F5F9',text:'#64748B' },
 }
 
@@ -110,9 +110,9 @@ const TIPO_COR = {
 
 function fmt(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) }
 
-const ETAPAS_UN_EN = ['Vistoria','Book+Croqui','Or├ºamento LPU','Envio Tecban','Aprova├º├úo','Execu├º├úo obra','Termo assinado','ART','Book final','RM liberada']
-const ETAPAS_DESC = ['Vistoria','Book+Croqui','Or├ºamento LPU','Envio Tecban','Aprova├º├úo','Execu├º├úo obra','QR Code','Termo assinado','Book final','RM liberada']
-const ETAPAS_OUTRAS = ['In├¡cio','Em andamento','Conclus├úo','Faturamento']
+const ETAPAS_UN_EN = ['Vistoria','Book+Croqui','Orâ”œÂºamento LPU','Envio Tecban','Aprovaâ”œÂºâ”œÃºo','Execuâ”œÂºâ”œÃºo obra','Termo assinado','ART','Book final','RM liberada']
+const ETAPAS_DESC = ['Vistoria','Book+Croqui','Orâ”œÂºamento LPU','Envio Tecban','Aprovaâ”œÂºâ”œÃºo','Execuâ”œÂºâ”œÃºo obra','QR Code','Termo assinado','Book final','RM liberada']
+const ETAPAS_OUTRAS = ['Inâ”œÂ¡cio','Em andamento','Conclusâ”œÃºo','Faturamento']
 
 function getEtapas(tipo) {
   if (['TRANSF UN','TRANSF EN'].includes(tipo)) return ETAPAS_UN_EN
@@ -130,8 +130,8 @@ function getEtapaAtual(status, tipo) {
   if (s.includes('BOOK FINAL') || s.includes('BOOK POS') || s.includes('BOOK DE CONCLUSAO') || s.includes('BOOK + ART')) return n - 2
   if (s.includes('ART') || s.includes('TERMO')) return n - 3
   if (s.includes('QR CODE') || s.includes('EXECUCAO') || s.includes('EM ANDAMENTO') || s.includes('AG. PEDIDO')) return 6
-  if (s.includes('APROVACAO') || s.includes('APROVA├ç├âO')) return 5
-  if (s.includes('OR├çAMENTO') || s.includes('ORCAMENTO') || s.includes('ENVIADO')) return 4
+  if (s.includes('APROVACAO') || s.includes('APROVAâ”œÃ§â”œÃ¢O')) return 5
+  if (s.includes('ORâ”œÃ§AMENTO') || s.includes('ORCAMENTO') || s.includes('ENVIADO')) return 4
   if (s.includes('BOOK') || s.includes('CROQUI')) return 3
   if (s.includes('VISTORIA')) return 1
   return 3
@@ -154,7 +154,7 @@ function Regua({ tipo, status }) {
               <div style={{ position:'absolute', top:11, left:'50%', right:'-50%', height:2, background: concluida ? '#1A6B4A' : '#E5E7EB', zIndex:0 }} />
             )}
             <div style={{ width:24, height:24, borderRadius:'50%', background: cor, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, position:'relative', zIndex:1, flexShrink:0, border: ativa ? '2px solid #2D3A8C' : 'none', boxShadow: ativa ? '0 0 0 3px rgba(45,58,140,.2)' : 'none' }}>
-              {concluida ? 'Ô£ô' : num}
+              {concluida ? 'Ã”Â£Ã´' : num}
             </div>
             <div style={{ fontSize:8, color: concluida ? '#1A6B4A' : ativa ? '#2D3A8C' : '#9CA3AF', marginTop:4, textAlign:'center', lineHeight:1.2, maxWidth:48 }}>{etapa}</div>
           </div>
@@ -305,7 +305,7 @@ export default function App() {
   if (importando) return (
     <div style={{ minHeight:'100vh', background:'#2D3A8C', display:'flex', alignItems:'center', justifyContent:'center' }}>
       <div style={{ color:'#87CEEB', fontSize:14, textAlign:'center' }}>
-        <div style={{ fontSize:32, marginBottom:12 }}>ÔÅ│</div>
+        <div style={{ fontSize:32, marginBottom:12 }}>Ã”Ã…â”‚</div>
         Importando dados da planilha...
       </div>
     </div>
@@ -320,16 +320,16 @@ export default function App() {
 
   const totalValor = obras.reduce((s,o) => s + Number(o.valor||0), 0)
   const emAndamento = obras.filter(o => o.status === 'EM ANDAMENTO').length
-  const pendencias = obras.filter(o => ['PEND├èNCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM'].includes(o.status)).length
+  const pendencias = obras.filter(o => ['PENDâ”œÃ¨NCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM'].includes(o.status)).length
   const nfEmitido = obras.filter(o => o.status === 'NF EMITIDO').length
 
   const grupos = [
-    { label:'­ƒö┤ Pend├¬ncias', obras: obrasFiltradas.filter(o => ['PEND├èNCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM'].includes(o.status)) },
-    { label:'­ƒƒí Em andamento', obras: obrasFiltradas.filter(o => o.status === 'EM ANDAMENTO') },
-    { label:'­ƒôÜ Elaborar / Book pendente', obras: obrasFiltradas.filter(o => ['ELABORAR BOOK','BOOK PENDENTE'].includes(o.status)) },
-    { label:'­ƒôñ RM Enviada / Aguardando', obras: obrasFiltradas.filter(o => ['RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM'].includes(o.status)) },
-    { label:'Ô£à NF Emitido', obras: obrasFiltradas.filter(o => o.status === 'NF EMITIDO') },
-    { label:'ÔÜ½ Outros', obras: obrasFiltradas.filter(o => !['PEND├èNCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM','EM ANDAMENTO','ELABORAR BOOK','BOOK PENDENTE','RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM','NF EMITIDO'].includes(o.status)) },
+    { label:'Â­Æ’Ã¶â”¤ Pendâ”œÂ¬ncias', obras: obrasFiltradas.filter(o => ['PENDâ”œÃ¨NCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM'].includes(o.status)) },
+    { label:'Â­Æ’Æ’Ã­ Em andamento', obras: obrasFiltradas.filter(o => o.status === 'EM ANDAMENTO') },
+    { label:'Â­Æ’Ã´Ãœ Elaborar / Book pendente', obras: obrasFiltradas.filter(o => ['ELABORAR BOOK','BOOK PENDENTE'].includes(o.status)) },
+    { label:'Â­Æ’Ã´Ã± RM Enviada / Aguardando', obras: obrasFiltradas.filter(o => ['RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM'].includes(o.status)) },
+    { label:'Ã”Â£Ã  NF Emitido', obras: obrasFiltradas.filter(o => o.status === 'NF EMITIDO') },
+    { label:'Ã”ÃœÂ½ Outros', obras: obrasFiltradas.filter(o => !['PENDâ”œÃ¨NCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM','EM ANDAMENTO','ELABORAR BOOK','BOOK PENDENTE','RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM','NF EMITIDO'].includes(o.status)) },
   ].filter(g => g.obras.length > 0)
 
   return (
@@ -338,7 +338,7 @@ export default function App() {
       <div style={{ background:'#1A2340', padding:'14px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <div>
           <div style={{ fontSize:16, fontWeight:700, color:'#fff' }}>Pipeline de Obras</div>
-          <div style={{ fontSize:11, color:'rgba(255,255,255,.6)', marginTop:2 }}>Grupo PG ┬À {obras.length} obras</div>
+          <div style={{ fontSize:11, color:'rgba(255,255,255,.6)', marginTop:2 }}>Grupo PG â”¬Ã€ {obras.length} obras</div>
         </div>
         <button onClick={() => supabase.auth.signOut()} style={{ background:'none', border:'none', color:'rgba(255,255,255,.6)', fontSize:12, cursor:'pointer' }}>Sair</button>
       </div>
@@ -348,7 +348,7 @@ export default function App() {
         {[
           { n: 'R$' + (totalValor/1000).toFixed(0) + 'k', l:'Valor Total' },
           { n: emAndamento, l:'Andamento' },
-          { n: pendencias, l:'Pend├¬ncias', alert: pendencias > 0 },
+          { n: pendencias, l:'Pendâ”œÂ¬ncias', alert: pendencias > 0 },
           { n: nfEmitido, l:'NF Emitido' },
         ].map((t,i) => (
           <div key={i} style={{ background:'rgba(255,255,255,.1)', borderRadius:10, padding:'10px 8px', textAlign:'center' }}>
@@ -377,7 +377,7 @@ export default function App() {
         {grupos.map(g => (
           <div key={g.label}>
             <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:.8, color:'#64748B', margin:'16px 0 8px', paddingBottom:4, borderBottom:'1px solid #E0E8F0' }}>
-              {g.label} ÔÇö {g.obras.length}
+              {g.label} Ã”Ã‡Ã¶ {g.obras.length}
             </div>
             {g.obras.map(obra => {
               const sc = STATUS_COR[obra.status] || { bg:'#F1F5F9', text:'#475569' }
@@ -388,13 +388,13 @@ export default function App() {
                   <div style={{ position:'relative' }}>
                   {usuario?.email === 'shirley@grupopg.com.br' && (
                     <button onClick={e => { e.stopPropagation(); setMenuAberto(menuAberto === obra.id ? null : obra.id) }}
-                      style={{ position:'absolute', top:8, right:8, background:'none', border:'none', fontSize:18, cursor:'pointer', color:'#888', zIndex:2, lineHeight:1 }}>Ôï«</button>
+                      style={{ position:'absolute', top:8, right:8, background:'none', border:'none', fontSize:18, cursor:'pointer', color:'#888', zIndex:2, lineHeight:1 }}>Ã”Ã¯Â«</button>
                   )}
                   {menuAberto === obra.id && (
                     <div style={{ position:'absolute', top:32, right:8, background:'#fff', border:'1px solid #E0E8F0', borderRadius:10, boxShadow:'0 4px 12px rgba(0,0,0,.15)', zIndex:10, minWidth:140 }}>
                       <div onClick={e => { e.stopPropagation(); excluirObra(obra.id) }}
                         style={{ padding:'12px 16px', fontSize:13, color:'#E24B4A', fontWeight:600, cursor:'pointer' }}>
-                        ­ƒùæ Excluir obra
+                        Â­Æ’Ã¹Ã¦ Excluir obra
                       </div>
                     </div>
                   )}
@@ -418,19 +418,19 @@ export default function App() {
                     <div style={{ padding:'12px 14px', borderTop:'1px solid #F0F4F8', background:'#FAFBFF' }}>
                       {obra.obs && (
                         <div style={{ fontSize:11, background:'#FFF9E6', borderLeft:'3px solid #F5A623', padding:'6px 10px', borderRadius:4, color:'#7A5A00', marginBottom:10 }}>
-                          ÔÜá´©Å {obra.obs}
+                          Ã”ÃœÃ¡Â´Â©Ã… {obra.obs}
                         </div>
                       )}
                       <div style={{ display:'flex', gap:16, flexWrap:'wrap', marginBottom:10 }}>
                         {obra.sige && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>SIGE</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.sige}</div></div>}
                         {obra.pedido && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Pedido</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.pedido}</div></div>}
                         {obra.nf && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>NF</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.nf}</div></div>}
-                        {obra.inicio && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>In├¡cio</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.inicio}</div></div>}
-                        {obra.termino && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>T├®rmino</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.termino}</div></div>}
+                        {obra.inicio && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Inâ”œÂ¡cio</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.inicio}</div></div>}
+                        {obra.termino && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Tâ”œÂ®rmino</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.termino}</div></div>}
                       </div>
                       {obra.atualizado_por && (
                         <div style={{ fontSize:10, color:'#4A7FC1', marginBottom:8 }}>
-                          Atualizado por {obra.atualizado_por} ┬À {obra.atualizado_em ? new Date(obra.atualizado_em).toLocaleString('pt-BR') : ''}
+                          Atualizado por {obra.atualizado_por} â”¬Ã€ {obra.atualizado_em ? new Date(obra.atualizado_em).toLocaleString('pt-BR') : ''}
                         </div>
                       )}
                       <button onClick={() => { setModal(obra); setNovoStatus(obra.status); setNovaObs(obra.obs||'') }}
@@ -447,7 +447,7 @@ export default function App() {
         ))}
       </div>
 
-      {/* Bot├úo Nova Obra */}
+      {/* Botâ”œÃºo Nova Obra */}
       <div style={{ padding:'0 12px 16px' }}>
         <button onClick={() => setModalNovaObra(true)}
           style={{ width:'100%', padding:13, background:'#3C3489', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:600, cursor:'pointer', borderBottom:'3px solid #26215C' }}>
@@ -464,11 +464,11 @@ export default function App() {
             {[
               { label:'Tipo *', field:'tipo', type:'select', options:['TRANSF UN','TRANSF EN','TRANSF PAE','DESC. PA','DESC. PAB','ENCER. AG','REFORMA','TB FORTE','LINK'] },
               { label:'Nome da obra *', field:'nome', type:'text', placeholder:'Ex: BR_UN 1234 - NOME-USP' },
-              { label:'Local', field:'local', type:'text', placeholder:'Ex: S├âO PAULO-SP' },
+              { label:'Local', field:'local', type:'text', placeholder:'Ex: Sâ”œÃ¢O PAULO-SP' },
               { label:'Valor (R$)', field:'valor', type:'number', placeholder:'Ex: 12500.00' },
               { label:'SIGE', field:'sige', type:'text', placeholder:'Ex: 14500' },
               { label:'Pedido', field:'pedido', type:'text', placeholder:'Ex: ORDEM 1000079999' },
-              { label:'Observa├º├úo', field:'obs', type:'textarea', placeholder:'Detalhes, pend├¬ncias...' },
+              { label:'Observaâ”œÂºâ”œÃºo', field:'obs', type:'textarea', placeholder:'Detalhes, pendâ”œÂ¬ncias...' },
             ].map(f => (
               <div key={f.field} style={{ marginBottom:12 }}>
                 <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>{f.label}</label>
@@ -507,7 +507,7 @@ export default function App() {
           onClick={e => { if(e.target === e.currentTarget) setModal(null) }}>
           <div style={{ background:'#fff', borderRadius:'16px 16px 0 0', padding:20, width:'100%', maxHeight:'80vh', overflowY:'auto' }}>
             <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:4 }}>{modal.nome}</div>
-            <div style={{ fontSize:11, color:'#888', marginBottom:16 }}>{modal.tipo} ┬À {fmt(modal.valor)}</div>
+            <div style={{ fontSize:11, color:'#888', marginBottom:16 }}>{modal.tipo} â”¬Ã€ {fmt(modal.valor)}</div>
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, marginBottom:8 }}>Novo status:</div>
             {STATUS_OPCOES.map(op => {
               const sc = STATUS_COR[op] || { bg:'#F1F5F9', text:'#475569' }
@@ -520,9 +520,9 @@ export default function App() {
                 </div>
               )
             })}
-            <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, margin:'12px 0 6px' }}>Observa├º├úo:</div>
+            <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, margin:'12px 0 6px' }}>Observaâ”œÂºâ”œÃºo:</div>
             <textarea value={novaObs} onChange={e=>setNovaObs(e.target.value)} rows={3}
-              placeholder="Pend├¬ncias, pr├│ximos passos..."
+              placeholder="Pendâ”œÂ¬ncias, prâ”œâ”‚ximos passos..."
               style={{ width:'100%', padding:'10px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, resize:'none', marginBottom:12, boxSizing:'border-box', color:'#1A2340' }} />
             <button onClick={salvarStatus} disabled={!novoStatus || salvando}
               style={{ width:'100%', padding:13, background: (!novoStatus||salvando) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor: (!novoStatus||salvando) ? 'default' : 'pointer' }}>
