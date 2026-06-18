@@ -122,6 +122,8 @@ function brToIso(br) {
   return `${y}-${m}-${d}`
 }
 
+const TIPOS_ADESIVO = ['PUXE','EMPURRE','DESLIZE','CADEIRANTE','FAIXA BOLINHA','FAIXA JATEADO']
+
 // Régua de 3 etapas para TRANSF UN com datas de visita
 const ETAPAS_UN = [
   { titulo: 'Vistoria + BDN', desc: 'Vistoria local e projeto de movimentação de BDN', campo: 'data_etapa1' },
@@ -131,6 +133,7 @@ const ETAPAS_UN = [
 
 function ReguaEtapasUN({ obra }) {
   const primeiraVazia = ETAPAS_UN.findIndex(e => !obra[e.campo])
+  const adesivosList = obra.adesivos ? obra.adesivos.split(',') : []
   return (
     <div style={{ display:'flex', gap:6, padding:'8px 0 4px' }}>
       {ETAPAS_UN.map((etapa, i) => {
@@ -151,6 +154,13 @@ function ReguaEtapasUN({ obra }) {
             <div style={{ fontSize:11, fontWeight:700, color: concluida ? '#1A6B4A' : '#9CA3AF' }}>
               {data ? isoToBr(data) : '—'}
             </div>
+            {i === 0 && adesivosList.length > 0 && (
+              <div style={{ display:'flex', flexWrap:'wrap', gap:3, justifyContent:'center', marginTop:5 }}>
+                {adesivosList.map(a => (
+                  <span key={a} style={{ fontSize:8, background:'#2D3A8C', color:'#fff', borderRadius:4, padding:'1px 5px', fontWeight:600 }}>{a}</span>
+                ))}
+              </div>
+            )}
           </div>
         )
       })}
@@ -224,6 +234,7 @@ export default function App() {
   const [novaObs, setNovaObs] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [datas, setDatas] = useState({ data_etapa1:'', data_etapa2:'', data_etapa3:'' })
+  const [adesivos, setAdesivos] = useState([])
   const [modalNovaObra, setModalNovaObra] = useState(false)
   const [menuAberto, setMenuAberto] = useState(null)
   const [novaObra, setNovaObra] = useState({ tipo:'', nome:'', local:'', valor:'', sige:'', pedido:'', obs:'' })
@@ -316,6 +327,7 @@ export default function App() {
       campos.data_etapa1 = datas.data_etapa1 || null
       campos.data_etapa2 = datas.data_etapa2 || null
       campos.data_etapa3 = datas.data_etapa3 || null
+      campos.adesivos = adesivos.length > 0 ? adesivos.join(',') : null
     }
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
     if (!error) {
@@ -328,6 +340,7 @@ export default function App() {
     setNovoStatus('')
     setNovaObs('')
     setDatas({ data_etapa1:'', data_etapa2:'', data_etapa3:'' })
+    setAdesivos([])
   }
 
   const estilo = { fontFamily:'system-ui,sans-serif', minHeight:'100vh', background:'#F0F4F8' }
@@ -496,6 +509,7 @@ export default function App() {
                         setNovoStatus(obra.status)
                         setNovaObs(obra.obs||'')
                         setDatas({ data_etapa1: obra.data_etapa1||'', data_etapa2: obra.data_etapa2||'', data_etapa3: obra.data_etapa3||'' })
+                        setAdesivos(obra.adesivos ? obra.adesivos.split(',') : [])
                       }}
                         style={{ width:'100%', padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                         Atualizar status
@@ -576,7 +590,7 @@ export default function App() {
               <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
                 <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Datas de visita ao ponto</div>
                 {ETAPAS_UN.map((etapa, i) => (
-                  <div key={etapa.campo} style={{ marginBottom:10 }}>
+                  <div key={etapa.campo} style={{ marginBottom:12 }}>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>
                       {i+1}ª Etapa — {etapa.titulo}
                     </label>
@@ -584,6 +598,25 @@ export default function App() {
                     <input type="date" value={datas[etapa.campo]||''}
                       onChange={e => setDatas(d => ({...d, [etapa.campo]: e.target.value}))}
                       style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                    {i === 0 && (
+                      <div style={{ marginTop:8 }}>
+                        <div style={{ fontSize:10, color:'#64748B', fontWeight:600, marginBottom:6 }}>Adesivos necessários:</div>
+                        <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                          {TIPOS_ADESIVO.map(tipo => {
+                            const sel = adesivos.includes(tipo)
+                            return (
+                              <div key={tipo} onClick={() => setAdesivos(prev => sel ? prev.filter(a => a !== tipo) : [...prev, tipo])}
+                                style={{ padding:'5px 11px', borderRadius:20, fontSize:11, fontWeight:600, cursor:'pointer',
+                                  background: sel ? '#2D3A8C' : '#fff',
+                                  color: sel ? '#fff' : '#4A7FC1',
+                                  border: `1.5px solid ${sel ? '#2D3A8C' : '#B5D4F4'}` }}>
+                                {tipo}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
