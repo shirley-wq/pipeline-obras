@@ -110,12 +110,60 @@ const TIPO_COR = {
 
 function fmt(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) }
 
-const ETAPAS_UN_EN = ['Vistoria','Book+Croqui','Orçamento LPU','Envio Tecban','Aprovação','Execução obra','Termo assinado','ART','Book final','RM liberada']
+function isoToBr(iso) {
+  if (!iso) return null
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+
+function brToIso(br) {
+  if (!br) return ''
+  const [d, m, y] = br.split('/')
+  return `${y}-${m}-${d}`
+}
+
+// Régua de 3 etapas para TRANSF UN com datas de visita
+const ETAPAS_UN = [
+  { titulo: 'Vistoria + BDN', desc: 'Vistoria local e projeto de movimentação de BDN', campo: 'data_etapa1' },
+  { titulo: 'Fechaduras', desc: 'Troca de fechaduras (coincide com troca/substituição do BDN)', campo: 'data_etapa2' },
+  { titulo: 'Obra Final', desc: 'Remoção porta giratória · Porta passa-objeto · Drywall/naval nos box · Adesivos', campo: 'data_etapa3' },
+]
+
+function ReguaEtapasUN({ obra }) {
+  const primeiraVazia = ETAPAS_UN.findIndex(e => !obra[e.campo])
+  return (
+    <div style={{ display:'flex', gap:6, padding:'8px 0 4px' }}>
+      {ETAPAS_UN.map((etapa, i) => {
+        const data = obra[etapa.campo]
+        const concluida = !!data
+        const atual = primeiraVazia === i
+        const cor = concluida ? '#1A6B4A' : atual ? '#2D3A8C' : '#9CA3AF'
+        const bg = concluida ? '#D1FAE5' : atual ? '#EEF2FF' : '#F8FAFC'
+        const borda = concluida ? '#BBF7D0' : atual ? '#C7D2FE' : '#E2E8F0'
+        return (
+          <div key={i} style={{ flex:1, background:bg, border:`1.5px solid ${borda}`, borderRadius:10, padding:'8px 6px', textAlign:'center' }}>
+            <div style={{ fontSize:9, fontWeight:700, color:cor, textTransform:'uppercase', letterSpacing:.5, marginBottom:2 }}>
+              {i+1}ª Etapa
+            </div>
+            <div style={{ fontSize:10, fontWeight:600, color:'#1A2340', marginBottom:4, lineHeight:1.2 }}>
+              {etapa.titulo}
+            </div>
+            <div style={{ fontSize:11, fontWeight:700, color: concluida ? '#1A6B4A' : '#9CA3AF' }}>
+              {data ? isoToBr(data) : '—'}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 const ETAPAS_DESC = ['Vistoria','Book+Croqui','Orçamento LPU','Envio Tecban','Aprovação','Execução obra','QR Code','Termo assinado','Book final','RM liberada']
+const ETAPAS_EN = ['Vistoria','Book+Croqui','Orçamento LPU','Envio Tecban','Aprovação','Execução obra','Termo assinado','ART','Book final','RM liberada']
 const ETAPAS_OUTRAS = ['Início','Em andamento','Conclusão','Faturamento']
 
 function getEtapas(tipo) {
-  if (['TRANSF UN','TRANSF EN'].includes(tipo)) return ETAPAS_UN_EN
+  if (tipo === 'TRANSF EN') return ETAPAS_EN
   if (['DESC. PA','DESC. PAB','TRANSF PAE','ENCER. AG'].includes(tipo)) return ETAPAS_DESC
   return ETAPAS_OUTRAS
 }
@@ -175,6 +223,7 @@ export default function App() {
   const [novoStatus, setNovoStatus] = useState('')
   const [novaObs, setNovaObs] = useState('')
   const [salvando, setSalvando] = useState(false)
+  const [datas, setDatas] = useState({ data_etapa1:'', data_etapa2:'', data_etapa3:'' })
   const [modalNovaObra, setModalNovaObra] = useState(false)
   const [menuAberto, setMenuAberto] = useState(null)
   const [novaObra, setNovaObra] = useState({ tipo:'', nome:'', local:'', valor:'', sige:'', pedido:'', obs:'' })
@@ -257,21 +306,28 @@ export default function App() {
   async function salvarStatus() {
     if (!novoStatus) return
     setSalvando(true)
-    const { error } = await supabase.from('pipeline_obras').update({
+    const campos = {
       status: novoStatus,
       obs: novaObs || modal.obs || null,
       atualizado_em: new Date().toISOString(),
       atualizado_por: usuario.email,
-    }).eq('id', modal.id)
+    }
+    if (modal.tipo === 'TRANSF UN') {
+      campos.data_etapa1 = datas.data_etapa1 || null
+      campos.data_etapa2 = datas.data_etapa2 || null
+      campos.data_etapa3 = datas.data_etapa3 || null
+    }
+    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
     if (!error) {
       setObras(prev => prev.map(o => o.id === modal.id
-        ? { ...o, status: novoStatus, obs: novaObs || o.obs, atualizado_por: usuario.email, atualizado_em: new Date().toISOString() }
+        ? { ...o, ...campos }
         : o))
     }
     setSalvando(false)
     setModal(null)
     setNovoStatus('')
     setNovaObs('')
+    setDatas({ data_etapa1:'', data_etapa2:'', data_etapa3:'' })
   }
 
   const estilo = { fontFamily:'system-ui,sans-serif', minHeight:'100vh', background:'#F0F4F8' }
@@ -410,7 +466,10 @@ export default function App() {
                   </div>
 
                   <div style={{ padding:'0 14px 8px' }}>
-                    <Regua tipo={obra.tipo} status={obra.status} />
+                    {obra.tipo === 'TRANSF UN'
+                      ? <ReguaEtapasUN obra={obra} />
+                      : <Regua tipo={obra.tipo} status={obra.status} />
+                    }
                   </div>
 
                   {estaAberta && (
@@ -432,7 +491,12 @@ export default function App() {
                           Atualizado por {obra.atualizado_por} — {obra.atualizado_em ? new Date(obra.atualizado_em).toLocaleString('pt-BR') : ''}
                         </div>
                       )}
-                      <button onClick={() => { setModal(obra); setNovoStatus(obra.status); setNovaObs(obra.obs||'') }}
+                      <button onClick={() => {
+                        setModal(obra)
+                        setNovoStatus(obra.status)
+                        setNovaObs(obra.obs||'')
+                        setDatas({ data_etapa1: obra.data_etapa1||'', data_etapa2: obra.data_etapa2||'', data_etapa3: obra.data_etapa3||'' })
+                      }}
                         style={{ width:'100%', padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                         Atualizar status
                       </button>
@@ -507,6 +571,24 @@ export default function App() {
           <div style={{ background:'#fff', borderRadius:'16px 16px 0 0', padding:20, width:'100%', maxHeight:'80vh', overflowY:'auto' }}>
             <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:4 }}>{modal.nome}</div>
             <div style={{ fontSize:11, color:'#888', marginBottom:16 }}>{modal.tipo} — {fmt(modal.valor)}</div>
+
+            {modal.tipo === 'TRANSF UN' && (
+              <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
+                <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Datas de visita ao ponto</div>
+                {ETAPAS_UN.map((etapa, i) => (
+                  <div key={etapa.campo} style={{ marginBottom:10 }}>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>
+                      {i+1}ª Etapa — {etapa.titulo}
+                    </label>
+                    <div style={{ fontSize:10, color:'#888', marginBottom:4 }}>{etapa.desc}</div>
+                    <input type="date" value={datas[etapa.campo]||''}
+                      onChange={e => setDatas(d => ({...d, [etapa.campo]: e.target.value}))}
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, marginBottom:8 }}>Novo status:</div>
             {STATUS_OPCOES.map(op => {
               const sc = STATUS_COR[op] || { bg:'#F1F5F9', text:'#475569' }
