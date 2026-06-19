@@ -181,18 +181,38 @@ function getEtapas(tipo) {
 function getEtapaAtual(status, tipo) {
   const etapas = getEtapas(tipo)
   const n = etapas.length
-  const s = status.toUpperCase()
-  if (s.includes('NF EMITIDO')) return n
+  // Busca direta pelo nome da etapa da régua
+  const idx = etapas.findIndex(e => e.toLowerCase() === (status||'').toLowerCase())
+  if (idx !== -1) return idx + 1
+  // Compatibilidade com status antigos do banco
+  const s = (status||'').toUpperCase()
+  if (s.includes('NF EMITIDO') || s.includes('RM LIBERADA')) return n
   if (s.includes('RM ENVIADA') || s.includes('RM PRONTA')) return n - 1
   if (s.includes('ENVIAR RM') || s.includes('ARQUIVO RM')) return n - 1
-  if (s.includes('BOOK FINAL') || s.includes('BOOK POS') || s.includes('BOOK DE CONCLUSAO') || s.includes('BOOK + ART')) return n - 2
-  if (s.includes('ART') || s.includes('TERMO')) return n - 3
-  if (s.includes('QR CODE') || s.includes('EXECUCAO') || s.includes('EM ANDAMENTO') || s.includes('AG. PEDIDO')) return 6
+  if (s.includes('BOOK FINAL') || s.includes('BOOK POS') || s.includes('BOOK DE CONCLUSAO') || s.includes('BOOK + ART')) return n - 1
+  if (s.includes('ART') || s.includes('TERMO')) return n - 2
+  if (s.includes('QR CODE')) return 7
+  if (s.includes('EXECUCAO') || s.includes('EM ANDAMENTO') || s.includes('AG. PEDIDO')) return 6
   if (s.includes('APROVACAO') || s.includes('APROVAÇÃO')) return 5
-  if (s.includes('ORCAMENTO') || s.includes('ORÇAMENTO') || s.includes('ENVIADO')) return 4
-  if (s.includes('BOOK') || s.includes('CROQUI')) return 3
+  if (s.includes('ORCAMENTO') || s.includes('ORÇAMENTO') || s.includes('ENVIADO') || s.includes('TECBAN')) return 4
+  if (s.includes('BOOK') || s.includes('CROQUI')) return 2
   if (s.includes('VISTORIA')) return 1
-  return 3
+  return 2
+}
+
+function getGrupoObra(o) {
+  const status = o.status || ''
+  if (['PENDÊNCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM'].includes(status)) return 'pendencias'
+  if (status === 'NF EMITIDO') return 'concluido'
+  if (status === 'CANCELADO') return 'outros'
+  if (['ELABORAR BOOK','BOOK PENDENTE'].includes(status)) return 'elaborar'
+  if (['RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM'].includes(status)) return 'rm'
+  const n = getEtapas(o.tipo).length
+  const etapa = getEtapaAtual(status, o.tipo)
+  if (etapa >= n) return 'concluido'
+  if (etapa >= n - 1) return 'rm'
+  if (etapa >= n - 2) return 'elaborar'
+  return 'em_andamento'
 }
 
 function Regua({ tipo, status }) {
@@ -392,12 +412,12 @@ export default function App() {
   const nfEmitido = obras.filter(o => o.status === 'NF EMITIDO').length
 
   const grupos = [
-    { label:'⚠️ Pendências', obras: obrasFiltradas.filter(o => ['PENDÊNCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM'].includes(o.status)) },
-    { label:'🔧 Em andamento', obras: obrasFiltradas.filter(o => o.status === 'EM ANDAMENTO') },
-    { label:'📋 Elaborar / Book pendente', obras: obrasFiltradas.filter(o => ['ELABORAR BOOK','BOOK PENDENTE'].includes(o.status)) },
-    { label:'📤 RM Enviada / Aguardando', obras: obrasFiltradas.filter(o => ['RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM'].includes(o.status)) },
-    { label:'✅ NF Emitido', obras: obrasFiltradas.filter(o => o.status === 'NF EMITIDO') },
-    { label:'📦 Outros', obras: obrasFiltradas.filter(o => !['PENDÊNCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM','EM ANDAMENTO','ELABORAR BOOK','BOOK PENDENTE','RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM','NF EMITIDO'].includes(o.status)) },
+    { label:'⚠️ Pendências', obras: obrasFiltradas.filter(o => getGrupoObra(o) === 'pendencias') },
+    { label:'🔧 Em andamento', obras: obrasFiltradas.filter(o => getGrupoObra(o) === 'em_andamento') },
+    { label:'📋 Elaborar / Book pendente', obras: obrasFiltradas.filter(o => getGrupoObra(o) === 'elaborar') },
+    { label:'📤 RM / Book final', obras: obrasFiltradas.filter(o => getGrupoObra(o) === 'rm') },
+    { label:'✅ NF Emitido / Concluído', obras: obrasFiltradas.filter(o => getGrupoObra(o) === 'concluido') },
+    { label:'📦 Outros', obras: obrasFiltradas.filter(o => getGrupoObra(o) === 'outros') },
   ].filter(g => g.obras.length > 0)
 
   return (
@@ -622,15 +642,15 @@ export default function App() {
               </div>
             )}
 
-            <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, marginBottom:8 }}>Novo status:</div>
-            {STATUS_OPCOES.map(op => {
-              const sc = STATUS_COR[op] || { bg:'#F1F5F9', text:'#475569' }
+            <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, marginBottom:8 }}>Etapa da régua:</div>
+            {getEtapas(modal.tipo).map((op, i) => {
               const ativo = novoStatus === op
               return (
                 <div key={op} onClick={() => setNovoStatus(op)}
-                  style={{ padding:'11px 14px', borderRadius:10, border: ativo ? '2px solid #2D3A8C' : '1px solid #E0E8F0', marginBottom:8, cursor:'pointer', background: ativo ? '#E6F1FB' : '#fff', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  style={{ padding:'11px 14px', borderRadius:10, border: ativo ? '2px solid #1A6B4A' : '1px solid #E0E8F0', marginBottom:8, cursor:'pointer', background: ativo ? '#D1FAE5' : '#fff', display:'flex', alignItems:'center', gap:10 }}>
+                  <span style={{ fontSize:11, background: ativo ? '#1A6B4A' : '#E6F1FB', color: ativo ? '#fff' : '#2D3A8C', fontWeight:700, borderRadius:'50%', width:22, height:22, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{i+1}</span>
                   <span style={{ fontSize:13, color:'#1A2340', fontWeight: ativo ? 600 : 400 }}>{op}</span>
-                  <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text }}>{op}</span>
+                  {ativo && <span style={{ marginLeft:'auto', fontSize:16 }}>●</span>}
                 </div>
               )
             })}
