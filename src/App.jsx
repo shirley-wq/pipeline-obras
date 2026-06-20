@@ -237,7 +237,7 @@ function getGrupoObra(o) {
   return 'em_andamento'
 }
 
-function Regua({ tipo, status, lembreteEtapa, lembreteTexto }) {
+function Regua({ tipo, status, lembreteEtapa, lembreteTexto, onRemoverLembrete }) {
   const etapas = getEtapas(tipo)
   const atual = getEtapaAtual(status, tipo)
   return (
@@ -263,8 +263,14 @@ function Regua({ tipo, status, lembreteEtapa, lembreteTexto }) {
             </div>
             <div style={{ fontSize:8, color: concluida ? '#1A6B4A' : ativa ? '#2D3A8C' : '#9CA3AF', marginTop:4, textAlign:'center', lineHeight:1.2, maxWidth:48 }}>{etapa}</div>
             {temLembrete && (
-              <div style={{ background:'#FEE2E2', color:'#991B1B', fontSize:7, fontWeight:700, borderRadius:4, padding:'2px 4px', marginTop:2, textAlign:'center', maxWidth:52, lineHeight:1.3, border:'1px solid #FECACA', wordBreak:'break-word' }}>
+              <div style={{ background:'#FEE2E2', color:'#991B1B', fontSize:7, fontWeight:700, borderRadius:4, padding:'2px 4px', marginTop:2, textAlign:'center', maxWidth:52, lineHeight:1.3, border:'1px solid #FECACA', wordBreak:'break-word', position:'relative' }}>
                 ⚠ {lembreteTexto}
+                {onRemoverLembrete && (
+                  <span onClick={e => { e.stopPropagation(); onRemoverLembrete() }}
+                    style={{ display:'block', marginTop:2, color:'#991B1B', fontWeight:900, fontSize:9, cursor:'pointer', letterSpacing:.5 }}>
+                    ✕ remover
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -419,6 +425,12 @@ export default function App() {
     setLembreteTexto('')
     setLembreteEtapa('')
     setAdesivos([])
+  }
+
+  async function removerLembrete(obraId) {
+    const campos = { lembrete_texto: null, lembrete_etapa: null, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obraId)
+    if (!error) setObras(prev => prev.map(o => o.id === obraId ? { ...o, lembrete_texto: null, lembrete_etapa: null } : o))
   }
 
   async function salvarBulk() {
@@ -583,7 +595,7 @@ export default function App() {
                   <div style={{ padding:'0 14px 8px' }}>
                     {obra.tipo === 'TRANSF UN'
                       ? <ReguaEtapasUN obra={obra} />
-                      : <Regua tipo={obra.tipo} status={obra.status} lembreteEtapa={obra.lembrete_etapa} lembreteTexto={obra.lembrete_texto} />
+                      : <Regua tipo={obra.tipo} status={obra.status} lembreteEtapa={obra.lembrete_etapa} lembreteTexto={obra.lembrete_texto} onRemoverLembrete={() => removerLembrete(obra.id)} />
                     }
                   </div>
 
