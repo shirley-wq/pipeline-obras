@@ -277,6 +277,7 @@ export default function App() {
   const [salvando, setSalvando] = useState(false)
   const [datas, setDatas] = useState({ data_etapa1:'', data_etapa2:'', data_etapa3:'' })
   const [dataObra, setDataObra] = useState({ inicio:'', termino:'' })
+  const [dataArt, setDataArt] = useState('')
   const [emNegociacao, setEmNegociacao] = useState(false)
   const [adesivos, setAdesivos] = useState([])
   const [selecionadas, setSelecionadas] = useState(new Set())
@@ -384,6 +385,7 @@ export default function App() {
     }
     if (novoStatus === 'OBRA EMITIR ART') {
       if (dataObra.inicio) campos.inicio = isoToBr(dataObra.inicio)
+      if (dataArt) campos.data_art = dataArt
     }
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
     if (!error) {
@@ -397,6 +399,7 @@ export default function App() {
     setNovaObs('')
     setDatas({ data_etapa1:'', data_etapa2:'', data_etapa3:'' })
     setDataObra({ inicio:'', termino:'' })
+    setDataArt('')
     setEmNegociacao(false)
     setAdesivos([])
   }
@@ -580,6 +583,7 @@ export default function App() {
                         {obra.nf && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>NF</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.nf}</div></div>}
                         {obra.inicio && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Início</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.inicio}</div></div>}
                         {obra.termino && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Término</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.termino}</div></div>}
+                        {obra.data_art && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>ART pronta</div><div style={{ fontSize:12, color:'#1A6B4A', fontWeight:600 }}>{isoToBr(obra.data_art)}</div></div>}
                       </div>
                       {obra.atualizado_por && (
                         <div style={{ fontSize:10, color:'#4A7FC1', marginBottom:8 }}>
@@ -592,6 +596,7 @@ export default function App() {
                         setNovaObs(obra.obs||'')
                         setDatas({ data_etapa1: obra.data_etapa1||'', data_etapa2: obra.data_etapa2||'', data_etapa3: obra.data_etapa3||'' })
                         setDataObra({ inicio: obra.inicio ? brToIso(obra.inicio) : '', termino: obra.termino ? brToIso(obra.termino) : '' })
+                        setDataArt(obra.data_art || '')
                         setEmNegociacao(obra.em_negociacao || false)
                         setAdesivos(obra.adesivos ? obra.adesivos.split(',') : [])
                       }}
@@ -740,10 +745,21 @@ export default function App() {
 
             {novoStatus === 'OBRA EMITIR ART' && modal.tipo !== 'TRANSF UN' && (
               <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
-                <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:8 }}>Data de início da obra</div>
-                <input type="date" value={dataObra.inicio}
-                  onChange={e => setDataObra(d => ({...d, inicio: e.target.value}))}
-                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Datas da obra</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+                  <div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Início da obra</label>
+                    <input type="date" value={dataObra.inicio}
+                      onChange={e => setDataObra(d => ({...d, inicio: e.target.value}))}
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>ART pronta em</label>
+                    <input type="date" value={dataArt}
+                      onChange={e => setDataArt(e.target.value)}
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                </div>
               </div>
             )}
 
