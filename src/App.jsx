@@ -246,7 +246,7 @@ function Regua({ tipo, status, lembreteEtapa, lembreteTexto }) {
         const num = i + 1
         const concluida = num < atual
         const ativa = num === atual
-        const temLembrete = lembreteEtapa === num && lembreteTexto
+        const temLembrete = Number(lembreteEtapa) === num && lembreteTexto
         const cor = concluida ? '#1A6B4A' : ativa ? '#2D3A8C' : '#D1D5DB'
         return (
           <div key={i} style={{ flex:1, minWidth:48, display:'flex', flexDirection:'column', alignItems:'center', position:'relative' }}>
@@ -616,7 +616,7 @@ export default function App() {
                         setDataArt(obra.data_art || '')
                         setEmNegociacao(obra.em_negociacao || false)
                         setLembreteTexto(obra.lembrete_texto || '')
-                        setLembreteEtapa(obra.lembrete_etapa || '')
+                        setLembreteEtapa(obra.lembrete_etapa ? String(obra.lembrete_etapa) : '')
                         setAdesivos(obra.adesivos ? obra.adesivos.split(',') : [])
                       }}
                         style={{ width:'100%', padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
