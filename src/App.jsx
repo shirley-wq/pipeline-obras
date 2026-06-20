@@ -237,7 +237,7 @@ function getGrupoObra(o) {
   return 'em_andamento'
 }
 
-function Regua({ tipo, status }) {
+function Regua({ tipo, status, lembreteEtapa, lembreteTexto }) {
   const etapas = getEtapas(tipo)
   const atual = getEtapaAtual(status, tipo)
   return (
@@ -246,16 +246,27 @@ function Regua({ tipo, status }) {
         const num = i + 1
         const concluida = num < atual
         const ativa = num === atual
+        const temLembrete = lembreteEtapa === num && lembreteTexto
         const cor = concluida ? '#1A6B4A' : ativa ? '#2D3A8C' : '#D1D5DB'
         return (
           <div key={i} style={{ flex:1, minWidth:48, display:'flex', flexDirection:'column', alignItems:'center', position:'relative' }}>
             {i < etapas.length - 1 && (
               <div style={{ position:'absolute', top:11, left:'50%', right:'-50%', height:2, background: concluida ? '#1A6B4A' : '#E5E7EB', zIndex:0 }} />
             )}
-            <div style={{ width:24, height:24, borderRadius:'50%', background: cor, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, position:'relative', zIndex:1, flexShrink:0, border: ativa ? '2px solid #2D3A8C' : 'none', boxShadow: ativa ? '0 0 0 3px rgba(45,58,140,.2)' : 'none' }}>
-              {concluida ? '✓' : num}
+            <div style={{ position:'relative', zIndex:1, flexShrink:0 }}>
+              <div style={{ width:24, height:24, borderRadius:'50%', background: cor, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, border: ativa ? '2px solid #2D3A8C' : 'none', boxShadow: ativa ? '0 0 0 3px rgba(45,58,140,.2)' : 'none' }}>
+                {concluida ? '✓' : num}
+              </div>
+              {temLembrete && (
+                <div style={{ position:'absolute', top:-6, right:-6, width:12, height:12, borderRadius:'50%', background:'#EF4444', border:'2px solid #fff', zIndex:2 }} />
+              )}
             </div>
             <div style={{ fontSize:8, color: concluida ? '#1A6B4A' : ativa ? '#2D3A8C' : '#9CA3AF', marginTop:4, textAlign:'center', lineHeight:1.2, maxWidth:48 }}>{etapa}</div>
+            {temLembrete && (
+              <div style={{ background:'#FEE2E2', color:'#991B1B', fontSize:7, fontWeight:700, borderRadius:4, padding:'2px 4px', marginTop:2, textAlign:'center', maxWidth:52, lineHeight:1.3, border:'1px solid #FECACA', wordBreak:'break-word' }}>
+                ⚠ {lembreteTexto}
+              </div>
+            )}
           </div>
         )
       })}
@@ -279,6 +290,8 @@ export default function App() {
   const [dataObra, setDataObra] = useState({ inicio:'', termino:'' })
   const [dataArt, setDataArt] = useState('')
   const [emNegociacao, setEmNegociacao] = useState(false)
+  const [lembreteTexto, setLembreteTexto] = useState('')
+  const [lembreteEtapa, setLembreteEtapa] = useState('')
   const [adesivos, setAdesivos] = useState([])
   const [selecionadas, setSelecionadas] = useState(new Set())
   const [modalBulk, setModalBulk] = useState(false)
@@ -387,6 +400,8 @@ export default function App() {
       if (dataObra.inicio) campos.inicio = isoToBr(dataObra.inicio)
       if (dataArt) campos.data_art = dataArt
     }
+    campos.lembrete_texto = lembreteTexto || null
+    campos.lembrete_etapa = lembreteTexto && lembreteEtapa ? Number(lembreteEtapa) : null
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
     if (!error) {
       setObras(prev => prev.map(o => o.id === modal.id
@@ -401,6 +416,8 @@ export default function App() {
     setDataObra({ inicio:'', termino:'' })
     setDataArt('')
     setEmNegociacao(false)
+    setLembreteTexto('')
+    setLembreteEtapa('')
     setAdesivos([])
   }
 
@@ -566,7 +583,7 @@ export default function App() {
                   <div style={{ padding:'0 14px 8px' }}>
                     {obra.tipo === 'TRANSF UN'
                       ? <ReguaEtapasUN obra={obra} />
-                      : <Regua tipo={obra.tipo} status={obra.status} />
+                      : <Regua tipo={obra.tipo} status={obra.status} lembreteEtapa={obra.lembrete_etapa} lembreteTexto={obra.lembrete_texto} />
                     }
                   </div>
 
@@ -598,6 +615,8 @@ export default function App() {
                         setDataObra({ inicio: obra.inicio ? brToIso(obra.inicio) : '', termino: obra.termino ? brToIso(obra.termino) : '' })
                         setDataArt(obra.data_art || '')
                         setEmNegociacao(obra.em_negociacao || false)
+                        setLembreteTexto(obra.lembrete_texto || '')
+                        setLembreteEtapa(obra.lembrete_etapa || '')
                         setAdesivos(obra.adesivos ? obra.adesivos.split(',') : [])
                       }}
                         style={{ width:'100%', padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
@@ -779,6 +798,28 @@ export default function App() {
             <textarea value={novaObs} onChange={e=>setNovaObs(e.target.value)} rows={3}
               placeholder="Pendências, próximos passos..."
               style={{ width:'100%', padding:'10px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, resize:'none', marginBottom:12, boxSizing:'border-box', color:'#1A2340' }} />
+
+            <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:12, padding:14, marginBottom:12 }}>
+              <div style={{ fontSize:12, color:'#991B1B', fontWeight:700, marginBottom:8 }}>📌 Post-it na régua</div>
+              <div style={{ marginBottom:8 }}>
+                <label style={{ fontSize:11, color:'#991B1B', fontWeight:600, display:'block', marginBottom:3 }}>Etapa</label>
+                <select value={lembreteEtapa} onChange={e => setLembreteEtapa(e.target.value)}
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff', boxSizing:'border-box' }}>
+                  <option value="">Sem lembrete</option>
+                  {getEtapas(modal.tipo).map((et, i) => (
+                    <option key={i} value={i+1}>{i+1}. {et}</option>
+                  ))}
+                </select>
+              </div>
+              {lembreteEtapa && (
+                <div>
+                  <label style={{ fontSize:11, color:'#991B1B', fontWeight:600, display:'block', marginBottom:3 }}>Texto do lembrete</label>
+                  <input value={lembreteTexto} onChange={e => setLembreteTexto(e.target.value)}
+                    placeholder="Ex: Emitir ART — Carol (segunda)"
+                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:13, color:'#1A2340', background:'#fff', boxSizing:'border-box' }} />
+                </div>
+              )}
+            </div>
             <button onClick={salvarStatus} disabled={!novoStatus || salvando}
               style={{ width:'100%', padding:13, background: (!novoStatus||salvando) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor: (!novoStatus||salvando) ? 'default' : 'pointer' }}>
               {salvando ? 'Salvando...' : 'Salvar'}
