@@ -279,6 +279,10 @@ export default function App() {
   const [dataObra, setDataObra] = useState({ inicio:'', termino:'' })
   const [emNegociacao, setEmNegociacao] = useState(false)
   const [adesivos, setAdesivos] = useState([])
+  const [selecionadas, setSelecionadas] = useState(new Set())
+  const [modalBulk, setModalBulk] = useState(false)
+  const [statusBulk, setStatusBulk] = useState('')
+  const [salvandoBulk, setSalvandoBulk] = useState(false)
   const [modalNovaObra, setModalNovaObra] = useState(false)
   const [menuAberto, setMenuAberto] = useState(null)
   const [novaObra, setNovaObra] = useState({ tipo:'', nome:'', local:'', valor:'', sige:'', pedido:'', obs:'' })
@@ -397,6 +401,21 @@ export default function App() {
     setAdesivos([])
   }
 
+  async function salvarBulk() {
+    if (!statusBulk || selecionadas.size === 0) return
+    setSalvandoBulk(true)
+    const ids = [...selecionadas]
+    const campos = { status: statusBulk, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+    const { error } = await supabase.from('pipeline_obras').update(campos).in('id', ids)
+    if (!error) {
+      setObras(prev => prev.map(o => selecionadas.has(o.id) ? { ...o, ...campos } : o))
+    }
+    setSalvandoBulk(false)
+    setModalBulk(false)
+    setSelecionadas(new Set())
+    setStatusBulk('')
+  }
+
   const estilo = { fontFamily:'system-ui,sans-serif', minHeight:'100vh', background:'#F0F4F8' }
   const inp = { width:'100%', padding:'11px 12px', fontSize:14, border:'1px solid #B5D4F4', borderRadius:10, background:'#fff', color:'#1A2340', outline:'none', boxSizing:'border-box', marginBottom:12 }
 
@@ -505,8 +524,9 @@ export default function App() {
               const sc = STATUS_COR[obra.status] || { bg:'#F1F5F9', text:'#475569' }
               const tc = TIPO_COR[obra.tipo] || { bg:'#F1F5F9', text:'#475569' }
               const estaAberta = aberta === obra.id
+              const estaSelecionada = selecionadas.has(obra.id)
               return (
-                <div key={obra.id} style={{ background:'#fff', borderRadius:12, marginBottom:10, border:'1px solid #E0E8F0', overflow:'hidden' }}>
+                <div key={obra.id} style={{ background: estaSelecionada ? '#EEF2FF' : '#fff', borderRadius:12, marginBottom:10, border: estaSelecionada ? '2px solid #2D3A8C' : '1px solid #E0E8F0', overflow:'hidden' }}>
                   <div style={{ position:'relative' }}>
                   {usuario?.email === 'shirley@grupopg.com.br' && (
                     <button onClick={e => { e.stopPropagation(); setMenuAberto(menuAberto === obra.id ? null : obra.id) }}
@@ -522,7 +542,14 @@ export default function App() {
                   )}
                   <div style={{ padding:'12px 14px', cursor:'pointer' }} onClick={() => { setMenuAberto(null); setAberta(estaAberta ? null : obra.id) }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4, gap:8 }}>
-                      <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', flex:1, lineHeight:1.4 }}>{obra.nome}</div>
+                      <div style={{ display:'flex', alignItems:'flex-start', gap:8, flex:1, minWidth:0 }}>
+                        <div onClick={e => { e.stopPropagation(); setSelecionadas(prev => { const n = new Set(prev); estaSelecionada ? n.delete(obra.id) : n.add(obra.id); return n }) }}
+                          style={{ width:20, height:20, borderRadius:6, border:`2px solid ${estaSelecionada ? '#2D3A8C' : '#CDD8E3'}`, background: estaSelecionada ? '#2D3A8C' : '#fff',
+                            display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1, cursor:'pointer' }}>
+                          {estaSelecionada && <span style={{ color:'#fff', fontSize:11, fontWeight:700 }}>✓</span>}
+                        </div>
+                        <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', flex:1, lineHeight:1.4 }}>{obra.nome}</div>
+                      </div>
                       <div style={{ fontSize:13, fontWeight:700, color:'#2D3A8C', whiteSpace:'nowrap' }}>{fmt(obra.valor)}</div>
                     </div>
                     <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
@@ -741,6 +768,55 @@ export default function App() {
               {salvando ? 'Salvando...' : 'Salvar'}
             </button>
             <button onClick={() => setModal(null)}
+              style={{ width:'100%', padding:11, background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:12, fontSize:13, cursor:'pointer', marginTop:8 }}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Barra flutuante de seleção em lote */}
+      {selecionadas.size > 0 && (
+        <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'#1A2340', padding:'14px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', zIndex:200, boxShadow:'0 -4px 20px rgba(0,0,0,.3)' }}>
+          <div style={{ color:'#fff', fontSize:13, fontWeight:600 }}>
+            {selecionadas.size} {selecionadas.size === 1 ? 'obra selecionada' : 'obras selecionadas'}
+          </div>
+          <div style={{ display:'flex', gap:8 }}>
+            <button onClick={() => setSelecionadas(new Set())}
+              style={{ padding:'8px 14px', background:'rgba(255,255,255,.15)', color:'#fff', border:'none', borderRadius:8, fontSize:12, cursor:'pointer', fontWeight:500 }}>
+              Limpar
+            </button>
+            <button onClick={() => setModalBulk(true)}
+              style={{ padding:'8px 14px', background:'#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:12, cursor:'pointer', fontWeight:700 }}>
+              Atualizar status
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Atualizar Status em Lote */}
+      {modalBulk && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:300, display:'flex', alignItems:'flex-end' }}
+          onClick={e => { if(e.target === e.currentTarget) setModalBulk(false) }}>
+          <div style={{ background:'#fff', borderRadius:'16px 16px 0 0', padding:20, width:'100%', maxHeight:'75vh', overflowY:'auto' }}>
+            <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:4 }}>Atualizar {selecionadas.size} obras</div>
+            <div style={{ fontSize:11, color:'#888', marginBottom:16 }}>O status selecionado será aplicado a todas as obras marcadas</div>
+            {STATUS_OPCOES.map((op, i) => {
+              const ativo = statusBulk === op
+              return (
+                <div key={op} onClick={() => setStatusBulk(op)}
+                  style={{ padding:'11px 14px', borderRadius:10, border: ativo ? '2px solid #1A6B4A' : '1px solid #E0E8F0', marginBottom:8, cursor:'pointer', background: ativo ? '#D1FAE5' : '#fff', display:'flex', alignItems:'center', gap:10 }}>
+                  <span style={{ fontSize:11, background: ativo ? '#1A6B4A' : '#E6F1FB', color: ativo ? '#fff' : '#2D3A8C', fontWeight:700, borderRadius:'50%', width:22, height:22, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{i+1}</span>
+                  <span style={{ fontSize:13, color:'#1A2340', fontWeight: ativo ? 600 : 400 }}>{op}</span>
+                  {ativo && <span style={{ marginLeft:'auto', fontSize:16 }}>●</span>}
+                </div>
+              )
+            })}
+            <button onClick={salvarBulk} disabled={!statusBulk || salvandoBulk}
+              style={{ width:'100%', padding:13, background: (!statusBulk||salvandoBulk) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor: (!statusBulk||salvandoBulk) ? 'default' : 'pointer', marginTop:8 }}>
+              {salvandoBulk ? 'Salvando...' : `Salvar em ${selecionadas.size} obras`}
+            </button>
+            <button onClick={() => setModalBulk(false)}
               style={{ width:'100%', padding:11, background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:12, fontSize:13, cursor:'pointer', marginTop:8 }}>
               Cancelar
             </button>
