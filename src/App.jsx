@@ -76,9 +76,18 @@ const OBRAS_INICIAIS = [
 ]
 
 const STATUS_OPCOES = [
-  'EM ANDAMENTO','NF EMITIDO','RM ENVIADA','RM ENVIADA (ART)','ELABORAR BOOK',
-  'BOOK PENDENTE','AG. PEDIDO','ENVIAR RM','RM PRONTA AGUARDANDO ORDEM',
-  'PRECISA DE ARQUIVO RM','PENDÊNCIA','CANCELADO'
+  'REALIZAR VISTORIA',
+  'VISTORIA REALIZADA ELABORAR BOOK E ORÇAMENTO',
+  'BOOK E ORÇAMENTOS ENVIADOS',
+  'ORÇAMENTO APROVADO/REPROVADO',
+  'OBRA EMITIR ART',
+  'DCM E TERMOS ENTREGUES AO CAMPO',
+  'TERMOS E DCMS ASSINADOS',
+  'BDNS, MOBILIÁRIOS E EQUIPAMENTO REMOVIDOS',
+  'FOTOS DO AMBIENTE VAZIO',
+  'ELABORAR QRCODE OU BOOK DE CONCLUSÃO',
+  'ELABORAR RM',
+  'NF EMITIDO','PENDÊNCIA','CANCELADO',
 ]
 
 const STATUS_COR = {
@@ -168,8 +177,20 @@ function ReguaEtapasUN({ obra }) {
   )
 }
 
-const ETAPAS_DESC = ['Vistoria','Book+Croqui','Orçamento LPU','Envio Tecban','Aprovação','Execução obra','QR Code','Termo assinado','Book final','RM liberada']
-const ETAPAS_EN = ['Vistoria','Book+Croqui','Orçamento LPU','Envio Tecban','Aprovação','Execução obra','Termo assinado','ART','Book final','RM liberada']
+const ETAPAS_DESC = [
+  'REALIZAR VISTORIA',
+  'VISTORIA REALIZADA ELABORAR BOOK E ORÇAMENTO',
+  'BOOK E ORÇAMENTOS ENVIADOS',
+  'ORÇAMENTO APROVADO/REPROVADO',
+  'OBRA EMITIR ART',
+  'DCM E TERMOS ENTREGUES AO CAMPO',
+  'TERMOS E DCMS ASSINADOS',
+  'BDNS, MOBILIÁRIOS E EQUIPAMENTO REMOVIDOS',
+  'FOTOS DO AMBIENTE VAZIO',
+  'ELABORAR QRCODE OU BOOK DE CONCLUSÃO',
+  'ELABORAR RM',
+]
+const ETAPAS_EN = ETAPAS_DESC
 const ETAPAS_OUTRAS = ['Início','Em andamento','Conclusão','Faturamento']
 
 function getEtapas(tipo) {
@@ -186,18 +207,19 @@ function getEtapaAtual(status, tipo) {
   if (idx !== -1) return idx + 1
   // Compatibilidade com status antigos do banco
   const s = (status||'').toUpperCase()
-  if (s.includes('NF EMITIDO') || s.includes('RM LIBERADA')) return n
-  if (s.includes('RM ENVIADA') || s.includes('RM PRONTA')) return n - 1
-  if (s.includes('ENVIAR RM') || s.includes('ARQUIVO RM')) return n - 1
-  if (s.includes('BOOK FINAL') || s.includes('BOOK POS') || s.includes('BOOK DE CONCLUSAO') || s.includes('BOOK + ART')) return n - 1
-  if (s.includes('ART') || s.includes('TERMO')) return n - 2
-  if (s.includes('QR CODE')) return 7
-  if (s.includes('EXECUCAO') || s.includes('EM ANDAMENTO') || s.includes('AG. PEDIDO')) return 6
-  if (s.includes('APROVACAO') || s.includes('APROVAÇÃO')) return 5
-  if (s.includes('ORCAMENTO') || s.includes('ORÇAMENTO') || s.includes('ENVIADO') || s.includes('TECBAN')) return 4
-  if (s.includes('BOOK') || s.includes('CROQUI')) return 2
-  if (s.includes('VISTORIA')) return 1
-  return 2
+  if (s.includes('NF EMITIDO') || s.includes('RM LIBERADA') || s.includes('EMITIR NF')) return n
+  if (s.includes('ELABORAR RM') || s.includes('RM ENVIADA') || s.includes('RM PRONTA') || s.includes('ENVIAR RM') || s.includes('ARQUIVO RM')) return n
+  if (s.includes('QRCODE') || s.includes('QR CODE') || s.includes('BOOK FINAL') || s.includes('BOOK POS') || s.includes('BOOK DE CONCLUSAO') || s.includes('ELABORAR BOOK') || s.includes('BOOK PENDENTE')) return 10
+  if (s.includes('FOTOS') || s.includes('AMBIENTE VAZIO')) return 9
+  if (s.includes('BDN') || s.includes('REMOVIDO') || s.includes('MOBILI')) return 8
+  if (s.includes('TERMOS E DCMS') || s.includes('TERMO ASSIN') || s.includes('ASSINATURA')) return 7
+  if (s.includes('DCM E TERMOS') || s.includes('ENTREGUES AO CAMPO')) return 6
+  if (s.includes('OBRA') || s.includes('EMITIR ART') || s.includes('EXECUCAO') || s.includes('EM ANDAMENTO') || s.includes('AG. PEDIDO') || s.includes('OBRA INICIADA')) return 5
+  if (s.includes('APROVADO') || s.includes('REPROVADO') || s.includes('APROVACAO') || s.includes('APROVAÇÃO')) return 4
+  if (s.includes('ORÇAMENTOS ENVIADOS') || s.includes('ENVIADO') || s.includes('TECBAN') || s.includes('ENVIO')) return 3
+  if (s.includes('ORCAMENTO LPU') || s.includes('ORÇAMENTO LPU') || s.includes('BOOK') || s.includes('CROQUI') || s.includes('VISTORIA REALIZADA')) return 2
+  if (s.includes('VISTORIA') || s.includes('REALIZAR')) return 1
+  return 1
 }
 
 function getGrupoObra(o) {
@@ -254,6 +276,8 @@ export default function App() {
   const [novaObs, setNovaObs] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [datas, setDatas] = useState({ data_etapa1:'', data_etapa2:'', data_etapa3:'' })
+  const [dataObra, setDataObra] = useState({ inicio:'', termino:'' })
+  const [emNegociacao, setEmNegociacao] = useState(false)
   const [adesivos, setAdesivos] = useState([])
   const [modalNovaObra, setModalNovaObra] = useState(false)
   const [menuAberto, setMenuAberto] = useState(null)
@@ -349,6 +373,14 @@ export default function App() {
       campos.data_etapa3 = datas.data_etapa3 || null
       campos.adesivos = adesivos.length > 0 ? adesivos.join(',') : null
     }
+    if (novoStatus === 'ORÇAMENTO APROVADO/REPROVADO') {
+      if (dataObra.inicio) campos.inicio = isoToBr(dataObra.inicio)
+      if (dataObra.termino) campos.termino = isoToBr(dataObra.termino)
+      campos.em_negociacao = emNegociacao
+    }
+    if (novoStatus === 'OBRA EMITIR ART') {
+      if (dataObra.inicio) campos.inicio = isoToBr(dataObra.inicio)
+    }
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
     if (!error) {
       setObras(prev => prev.map(o => o.id === modal.id
@@ -360,6 +392,8 @@ export default function App() {
     setNovoStatus('')
     setNovaObs('')
     setDatas({ data_etapa1:'', data_etapa2:'', data_etapa3:'' })
+    setDataObra({ inicio:'', termino:'' })
+    setEmNegociacao(false)
     setAdesivos([])
   }
 
@@ -494,6 +528,7 @@ export default function App() {
                     <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
                       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:tc.bg, color:tc.text }}>{obra.tipo}</span>
                       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text }}>{obra.status}</span>
+                      {obra.em_negociacao && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FEF3C7', color:'#92400E' }}>Em negociação</span>}
                       {obra.local ? <span style={{ fontSize:11, color:'#888' }}>{obra.local}</span> : null}
                     </div>
                   </div>
@@ -529,6 +564,8 @@ export default function App() {
                         setNovoStatus(obra.status)
                         setNovaObs(obra.obs||'')
                         setDatas({ data_etapa1: obra.data_etapa1||'', data_etapa2: obra.data_etapa2||'', data_etapa3: obra.data_etapa3||'' })
+                        setDataObra({ inicio: obra.inicio ? brToIso(obra.inicio) : '', termino: obra.termino ? brToIso(obra.termino) : '' })
+                        setEmNegociacao(obra.em_negociacao || false)
                         setAdesivos(obra.adesivos ? obra.adesivos.split(',') : [])
                       }}
                         style={{ width:'100%', padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
@@ -639,6 +676,47 @@ export default function App() {
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+
+            {novoStatus === 'ORÇAMENTO APROVADO/REPROVADO' && modal.tipo !== 'TRANSF UN' && (
+              <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
+                <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Data da obra</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+                  <div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Início</label>
+                    <input type="date" value={dataObra.inicio}
+                      onChange={e => setDataObra(d => ({...d, inicio: e.target.value}))}
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Término</label>
+                    <input type="date" value={dataObra.termino}
+                      onChange={e => setDataObra(d => ({...d, termino: e.target.value}))}
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                </div>
+                <div onClick={() => setEmNegociacao(v => !v)}
+                  style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'10px 12px', borderRadius:10,
+                    background: emNegociacao ? '#FEF3C7' : '#fff', border:`1.5px solid ${emNegociacao ? '#F59E0B' : '#E0E8F0'}` }}>
+                  <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${emNegociacao ? '#F59E0B' : '#CDD8E3'}`,
+                    background: emNegociacao ? '#F59E0B' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    {emNegociacao && <span style={{ color:'#fff', fontSize:12, fontWeight:700 }}>✓</span>}
+                  </div>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:600, color: emNegociacao ? '#92400E' : '#1A2340' }}>Orçamento reprovado — Em negociação</div>
+                    <div style={{ fontSize:10, color:'#888' }}>Marque se o orçamento foi reprovado e está em negociação</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {novoStatus === 'OBRA EMITIR ART' && modal.tipo !== 'TRANSF UN' && (
+              <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
+                <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:8 }}>Data de início da obra</div>
+                <input type="date" value={dataObra.inicio}
+                  onChange={e => setDataObra(d => ({...d, inicio: e.target.value}))}
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
               </div>
             )}
 
