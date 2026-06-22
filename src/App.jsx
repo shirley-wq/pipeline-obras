@@ -403,14 +403,11 @@ export default function App() {
       campos.data_etapa3 = datas.data_etapa3 || null
       campos.adesivos = adesivos.length > 0 ? adesivos.join(',') : null
     }
-    if (novoStatus === 'ORÇAMENTO APROVADO/REPROVADO') {
+    if (modal.tipo !== 'TRANSF UN') {
       if (dataObra.inicio) campos.inicio = isoToBr(dataObra.inicio)
       if (dataObra.termino) campos.termino = isoToBr(dataObra.termino)
-      campos.em_negociacao = emNegociacao
-    }
-    if (novoStatus === 'OBRA EMITIR ART') {
-      if (dataObra.inicio) campos.inicio = isoToBr(dataObra.inicio)
       if (dataArt) campos.data_art = dataArt
+      campos.em_negociacao = emNegociacao
     }
     campos.lembretes = lembretes.length > 0 ? lembretes : null
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
@@ -771,10 +768,10 @@ export default function App() {
               </div>
             )}
 
-            {novoStatus === 'ORÇAMENTO APROVADO/REPROVADO' && modal.tipo !== 'TRANSF UN' && (
+            {modal.tipo !== 'TRANSF UN' && (
               <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
-                <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Data da obra</div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+                <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Datas da obra</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
                   <div>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Início</label>
                     <input type="date" value={dataObra.inicio}
@@ -785,6 +782,12 @@ export default function App() {
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Término</label>
                     <input type="date" value={dataObra.termino}
                       onChange={e => setDataObra(d => ({...d, termino: e.target.value}))}
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>ART pronta em</label>
+                    <input type="date" value={dataArt}
+                      onChange={e => setDataArt(e.target.value)}
                       style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                   </div>
                 </div>
@@ -798,26 +801,6 @@ export default function App() {
                   <div>
                     <div style={{ fontSize:13, fontWeight:600, color: emNegociacao ? '#92400E' : '#1A2340' }}>Orçamento reprovado — Em negociação</div>
                     <div style={{ fontSize:10, color:'#888' }}>Marque se o orçamento foi reprovado e está em negociação</div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {novoStatus === 'OBRA EMITIR ART' && modal.tipo !== 'TRANSF UN' && (
-              <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
-                <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Datas da obra</div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
-                  <div>
-                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Início da obra</label>
-                    <input type="date" value={dataObra.inicio}
-                      onChange={e => setDataObra(d => ({...d, inicio: e.target.value}))}
-                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>ART pronta em</label>
-                    <input type="date" value={dataArt}
-                      onChange={e => setDataArt(e.target.value)}
-                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                   </div>
                 </div>
               </div>
