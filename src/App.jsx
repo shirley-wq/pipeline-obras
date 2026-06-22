@@ -311,7 +311,7 @@ export default function App() {
   const [salvandoBulk, setSalvandoBulk] = useState(false)
   const [modalNovaObra, setModalNovaObra] = useState(false)
   const [menuAberto, setMenuAberto] = useState(null)
-  const [novaObra, setNovaObra] = useState({ tipo:'', nome:'', local:'', valor:'', sige:'', pedido:'', obs:'' })
+  const [novaObra, setNovaObra] = useState({ tipo:'', nome:'', local:'', valor:'', sige:'', pedido:'', nf:'', obs:'' })
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [erroLogin, setErroLogin] = useState('')
@@ -368,6 +368,7 @@ export default function App() {
       valor: parseFloat(novaObra.valor) || 0,
       sige: novaObra.sige || null,
       pedido: novaObra.pedido || null,
+      nf: novaObra.nf || null,
       obs: novaObra.obs || null,
       status: 'VISTORIA',
       atualizado_por: usuario.email,
@@ -378,7 +379,7 @@ export default function App() {
     }
     setSalvando(false)
     setModalNovaObra(false)
-    setNovaObra({ tipo:'', nome:'', local:'', valor:'', sige:'', pedido:'', obs:'' })
+    setNovaObra({ tipo:'', nome:'', local:'', valor:'', sige:'', pedido:'', nf:'', obs:'' })
   }
 
   async function excluirObra(id) {
@@ -721,6 +722,7 @@ export default function App() {
               { label:'Valor (R$)', field:'valor', type:'number', placeholder:'Ex: 12500.00' },
               { label:'SIGE', field:'sige', type:'text', placeholder:'Ex: 14500' },
               { label:'Pedido', field:'pedido', type:'text', placeholder:'Ex: ORDEM 1000079999' },
+              { label:'NF', field:'nf', type:'text', placeholder:'Ex: 3181' },
               { label:'Observação', field:'obs', type:'textarea', placeholder:'Detalhes, pendências...' },
             ].map(f => (
               <div key={f.field} style={{ marginBottom:12 }}>
