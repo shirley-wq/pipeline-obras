@@ -524,7 +524,13 @@ export default function App() {
           <div style={{ fontSize:16, fontWeight:700, color:'#fff' }}>Pipeline de Obras</div>
           <div style={{ fontSize:11, color:'rgba(255,255,255,.6)', marginTop:2 }}>Grupo PG — {obras.length} obras</div>
         </div>
-        <button onClick={() => supabase.auth.signOut()} style={{ background:'none', border:'none', color:'rgba(255,255,255,.6)', fontSize:12, cursor:'pointer' }}>Sair</button>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <button onClick={() => setModalNovaObra(true)}
+            style={{ background:'#1A6B4A', border:'none', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', padding:'6px 12px', borderRadius:8 }}>
+            + Nova
+          </button>
+          <button onClick={() => supabase.auth.signOut()} style={{ background:'none', border:'none', color:'rgba(255,255,255,.6)', fontSize:12, cursor:'pointer' }}>Sair</button>
+        </div>
       </div>
 
       {/* Totalizadores */}
@@ -670,13 +676,6 @@ export default function App() {
         ))}
       </div>
 
-      {/* Botão Nova Obra */}
-      <div style={{ padding:'0 12px 16px' }}>
-        <button onClick={() => setModalNovaObra(true)}
-          style={{ width:'100%', padding:13, background:'#3C3489', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:600, cursor:'pointer', borderBottom:'3px solid #26215C' }}>
-          + Nova Obra
-        </button>
-      </div>
 
       {/* Modal Nova Obra */}
       {modalNovaObra && (
