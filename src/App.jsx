@@ -290,6 +290,8 @@ export default function App() {
   const [filtroTipo, setFiltroTipo] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
   const [busca, setBusca] = useState('')
+  const [filtroDe, setFiltroDe] = useState('')
+  const [filtroAte, setFiltroAte] = useState('')
   const [aberta, setAberta] = useState(null)
   const [modal, setModal] = useState(null)
   const [novoStatus, setNovoStatus] = useState('')
@@ -494,6 +496,12 @@ export default function App() {
     if (filtroTipo && o.tipo !== filtroTipo) return false
     if (filtroStatus && o.status !== filtroStatus) return false
     if (busca && !o.nome.toLowerCase().includes(busca.toLowerCase()) && !(o.local||'').toLowerCase().includes(busca.toLowerCase())) return false
+    if (filtroDe || filtroAte) {
+      if (!o.inicio) return false
+      const d = brToIso(o.inicio)
+      if (filtroDe && d < filtroDe) return false
+      if (filtroAte && d > filtroAte) return false
+    }
     return true
   })
 
@@ -548,6 +556,20 @@ export default function App() {
           {STATUS_OPCOES.map(s => <option key={s}>{s}</option>)}
         </select>
         <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar..." style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', flex:2, minWidth:120 }} />
+        <div style={{ display:'flex', gap:6, alignItems:'center', width:'100%' }}>
+          <span style={{ fontSize:11, color:'#64748B', fontWeight:600, whiteSpace:'nowrap' }}>Início:</span>
+          <input type="date" value={filtroDe} onChange={e=>setFiltroDe(e.target.value)}
+            style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', flex:1 }} />
+          <span style={{ fontSize:11, color:'#64748B' }}>até</span>
+          <input type="date" value={filtroAte} onChange={e=>setFiltroAte(e.target.value)}
+            style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', flex:1 }} />
+          {(filtroDe || filtroAte) && (
+            <button onClick={() => { setFiltroDe(''); setFiltroAte('') }}
+              style={{ padding:'7px 10px', background:'#F1F5F9', border:'1px solid #CDD8E3', borderRadius:8, fontSize:11, color:'#64748B', cursor:'pointer', whiteSpace:'nowrap' }}>
+              ✕ limpar
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Lista */}
