@@ -516,6 +516,33 @@ export default function App() {
     { label:'📦 Outros', obras: obrasFiltradas.filter(o => getGrupoObra(o) === 'outros') },
   ].filter(g => g.obras.length > 0)
 
+  function exportarCSV() {
+    const cab = ['Tipo','Nome','Local','Status','Valor','SIGE','Pedido','NF','Início','Término','ART pronta','Em negociação','Observação','Atualizado por','Atualizado em']
+    const esc = v => { const s = String(v ?? ''); return (s.includes(';') || s.includes('"') || s.includes('\n')) ? `"${s.replace(/"/g,'""')}"` : s }
+    const linhas = obrasFiltradas.map(o => [
+      o.tipo, o.nome, o.local||'', o.status,
+      Number(o.valor||0).toFixed(2).replace('.',','),
+      o.sige||'', o.pedido||'', o.nf||'',
+      o.inicio||'', o.termino||'',
+      o.data_art ? isoToBr(o.data_art) : '',
+      o.em_negociacao ? 'Sim' : '',
+      (o.obs||'').replace(/\n/g,' '),
+      o.atualizado_por||'',
+      o.atualizado_em ? new Date(o.atualizado_em).toLocaleString('pt-BR') : ''
+    ].map(esc).join(';'))
+    const csv = '﻿' + [cab.join(';'), ...linhas].join('\n')
+    const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const d = new Date()
+    a.download = `pipeline-${d.getDate().toString().padStart(2,'0')}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getFullYear()}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div style={estilo}>
       {/* Header */}
@@ -528,6 +555,10 @@ export default function App() {
           <button onClick={() => setModalNovaObra(true)}
             style={{ background:'#1A6B4A', border:'none', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', padding:'6px 12px', borderRadius:8 }}>
             + Nova
+          </button>
+          <button onClick={exportarCSV}
+            style={{ background:'#0E4D73', border:'none', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', padding:'6px 12px', borderRadius:8 }}>
+            ↓ Excel
           </button>
           <button onClick={() => supabase.auth.signOut()} style={{ background:'none', border:'none', color:'rgba(255,255,255,.6)', fontSize:12, cursor:'pointer' }}>Sair</button>
         </div>
