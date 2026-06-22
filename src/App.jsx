@@ -304,6 +304,7 @@ export default function App() {
   const [lembretes, setLembretes] = useState([])
   const [novoLembreteEtapa, setNovoLembreteEtapa] = useState('')
   const [novoLembreteTexto, setNovoLembreteTexto] = useState('')
+  const [editDados, setEditDados] = useState({ nome:'', local:'', valor:'', sige:'', pedido:'', nf:'' })
   const [adesivos, setAdesivos] = useState([])
   const [selecionadas, setSelecionadas] = useState(new Set())
   const [modalBulk, setModalBulk] = useState(false)
@@ -397,6 +398,12 @@ export default function App() {
       obs: novaObs || modal.obs || null,
       atualizado_em: new Date().toISOString(),
       atualizado_por: usuario.email,
+      nome: editDados.nome || modal.nome,
+      local: editDados.local || null,
+      valor: parseFloat(editDados.valor) || 0,
+      sige: editDados.sige || null,
+      pedido: editDados.pedido || null,
+      nf: editDados.nf || null,
     }
     if (modal.tipo === 'TRANSF UN') {
       campos.data_etapa1 = datas.data_etapa1 || null
@@ -429,6 +436,7 @@ export default function App() {
     setNovoLembreteEtapa('')
     setNovoLembreteTexto('')
     setAdesivos([])
+    setEditDados({ nome:'', local:'', valor:'', sige:'', pedido:'', nf:'' })
   }
 
   async function removerLembrete(obraId, lembrete) {
@@ -694,6 +702,7 @@ export default function App() {
                         setNovoLembreteEtapa('')
                         setNovoLembreteTexto('')
                         setAdesivos(obra.adesivos ? obra.adesivos.split(',') : [])
+                        setEditDados({ nome: obra.nome||'', local: obra.local||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', pedido: obra.pedido||'', nf: obra.nf||'' })
                       }}
                         style={{ width:'100%', padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                         Atualizar status
@@ -762,7 +771,43 @@ export default function App() {
           onClick={e => { if(e.target === e.currentTarget) setModal(null) }}>
           <div style={{ background:'#fff', borderRadius:'16px 16px 0 0', padding:20, width:'100%', maxHeight:'80vh', overflowY:'auto' }}>
             <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:4 }}>{modal.nome}</div>
-            <div style={{ fontSize:11, color:'#888', marginBottom:16 }}>{modal.tipo} — {fmt(modal.valor)}</div>
+            <div style={{ fontSize:11, color:'#888', marginBottom:12 }}>{modal.tipo}</div>
+
+            <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
+              <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Dados da obra</div>
+              <div style={{ marginBottom:10 }}>
+                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Nome</label>
+                <input value={editDados.nome} onChange={e => setEditDados(d => ({...d, nome:e.target.value}))}
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
+                <div>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Local</label>
+                  <input value={editDados.local} onChange={e => setEditDados(d => ({...d, local:e.target.value}))}
+                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Valor (R$)</label>
+                  <input type="number" value={editDados.valor} onChange={e => setEditDados(d => ({...d, valor:e.target.value}))}
+                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>SIGE</label>
+                  <input value={editDados.sige} onChange={e => setEditDados(d => ({...d, sige:e.target.value}))}
+                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Pedido</label>
+                  <input value={editDados.pedido} onChange={e => setEditDados(d => ({...d, pedido:e.target.value}))}
+                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>NF</label>
+                  <input value={editDados.nf} onChange={e => setEditDados(d => ({...d, nf:e.target.value}))}
+                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+              </div>
+            </div>
 
             {modal.tipo === 'TRANSF UN' && (
               <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
