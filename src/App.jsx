@@ -237,16 +237,17 @@ function getGrupoObra(o) {
   return 'em_andamento'
 }
 
-function Regua({ tipo, status, lembreteEtapa, lembreteTexto, onRemoverLembrete }) {
+function Regua({ tipo, status, lembretes, onRemoverLembrete }) {
   const etapas = getEtapas(tipo)
   const atual = getEtapaAtual(status, tipo)
+  const lista = Array.isArray(lembretes) ? lembretes : []
   return (
     <div style={{ display:'flex', alignItems:'flex-start', padding:'10px 0 6px', overflowX:'auto', gap:0 }}>
       {etapas.map((etapa, i) => {
         const num = i + 1
         const concluida = num < atual
         const ativa = num === atual
-        const temLembrete = Number(lembreteEtapa) === num && lembreteTexto
+        const lembretesAqui = lista.filter(l => Number(l.etapa) === num)
         const cor = concluida ? '#1A6B4A' : ativa ? '#2D3A8C' : '#D1D5DB'
         return (
           <div key={i} style={{ flex:1, minWidth:48, display:'flex', flexDirection:'column', alignItems:'center', position:'relative' }}>
@@ -257,22 +258,24 @@ function Regua({ tipo, status, lembreteEtapa, lembreteTexto, onRemoverLembrete }
               <div style={{ width:24, height:24, borderRadius:'50%', background: cor, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, border: ativa ? '2px solid #2D3A8C' : 'none', boxShadow: ativa ? '0 0 0 3px rgba(45,58,140,.2)' : 'none' }}>
                 {concluida ? '✓' : num}
               </div>
-              {temLembrete && (
-                <div style={{ position:'absolute', top:-6, right:-6, width:12, height:12, borderRadius:'50%', background:'#EF4444', border:'2px solid #fff', zIndex:2 }} />
+              {lembretesAqui.length > 0 && (
+                <div style={{ position:'absolute', top:-6, right:-6, width:14, height:14, borderRadius:'50%', background:'#EF4444', border:'2px solid #fff', zIndex:2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, color:'#fff', fontWeight:700 }}>
+                  {lembretesAqui.length}
+                </div>
               )}
             </div>
             <div style={{ fontSize:8, color: concluida ? '#1A6B4A' : ativa ? '#2D3A8C' : '#9CA3AF', marginTop:4, textAlign:'center', lineHeight:1.2, maxWidth:48 }}>{etapa}</div>
-            {temLembrete && (
-              <div style={{ background:'#FEE2E2', color:'#991B1B', fontSize:7, fontWeight:700, borderRadius:4, padding:'2px 4px', marginTop:2, textAlign:'center', maxWidth:52, lineHeight:1.3, border:'1px solid #FECACA', wordBreak:'break-word', position:'relative' }}>
-                ⚠ {lembreteTexto}
+            {lembretesAqui.map((l, idx) => (
+              <div key={idx} style={{ background:'#FEE2E2', color:'#991B1B', fontSize:7, fontWeight:700, borderRadius:4, padding:'2px 4px', marginTop:2, textAlign:'center', maxWidth:52, lineHeight:1.3, border:'1px solid #FECACA', wordBreak:'break-word' }}>
+                ⚠ {l.texto}
                 {onRemoverLembrete && (
-                  <span onClick={e => { e.stopPropagation(); onRemoverLembrete() }}
+                  <span onClick={e => { e.stopPropagation(); onRemoverLembrete(l) }}
                     style={{ display:'block', marginTop:2, color:'#991B1B', fontWeight:900, fontSize:9, cursor:'pointer', letterSpacing:.5 }}>
                     ✕ remover
                   </span>
                 )}
               </div>
-            )}
+            ))}
           </div>
         )
       })}
@@ -296,8 +299,9 @@ export default function App() {
   const [dataObra, setDataObra] = useState({ inicio:'', termino:'' })
   const [dataArt, setDataArt] = useState('')
   const [emNegociacao, setEmNegociacao] = useState(false)
-  const [lembreteTexto, setLembreteTexto] = useState('')
-  const [lembreteEtapa, setLembreteEtapa] = useState('')
+  const [lembretes, setLembretes] = useState([])
+  const [novoLembreteEtapa, setNovoLembreteEtapa] = useState('')
+  const [novoLembreteTexto, setNovoLembreteTexto] = useState('')
   const [adesivos, setAdesivos] = useState([])
   const [selecionadas, setSelecionadas] = useState(new Set())
   const [modalBulk, setModalBulk] = useState(false)
@@ -406,8 +410,7 @@ export default function App() {
       if (dataObra.inicio) campos.inicio = isoToBr(dataObra.inicio)
       if (dataArt) campos.data_art = dataArt
     }
-    campos.lembrete_texto = lembreteTexto || null
-    campos.lembrete_etapa = lembreteTexto && lembreteEtapa ? Number(lembreteEtapa) : null
+    campos.lembretes = lembretes.length > 0 ? lembretes : null
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
     if (!error) {
       setObras(prev => prev.map(o => o.id === modal.id
@@ -422,15 +425,18 @@ export default function App() {
     setDataObra({ inicio:'', termino:'' })
     setDataArt('')
     setEmNegociacao(false)
-    setLembreteTexto('')
-    setLembreteEtapa('')
+    setLembretes([])
+    setNovoLembreteEtapa('')
+    setNovoLembreteTexto('')
     setAdesivos([])
   }
 
-  async function removerLembrete(obraId) {
-    const campos = { lembrete_texto: null, lembrete_etapa: null, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+  async function removerLembrete(obraId, lembrete) {
+    const obra = obras.find(o => o.id === obraId)
+    const novaLista = (Array.isArray(obra?.lembretes) ? obra.lembretes : []).filter(l => !(l.etapa === lembrete.etapa && l.texto === lembrete.texto))
+    const campos = { lembretes: novaLista.length > 0 ? novaLista : null, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obraId)
-    if (!error) setObras(prev => prev.map(o => o.id === obraId ? { ...o, lembrete_texto: null, lembrete_etapa: null } : o))
+    if (!error) setObras(prev => prev.map(o => o.id === obraId ? { ...o, lembretes: novaLista } : o))
   }
 
   async function salvarBulk() {
@@ -595,7 +601,7 @@ export default function App() {
                   <div style={{ padding:'0 14px 8px' }}>
                     {obra.tipo === 'TRANSF UN'
                       ? <ReguaEtapasUN obra={obra} />
-                      : <Regua tipo={obra.tipo} status={obra.status} lembreteEtapa={obra.lembrete_etapa} lembreteTexto={obra.lembrete_texto} onRemoverLembrete={() => removerLembrete(obra.id)} />
+                      : <Regua tipo={obra.tipo} status={obra.status} lembretes={obra.lembretes} onRemoverLembrete={l => removerLembrete(obra.id, l)} />
                     }
                   </div>
 
@@ -627,8 +633,9 @@ export default function App() {
                         setDataObra({ inicio: obra.inicio ? brToIso(obra.inicio) : '', termino: obra.termino ? brToIso(obra.termino) : '' })
                         setDataArt(obra.data_art || '')
                         setEmNegociacao(obra.em_negociacao || false)
-                        setLembreteTexto(obra.lembrete_texto || '')
-                        setLembreteEtapa(obra.lembrete_etapa ? String(obra.lembrete_etapa) : '')
+                        setLembretes(Array.isArray(obra.lembretes) ? obra.lembretes : [])
+                        setNovoLembreteEtapa('')
+                        setNovoLembreteTexto('')
                         setAdesivos(obra.adesivos ? obra.adesivos.split(',') : [])
                       }}
                         style={{ width:'100%', padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
@@ -812,25 +819,39 @@ export default function App() {
               style={{ width:'100%', padding:'10px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, resize:'none', marginBottom:12, boxSizing:'border-box', color:'#1A2340' }} />
 
             <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:12, padding:14, marginBottom:12 }}>
-              <div style={{ fontSize:12, color:'#991B1B', fontWeight:700, marginBottom:8 }}>📌 Post-it na régua</div>
-              <div style={{ marginBottom:8 }}>
-                <label style={{ fontSize:11, color:'#991B1B', fontWeight:600, display:'block', marginBottom:3 }}>Etapa</label>
-                <select value={lembreteEtapa} onChange={e => setLembreteEtapa(e.target.value)}
-                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff', boxSizing:'border-box' }}>
-                  <option value="">Sem lembrete</option>
-                  {getEtapas(modal.tipo).map((et, i) => (
-                    <option key={i} value={i+1}>{i+1}. {et}</option>
+              <div style={{ fontSize:12, color:'#991B1B', fontWeight:700, marginBottom:10 }}>📌 Post-its na régua</div>
+              {lembretes.length > 0 && (
+                <div style={{ marginBottom:10, display:'flex', flexDirection:'column', gap:6 }}>
+                  {lembretes.map((l, idx) => (
+                    <div key={idx} style={{ display:'flex', alignItems:'center', gap:8, background:'#fff', border:'1px solid #FECACA', borderRadius:8, padding:'8px 10px' }}>
+                      <span style={{ fontSize:10, background:'#EF4444', color:'#fff', borderRadius:'50%', width:18, height:18, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, flexShrink:0 }}>{l.etapa}</span>
+                      <span style={{ fontSize:12, color:'#1A2340', flex:1 }}>{l.texto}</span>
+                      <span onClick={() => setLembretes(prev => prev.filter((_, i) => i !== idx))}
+                        style={{ fontSize:14, color:'#EF4444', cursor:'pointer', fontWeight:700, padding:'0 4px' }}>✕</span>
+                    </div>
                   ))}
-                </select>
-              </div>
-              {lembreteEtapa && (
-                <div>
-                  <label style={{ fontSize:11, color:'#991B1B', fontWeight:600, display:'block', marginBottom:3 }}>Texto do lembrete</label>
-                  <input value={lembreteTexto} onChange={e => setLembreteTexto(e.target.value)}
-                    placeholder="Ex: Emitir ART — Carol (segunda)"
-                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:13, color:'#1A2340', background:'#fff', boxSizing:'border-box' }} />
                 </div>
               )}
+              <div style={{ display:'flex', gap:6 }}>
+                <select value={novoLembreteEtapa} onChange={e => setNovoLembreteEtapa(e.target.value)}
+                  style={{ padding:'8px 6px', border:'1px solid #FECACA', borderRadius:8, fontSize:11, color:'#1A2340', background:'#fff', width:52, flexShrink:0 }}>
+                  <option value="">Etapa</option>
+                  {getEtapas(modal.tipo).map((_, i) => (
+                    <option key={i} value={i+1}>{i+1}</option>
+                  ))}
+                </select>
+                <input value={novoLembreteTexto} onChange={e => setNovoLembreteTexto(e.target.value)}
+                  placeholder="Ex: Emitir ART — Carol"
+                  style={{ flex:1, padding:'8px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }} />
+                <button onClick={() => {
+                  if (!novoLembreteEtapa || !novoLembreteTexto.trim()) return
+                  setLembretes(prev => [...prev, { etapa: Number(novoLembreteEtapa), texto: novoLembreteTexto.trim() }])
+                  setNovoLembreteEtapa('')
+                  setNovoLembreteTexto('')
+                }} style={{ padding:'8px 12px', background:'#EF4444', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', flexShrink:0 }}>
+                  + Add
+                </button>
+              </div>
             </div>
             <button onClick={salvarStatus} disabled={!novoStatus || salvando}
               style={{ width:'100%', padding:13, background: (!novoStatus||salvando) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor: (!novoStatus||salvando) ? 'default' : 'pointer' }}>
