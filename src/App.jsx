@@ -119,6 +119,20 @@ const TIPO_COR = {
 
 function fmt(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) }
 
+const STATUS_CONCLUIDO = ['NF EMITIDO', 'CANCELADO']
+
+function diasNoPipeline(dc) {
+  if (!dc) return null
+  return Math.floor((Date.now() - new Date(dc).getTime()) / 86400000)
+}
+
+function alertaDias(dias, status) {
+  if (dias === null || STATUS_CONCLUIDO.includes(status)) return null
+  if (dias > 30) return { cor: '#991B1B', bg: '#FEE2E2', label: `${dias}d parado` }
+  if (dias > 15) return { cor: '#92400E', bg: '#FEF3C7', label: `${dias}d no pipeline` }
+  return null
+}
+
 function isoToBr(iso) {
   if (!iso) return null
   const [y, m, d] = iso.split('-')
@@ -318,6 +332,7 @@ export default function App() {
   const [erroLogin, setErroLogin] = useState('')
   const [carregandoLogin, setCarregandoLogin] = useState(false)
   const [importando, setImportando] = useState(false)
+  const [dataCadastroModal, setDataCadastroModal] = useState('')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -372,6 +387,7 @@ export default function App() {
       nf: novaObra.nf || null,
       obs: novaObra.obs || null,
       status: 'VISTORIA',
+      data_cadastro: new Date().toISOString().split('T')[0],
       atualizado_por: usuario.email,
       atualizado_em: new Date().toISOString(),
     }).select()
@@ -418,6 +434,7 @@ export default function App() {
       campos.em_negociacao = emNegociacao
     }
     campos.lembretes = lembretes.length > 0 ? lembretes : null
+    campos.data_cadastro = dataCadastroModal || modal.data_cadastro || null
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
     if (!error) {
       setObras(prev => prev.map(o => o.id === modal.id
@@ -437,6 +454,7 @@ export default function App() {
     setNovoLembreteTexto('')
     setAdesivos([])
     setEditDados({ nome:'', local:'', valor:'', sige:'', pedido:'', nf:'' })
+    setDataCadastroModal('')
   }
 
   async function removerLembrete(obraId, lembrete) {
@@ -526,22 +544,27 @@ export default function App() {
   ].filter(g => g.obras.length > 0)
 
   function exportarCSV() {
-    const cab = ['Tipo','Nome','Local','Status','Valor','SIGE','Pedido','NF','Início','Término','ART pronta','Em negociação','Observação','Post-its Régua','Atualizado por','Atualizado em']
+    const cab = ['Tipo','Nome','Local','Status','Valor','SIGE','Pedido','NF','Início','Término','ART pronta','Em negociação','Observação','Post-its Régua','Data Entrada Pipeline','Dias no Pipeline','Atualizado por','Atualizado em']
     const esc = v => { const s = String(v ?? ''); return (s.includes(';') || s.includes('"') || s.includes('\n')) ? `"${s.replace(/"/g,'""')}"` : s }
-    const linhas = obrasFiltradas.map(o => [
-      o.tipo, o.nome, o.local||'', o.status,
-      Number(o.valor||0).toFixed(2).replace('.',','),
-      o.sige||'', o.pedido||'', o.nf||'',
-      o.inicio||'', o.termino||'',
-      o.data_art ? isoToBr(o.data_art) : '',
-      o.em_negociacao ? 'Sim' : '',
-      (o.obs||'').replace(/\n/g,' '),
-      Array.isArray(o.lembretes) && o.lembretes.length > 0
-        ? o.lembretes.map(l => `Etapa ${l.etapa}: ${l.texto}`).join(' | ')
-        : '',
-      o.atualizado_por||'',
-      o.atualizado_em ? new Date(o.atualizado_em).toLocaleString('pt-BR') : ''
-    ].map(esc).join(';'))
+    const linhas = obrasFiltradas.map(o => {
+      const d = diasNoPipeline(o.data_cadastro)
+      return [
+        o.tipo, o.nome, o.local||'', o.status,
+        Number(o.valor||0).toFixed(2).replace('.',','),
+        o.sige||'', o.pedido||'', o.nf||'',
+        o.inicio||'', o.termino||'',
+        o.data_art ? isoToBr(o.data_art) : '',
+        o.em_negociacao ? 'Sim' : '',
+        (o.obs||'').replace(/\n/g,' '),
+        Array.isArray(o.lembretes) && o.lembretes.length > 0
+          ? o.lembretes.map(l => `Etapa ${l.etapa}: ${l.texto}`).join(' | ')
+          : '',
+        o.data_cadastro ? isoToBr(o.data_cadastro) : '',
+        d !== null ? String(d) : '',
+        o.atualizado_por||'',
+        o.atualizado_em ? new Date(o.atualizado_em).toLocaleString('pt-BR') : ''
+      ].map(esc).join(';')
+    })
     const csv = '﻿' + [cab.join(';'), ...linhas].join('\n')
     const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -631,8 +654,10 @@ export default function App() {
               const tc = TIPO_COR[obra.tipo] || { bg:'#F1F5F9', text:'#475569' }
               const estaAberta = aberta === obra.id
               const estaSelecionada = selecionadas.has(obra.id)
+              const dias = diasNoPipeline(obra.data_cadastro)
+              const alerta = alertaDias(dias, obra.status)
               return (
-                <div key={obra.id} style={{ background: estaSelecionada ? '#EEF2FF' : '#fff', borderRadius:12, marginBottom:10, border: estaSelecionada ? '2px solid #2D3A8C' : '1px solid #E0E8F0', overflow:'hidden' }}>
+                <div key={obra.id} style={{ background: estaSelecionada ? '#EEF2FF' : '#fff', borderRadius:12, marginBottom:10, border: estaSelecionada ? '2px solid #2D3A8C' : alerta ? `2px solid ${alerta.cor}` : '1px solid #E0E8F0', overflow:'hidden' }}>
                   <div style={{ position:'relative' }}>
                   {usuario?.email === 'shirley@grupopg.com.br' && (
                     <button onClick={e => { e.stopPropagation(); setMenuAberto(menuAberto === obra.id ? null : obra.id) }}
@@ -662,6 +687,7 @@ export default function App() {
                       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:tc.bg, color:tc.text }}>{obra.tipo}</span>
                       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text }}>{obra.status}</span>
                       {obra.em_negociacao && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FEF3C7', color:'#92400E' }}>Em negociação</span>}
+                      {alerta && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:alerta.bg, color:alerta.cor }}>⚠ {alerta.label}</span>}
                       {obra.local ? <span style={{ fontSize:11, color:'#888' }}>{obra.local}</span> : null}
                     </div>
                   </div>
@@ -681,6 +707,7 @@ export default function App() {
                         </div>
                       )}
                       <div style={{ display:'flex', gap:16, flexWrap:'wrap', marginBottom:10 }}>
+                        {obra.data_cadastro && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Entrada pipeline</div><div style={{ fontSize:12, color: alerta ? alerta.cor : '#1A2340', fontWeight:600 }}>{isoToBr(obra.data_cadastro)}{dias !== null ? ` · ${dias}d` : ''}</div></div>}
                         {obra.sige && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>SIGE</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.sige}</div></div>}
                         {obra.pedido && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Pedido</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.pedido}</div></div>}
                         {obra.nf && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>NF</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.nf}</div></div>}
@@ -706,6 +733,7 @@ export default function App() {
                         setNovoLembreteTexto('')
                         setAdesivos(obra.adesivos ? obra.adesivos.split(',') : [])
                         setEditDados({ nome: obra.nome||'', local: obra.local||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', pedido: obra.pedido||'', nf: obra.nf||'' })
+                        setDataCadastroModal(obra.data_cadastro || '')
                       }}
                         style={{ width:'100%', padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                         Atualizar status
@@ -847,6 +875,14 @@ export default function App() {
                 ))}
               </div>
             )}
+
+            <div style={{ background:'#F0F7FF', borderRadius:12, padding:14, marginBottom:16, border:'1px solid #BFDBFE' }}>
+              <div style={{ fontSize:12, color:'#1E40AF', fontWeight:700, marginBottom:8 }}>Data de entrada no pipeline</div>
+              <input type="date" value={dataCadastroModal}
+                onChange={e => setDataCadastroModal(e.target.value)}
+                style={{ width:'100%', padding:'8px 10px', border:'1px solid #BFDBFE', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+              <div style={{ fontSize:10, color:'#64748B', marginTop:5 }}>Quando esta demanda entrou no pipeline (usada para calcular dias parado)</div>
+            </div>
 
             {modal.tipo !== 'TRANSF UN' && (
               <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
