@@ -326,7 +326,7 @@ export default function App() {
   const [salvandoBulk, setSalvandoBulk] = useState(false)
   const [modalNovaObra, setModalNovaObra] = useState(false)
   const [menuAberto, setMenuAberto] = useState(null)
-  const [novaObra, setNovaObra] = useState({ tipo:'', nome:'', local:'', valor:'', sige:'', pedido:'', nf:'', obs:'' })
+  const [novaObra, setNovaObra] = useState({ tipo:'', nome:'', local:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0] })
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [erroLogin, setErroLogin] = useState('')
@@ -387,7 +387,7 @@ export default function App() {
       nf: novaObra.nf || null,
       obs: novaObra.obs || null,
       status: 'VISTORIA',
-      data_cadastro: new Date().toISOString().split('T')[0],
+      data_cadastro: novaObra.data_cadastro || new Date().toISOString().split('T')[0],
       atualizado_por: usuario.email,
       atualizado_em: new Date().toISOString(),
     }).select()
@@ -396,7 +396,7 @@ export default function App() {
     }
     setSalvando(false)
     setModalNovaObra(false)
-    setNovaObra({ tipo:'', nome:'', local:'', valor:'', sige:'', pedido:'', nf:'', obs:'' })
+    setNovaObra({ tipo:'', nome:'', local:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0] })
   }
 
   async function excluirObra(id) {
@@ -784,6 +784,13 @@ export default function App() {
                 )}
               </div>
             ))}
+            <div style={{ marginBottom:14, background:'#F0F7FF', borderRadius:10, padding:12, border:'1px solid #BFDBFE' }}>
+              <label style={{ fontSize:12, color:'#1E40AF', fontWeight:700, display:'block', marginBottom:4 }}>Data de entrada no pipeline</label>
+              <input type="date" value={novaObra.data_cadastro}
+                onChange={e => setNovaObra(p => ({...p, data_cadastro: e.target.value}))}
+                style={{ width:'100%', padding:'10px 12px', border:'1px solid #BFDBFE', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+              <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Padrão: hoje. Ajuste se a demanda chegou em outra data.</div>
+            </div>
             <button onClick={salvarNovaObra} disabled={!novaObra.tipo || !novaObra.nome || salvando}
               style={{ width:'100%', padding:13, background: (!novaObra.tipo||!novaObra.nome||salvando) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor:'pointer', marginBottom:8 }}>
               {salvando ? 'Salvando...' : 'Criar Obra'}
