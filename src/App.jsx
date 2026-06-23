@@ -526,7 +526,7 @@ export default function App() {
   ].filter(g => g.obras.length > 0)
 
   function exportarCSV() {
-    const cab = ['Tipo','Nome','Local','Status','Valor','SIGE','Pedido','NF','Início','Término','ART pronta','Em negociação','Observação','Atualizado por','Atualizado em']
+    const cab = ['Tipo','Nome','Local','Status','Valor','SIGE','Pedido','NF','Início','Término','ART pronta','Em negociação','Observação','Post-its Régua','Atualizado por','Atualizado em']
     const esc = v => { const s = String(v ?? ''); return (s.includes(';') || s.includes('"') || s.includes('\n')) ? `"${s.replace(/"/g,'""')}"` : s }
     const linhas = obrasFiltradas.map(o => [
       o.tipo, o.nome, o.local||'', o.status,
@@ -536,6 +536,9 @@ export default function App() {
       o.data_art ? isoToBr(o.data_art) : '',
       o.em_negociacao ? 'Sim' : '',
       (o.obs||'').replace(/\n/g,' '),
+      Array.isArray(o.lembretes) && o.lembretes.length > 0
+        ? o.lembretes.map(l => `Etapa ${l.etapa}: ${l.texto}`).join(' | ')
+        : '',
       o.atualizado_por||'',
       o.atualizado_em ? new Date(o.atualizado_em).toLocaleString('pt-BR') : ''
     ].map(esc).join(';'))
