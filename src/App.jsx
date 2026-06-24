@@ -601,7 +601,7 @@ export default function App() {
     return true
   })
 
-  const obrasFaturar = obras.filter(o => STATUS_FATURAR.includes(o.status))
+  const obrasFaturar = obras.filter(o => STATUS_FATURAR.includes(o.status) && !(Array.isArray(o.lembretes) && o.lembretes.length > 0))
 
   const obrasHistorico = obras.filter(o => {
     if (o.status !== 'NF EMITIDO') return false
