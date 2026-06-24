@@ -510,7 +510,8 @@ export default function App() {
       nf: d.nf || null,
       vencimento: d.vencimento || null,
       atualizado_em: new Date().toISOString(),
-      atualizado_por: usuario.email
+      atualizado_por: usuario.email,
+      ...(d.valor !== undefined && d.valor !== '' ? { valor: parseFloat(String(d.valor).replace(',','.')) || 0 } : {})
     }
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', id)
     if (!error) {
@@ -744,6 +745,14 @@ export default function App() {
                     {o.obs && <div style={{ fontSize:11, background:'#FFF9E6', borderLeft:'3px solid #F5A623', padding:'5px 8px', borderRadius:4, color:'#7A5A00', marginBottom:10 }}>📌 {o.obs}</div>}
                     <div style={{ background:'#F0F4F8', borderRadius:10, padding:10, marginBottom:10 }}>
                       <div style={{ fontSize:11, color:'#2D3A8C', fontWeight:700, marginBottom:8 }}>Dados para faturamento</div>
+                      <div style={{ marginBottom:8 }}>
+                        <label style={{ fontSize:10, color:'#64748B', fontWeight:600, display:'block', marginBottom:3 }}>Valor (R$)</label>
+                        <input
+                          value={(faturarDados[o.id]||{}).valor !== undefined ? (faturarDados[o.id]||{}).valor : (o.valor||'')}
+                          onChange={e => setFaturarDados(prev => ({...prev, [o.id]: {...(prev[o.id]||{}), valor: e.target.value}}))}
+                          placeholder="0,00"
+                          style={{ width:'100%', padding:'8px 10px', border:'1.5px solid #BFDBFE', borderRadius:8, fontSize:14, fontWeight:700, color:'#1A6B4A', boxSizing:'border-box' }} />
+                      </div>
                       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
                         <div>
                           <label style={{ fontSize:10, color:'#64748B', fontWeight:600, display:'block', marginBottom:3 }}>Nº da NF *</label>
