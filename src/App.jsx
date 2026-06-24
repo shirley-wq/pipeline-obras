@@ -120,6 +120,13 @@ const TIPO_COR = {
 function fmt(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) }
 
 const STATUS_CONCLUIDO = ['NF EMITIDO', 'CANCELADO']
+const STATUS_FATURAR = ['ELABORAR RM', 'RM ENVIADA', 'RM ENVIADA (ART)', 'RM PRONTA AGUARDANDO ORDEM']
+
+function uf(local) {
+  if (!local) return '—'
+  const p = local.trim().split('-')
+  return p.length > 1 ? p[p.length - 1].trim() : local.trim()
+}
 
 function diasNoPipeline(dc) {
   if (!dc) return null
@@ -333,6 +340,11 @@ export default function App() {
   const [carregandoLogin, setCarregandoLogin] = useState(false)
   const [importando, setImportando] = useState(false)
   const [dataCadastroModal, setDataCadastroModal] = useState('')
+  const [aba, setAba] = useState('pipeline')
+  const [filtroHistTipo, setFiltroHistTipo] = useState('')
+  const [filtroHistRegiao, setFiltroHistRegiao] = useState('')
+  const [filtroHistDe, setFiltroHistDe] = useState('')
+  const [filtroHistAte, setFiltroHistAte] = useState('')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -457,6 +469,12 @@ export default function App() {
     setDataCadastroModal('')
   }
 
+  async function marcarFaturado(id) {
+    const campos = { status: 'NF EMITIDO', atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', id)
+    if (!error) setObras(prev => prev.map(o => o.id === id ? { ...o, ...campos } : o))
+  }
+
   async function removerLembrete(obraId, lembrete) {
     const obra = obras.find(o => o.id === obraId)
     const novaLista = (Array.isArray(obra?.lembretes) ? obra.lembretes : []).filter(l => !(l.etapa === lembrete.etapa && l.texto === lembrete.texto))
@@ -517,6 +535,7 @@ export default function App() {
   )
 
   const obrasFiltradas = obras.filter(o => {
+    if (o.status === 'NF EMITIDO') return false
     if (filtroTipo && o.tipo !== filtroTipo) return false
     if (filtroStatus && o.status !== filtroStatus) return false
     if (busca && !o.nome.toLowerCase().includes(busca.toLowerCase()) && !(o.local||'').toLowerCase().includes(busca.toLowerCase())) return false
@@ -529,10 +548,25 @@ export default function App() {
     return true
   })
 
-  const totalValor = obras.reduce((s,o) => s + Number(o.valor||0), 0)
-  const emAndamento = obras.filter(o => o.status === 'EM ANDAMENTO').length
-  const pendencias = obras.filter(o => ['PENDÊNCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM'].includes(o.status)).length
-  const nfEmitido = obras.filter(o => o.status === 'NF EMITIDO').length
+  const obrasFaturar = obras.filter(o => STATUS_FATURAR.includes(o.status))
+
+  const obrasHistorico = obras.filter(o => {
+    if (o.status !== 'NF EMITIDO') return false
+    if (filtroHistTipo && o.tipo !== filtroHistTipo) return false
+    if (filtroHistRegiao && uf(o.local) !== filtroHistRegiao) return false
+    if (filtroHistDe || filtroHistAte) {
+      const d = o.atualizado_em ? o.atualizado_em.split('T')[0] : ''
+      if (filtroHistDe && d < filtroHistDe) return false
+      if (filtroHistAte && d > filtroHistAte) return false
+    }
+    return true
+  })
+
+  const obrasAtivas = obras.filter(o => o.status !== 'NF EMITIDO')
+  const totalValor = obrasAtivas.reduce((s,o) => s + Number(o.valor||0), 0)
+  const emAndamento = obrasAtivas.filter(o => o.status === 'EM ANDAMENTO').length
+  const pendencias = obrasAtivas.filter(o => ['PENDÊNCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM'].includes(o.status)).length
+  const totalFaturar = obrasFaturar.reduce((s,o) => s + Number(o.valor||0), 0)
 
   const grupos = [
     { label:'⚠️ Pendências', obras: obrasFiltradas.filter(o => getGrupoObra(o) === 'pendencias') },
@@ -602,17 +636,135 @@ export default function App() {
       {/* Totalizadores */}
       <div style={{ background:'#2D3A8C', padding:'12px 16px', display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
         {[
-          { n: 'R$' + (totalValor/1000).toFixed(0) + 'k', l:'Valor Total' },
-          { n: emAndamento, l:'Andamento' },
+          { n: 'R$' + (totalValor/1000).toFixed(0) + 'k', l:'Em Andamento' },
+          { n: emAndamento, l:'Execução' },
           { n: pendencias, l:'Pendências', alert: pendencias > 0 },
-          { n: nfEmitido, l:'NF Emitido' },
+          { n: 'R$' + (totalFaturar/1000).toFixed(0) + 'k', l:'A Faturar', highlight: obrasFaturar.length > 0 },
         ].map((t,i) => (
           <div key={i} style={{ background:'rgba(255,255,255,.1)', borderRadius:10, padding:'10px 8px', textAlign:'center' }}>
-            <div style={{ fontSize:20, fontWeight:700, color: t.alert ? '#FCA5A5' : '#fff' }}>{t.n}</div>
+            <div style={{ fontSize:20, fontWeight:700, color: t.alert ? '#FCA5A5' : t.highlight ? '#FDE68A' : '#fff' }}>{t.n}</div>
             <div style={{ fontSize:10, color:'rgba(255,255,255,.65)', marginTop:2 }}>{t.l}</div>
           </div>
         ))}
       </div>
+
+      {/* Abas */}
+      <div style={{ background:'#fff', borderBottom:'2px solid #E0E8F0', display:'flex' }}>
+        {[
+          { id:'pipeline', label:'Pipeline', count: obrasFiltradas.length },
+          { id:'faturar', label:'Disponível para Faturar', count: obrasFaturar.length, cor:'#1A6B4A' },
+          { id:'historico', label:'Histórico', count: obras.filter(o=>o.status==='NF EMITIDO').length },
+        ].map(a => (
+          <button key={a.id} onClick={() => setAba(a.id)}
+            style={{ flex:1, padding:'12px 8px', border:'none', borderBottom: aba===a.id ? `3px solid ${a.cor||'#2D3A8C'}` : '3px solid transparent',
+              background:'none', cursor:'pointer', fontSize:12, fontWeight: aba===a.id ? 700 : 500,
+              color: aba===a.id ? (a.cor||'#2D3A8C') : '#64748B' }}>
+            {a.label}
+            <span style={{ marginLeft:5, fontSize:10, background: aba===a.id ? (a.cor||'#2D3A8C') : '#E0E8F0',
+              color: aba===a.id ? '#fff' : '#64748B', borderRadius:10, padding:'1px 6px', fontWeight:700 }}>
+              {a.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* ====== ABA: DISPONÍVEL PARA FATURAR ====== */}
+      {aba === 'faturar' && (
+        <div style={{ padding:12 }}>
+          {obrasFaturar.length === 0 ? (
+            <div style={{ textAlign:'center', color:'#1A6B4A', marginTop:40, fontSize:14 }}>Nenhuma obra pronta para faturar</div>
+          ) : (
+            <>
+              <div style={{ fontSize:11, color:'#1A6B4A', fontWeight:700, marginBottom:10, padding:'8px 12px', background:'#D1FAE5', borderRadius:8 }}>
+                {obrasFaturar.length} obra(s) · Total: R$ {totalFaturar.toLocaleString('pt-BR',{minimumFractionDigits:2})}
+              </div>
+              {obrasFaturar.map(o => {
+                const tc = TIPO_COR[o.tipo] || { bg:'#F1F5F9', text:'#475569' }
+                const sc = STATUS_COR[o.status] || { bg:'#F1F5F9', text:'#475569' }
+                return (
+                  <div key={o.id} style={{ background:'#fff', border:'1px solid #D1FAE5', borderRadius:12, marginBottom:10, padding:'12px 14px' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8, marginBottom:6 }}>
+                      <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', flex:1, lineHeight:1.4 }}>{o.nome}</div>
+                      <div style={{ fontSize:14, fontWeight:700, color:'#1A6B4A', whiteSpace:'nowrap' }}>{fmt(o.valor)}</div>
+                    </div>
+                    <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
+                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:tc.bg, color:tc.text }}>{o.tipo}</span>
+                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text }}>{o.status}</span>
+                      {o.local && <span style={{ fontSize:11, color:'#64748B' }}>{o.local}</span>}
+                    </div>
+                    <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:10, fontSize:11, color:'#475569' }}>
+                      {o.sige && <span>SIGE: <b>{o.sige}</b></span>}
+                      {o.pedido && <span>Pedido: <b>{o.pedido}</b></span>}
+                      {o.nf && <span>NF: <b>{o.nf}</b></span>}
+                    </div>
+                    {o.obs && <div style={{ fontSize:11, background:'#FFF9E6', borderLeft:'3px solid #F5A623', padding:'5px 8px', borderRadius:4, color:'#7A5A00', marginBottom:10 }}>📌 {o.obs}</div>}
+                    <button onClick={() => { if(window.confirm(`Marcar "${o.nome}" como Faturado (NF Emitido)?`)) marcarFaturado(o.id) }}
+                      style={{ width:'100%', padding:'10px', background:'#1A6B4A', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer' }}>
+                      ✓ Marcar como Faturado
+                    </button>
+                  </div>
+                )
+              })}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ====== ABA: HISTÓRICO ====== */}
+      {aba === 'historico' && (
+        <div style={{ padding:12 }}>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:12 }}>
+            <select value={filtroHistTipo} onChange={e=>setFiltroHistTipo(e.target.value)}
+              style={{ flex:1, minWidth:100, padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+              <option value="">Todos tipos</option>
+              {[...new Set(obras.filter(o=>o.status==='NF EMITIDO').map(o=>o.tipo))].sort().map(t=><option key={t}>{t}</option>)}
+            </select>
+            <select value={filtroHistRegiao} onChange={e=>setFiltroHistRegiao(e.target.value)}
+              style={{ flex:1, minWidth:80, padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+              <option value="">Todas regiões</option>
+              {[...new Set(obras.filter(o=>o.status==='NF EMITIDO').map(o=>uf(o.local)))].filter(r=>r!=='—').sort().map(r=><option key={r}>{r}</option>)}
+            </select>
+            <input type="date" value={filtroHistDe} onChange={e=>setFiltroHistDe(e.target.value)}
+              style={{ flex:1, minWidth:120, padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340' }} />
+            <input type="date" value={filtroHistAte} onChange={e=>setFiltroHistAte(e.target.value)}
+              style={{ flex:1, minWidth:120, padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340' }} />
+            {(filtroHistTipo||filtroHistRegiao||filtroHistDe||filtroHistAte) && (
+              <button onClick={()=>{setFiltroHistTipo('');setFiltroHistRegiao('');setFiltroHistDe('');setFiltroHistAte('')}}
+                style={{ padding:'7px 10px', background:'#F1F5F9', border:'1px solid #CDD8E3', borderRadius:8, fontSize:11, color:'#64748B', cursor:'pointer' }}>✕ limpar</button>
+            )}
+          </div>
+          <div style={{ fontSize:11, color:'#065F46', fontWeight:700, marginBottom:10, padding:'8px 12px', background:'#D1FAE5', borderRadius:8 }}>
+            {obrasHistorico.length} obra(s) faturada(s) · Total: R$ {obrasHistorico.reduce((s,o)=>s+Number(o.valor||0),0).toLocaleString('pt-BR',{minimumFractionDigits:2})}
+          </div>
+          {obrasHistorico.length === 0 ? (
+            <div style={{ textAlign:'center', color:'#888', marginTop:40, fontSize:14 }}>Nenhuma obra encontrada</div>
+          ) : obrasHistorico.map(o => {
+            const tc = TIPO_COR[o.tipo] || { bg:'#F1F5F9', text:'#475569' }
+            return (
+              <div key={o.id} style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, marginBottom:8, padding:'12px 14px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8, marginBottom:5 }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', flex:1, lineHeight:1.4 }}>{o.nome}</div>
+                  <div style={{ fontSize:13, fontWeight:700, color:'#065F46', whiteSpace:'nowrap' }}>{fmt(o.valor)}</div>
+                </div>
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:5 }}>
+                  <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:tc.bg, color:tc.text }}>{o.tipo}</span>
+                  <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#D1FAE5', color:'#065F46' }}>NF EMITIDO</span>
+                  {o.local && <span style={{ fontSize:11, color:'#64748B' }}>{o.local}</span>}
+                </div>
+                <div style={{ display:'flex', gap:12, flexWrap:'wrap', fontSize:11, color:'#475569' }}>
+                  {o.sige && <span>SIGE: <b>{o.sige}</b></span>}
+                  {o.pedido && <span>Pedido: <b>{o.pedido}</b></span>}
+                  {o.nf && <span>NF: <b>{o.nf}</b></span>}
+                  {o.atualizado_em && <span style={{ color:'#1A6B4A' }}>Faturado: <b>{new Date(o.atualizado_em).toLocaleDateString('pt-BR')}</b></span>}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* ====== ABA: PIPELINE ====== */}
+      {aba === 'pipeline' && <>
 
       {/* Filtros */}
       <div style={{ background:'#fff', padding:'10px 16px', borderBottom:'1px solid #E0E8F0', display:'flex', gap:8, flexWrap:'wrap' }}>
@@ -748,6 +900,8 @@ export default function App() {
         ))}
       </div>
 
+
+      </> /* fim aba pipeline */}
 
       {/* Modal Nova Obra */}
       {modalNovaObra && (
