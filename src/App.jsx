@@ -767,11 +767,21 @@ export default function App() {
                         </div>
                       </div>
                     </div>
-                    <button onClick={() => marcarFaturado(o.id)}
-                      disabled={!(faturarDados[o.id]||{}).nf}
-                      style={{ width:'100%', padding:'10px', background: (faturarDados[o.id]||{}).nf ? '#1A6B4A' : '#ccc', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor: (faturarDados[o.id]||{}).nf ? 'pointer' : 'default' }}>
-                      ✓ Marcar como Faturado
-                    </button>
+                    <div style={{ display:'flex', gap:8 }}>
+                      <button onClick={async () => {
+                        const campos = { status:'ELABORAR RM', atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+                        const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', o.id)
+                        if (!error) setObras(prev => prev.map(ob => ob.id === o.id ? { ...ob, ...campos } : ob))
+                      }}
+                        style={{ flex:1, padding:'10px', background:'#fff', color:'#2D3A8C', border:'1.5px solid #2D3A8C', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer' }}>
+                        ↩ Devolver ao Pipeline
+                      </button>
+                      <button onClick={() => marcarFaturado(o.id)}
+                        disabled={!(faturarDados[o.id]||{}).nf}
+                        style={{ flex:1, padding:'10px', background: (faturarDados[o.id]||{}).nf ? '#1A6B4A' : '#ccc', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor: (faturarDados[o.id]||{}).nf ? 'pointer' : 'default' }}>
+                        ✓ Marcar como Faturado
+                      </button>
+                    </div>
                   </div>
                 )
               })}
