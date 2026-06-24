@@ -212,7 +212,51 @@ const ETAPAS_DESC = [
   'ELABORAR RM',
 ]
 const ETAPAS_EN = ETAPAS_DESC
-const ETAPAS_OUTRAS = ['Início','Em andamento','Conclusão','Faturamento']
+const ETAPAS_OUTRAS = ['Início','Em andamento','Conclusão','EMITIR NF','Faturamento']
+
+const STATUS_ETAPA1_DONE = ['EM ANDAMENTO','VISTORIA REALIZADA ELABORAR BOOK E ORÇAMENTO','BOOK E ORÇAMENTOS ENVIADOS','ORÇAMENTO APROVADO/REPROVADO','OBRA EMITIR ART','DCM E TERMOS ENTREGUES AO CAMPO','TERMOS E DCMS ASSINADOS','BDNS, MOBILIÁRIOS E EQUIPAMENTO REMOVIDOS','FOTOS DO AMBIENTE VAZIO','ELABORAR QRCODE OU BOOK DE CONCLUSÃO','ELABORAR BOOK','BOOK PENDENTE','ELABORAR RM','RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM','EMITIR NF','NF EMITIDO','Em andamento','Conclusão','Faturamento']
+const STATUS_ETAPA2_DONE = ['ELABORAR RM','RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM','EMITIR NF','NF EMITIDO','Conclusão','Faturamento']
+const STATUS_ETAPA3_DONE = ['NF EMITIDO','Faturamento']
+
+function ReguaStatus({ status, lembretes, onRemoverLembrete }) {
+  const etapas = [
+    { titulo: 'Vistoria / Início', done: STATUS_ETAPA1_DONE.includes(status) },
+    { titulo: 'Book / Elaboração', done: STATUS_ETAPA2_DONE.includes(status) },
+    { titulo: 'RM / Faturamento', done: STATUS_ETAPA3_DONE.includes(status) },
+  ]
+  const primeiraVazia = etapas.findIndex(e => !e.done)
+  return (
+    <div>
+      <div style={{ display:'flex', gap:6, padding:'8px 0 4px' }}>
+        {etapas.map((etapa, i) => {
+          const concluida = etapa.done
+          const atual = primeiraVazia === i
+          const cor = concluida ? '#1A6B4A' : atual ? '#2D3A8C' : '#9CA3AF'
+          const bg = concluida ? '#D1FAE5' : atual ? '#EEF2FF' : '#F8FAFC'
+          const borda = concluida ? '#BBF7D0' : atual ? '#C7D2FE' : '#E2E8F0'
+          return (
+            <div key={i} style={{ flex:1, background:bg, border:`1.5px solid ${borda}`, borderRadius:10, padding:'8px 6px', textAlign:'center' }}>
+              <div style={{ fontSize:9, fontWeight:700, color:cor, textTransform:'uppercase', letterSpacing:.5, marginBottom:2 }}>{i+1}ª Etapa</div>
+              <div style={{ fontSize:10, fontWeight:600, color:'#1A2340', lineHeight:1.2 }}>{etapa.titulo}</div>
+              <div style={{ fontSize:11, fontWeight:700, color: concluida ? '#1A6B4A' : '#9CA3AF', marginTop:3 }}>{concluida ? '✓' : '—'}</div>
+            </div>
+          )
+        })}
+      </div>
+      {Array.isArray(lembretes) && lembretes.length > 0 && (
+        <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:4 }}>
+          {lembretes.map((l, idx) => (
+            <div key={idx} style={{ display:'flex', alignItems:'center', gap:4, background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:6, padding:'3px 7px' }}>
+              <span style={{ fontSize:9, background:'#EF4444', color:'#fff', borderRadius:'50%', width:14, height:14, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>{l.etapa}</span>
+              <span style={{ fontSize:10, color:'#1A2340' }}>{l.texto}</span>
+              {onRemoverLembrete && <span onClick={() => onRemoverLembrete(l)} style={{ fontSize:11, color:'#EF4444', cursor:'pointer', fontWeight:700 }}>✕</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function getEtapas(tipo) {
   if (tipo === 'TRANSF EN') return ETAPAS_EN
@@ -434,14 +478,18 @@ export default function App() {
       pedido: editDados.pedido || null,
       nf: editDados.nf || null,
     }
-    campos.data_etapa1 = datas.data_etapa1 || null
-    campos.data_etapa2 = datas.data_etapa2 || null
-    campos.data_etapa3 = datas.data_etapa3 || null
-    campos.adesivos = adesivos.length > 0 ? adesivos.join(',') : null
-    if (dataObra.inicio) campos.inicio = isoToBr(dataObra.inicio)
-    if (dataObra.termino) campos.termino = isoToBr(dataObra.termino)
-    if (dataArt) campos.data_art = dataArt
-    campos.em_negociacao = emNegociacao
+    if (modal.tipo === 'TRANSF UN') {
+      campos.data_etapa1 = datas.data_etapa1 || null
+      campos.data_etapa2 = datas.data_etapa2 || null
+      campos.data_etapa3 = datas.data_etapa3 || null
+      campos.adesivos = adesivos.length > 0 ? adesivos.join(',') : null
+    }
+    if (modal.tipo !== 'TRANSF UN') {
+      if (dataObra.inicio) campos.inicio = isoToBr(dataObra.inicio)
+      if (dataObra.termino) campos.termino = isoToBr(dataObra.termino)
+      if (dataArt) campos.data_art = dataArt
+      campos.em_negociacao = emNegociacao
+    }
     campos.lembretes = lembretes.length > 0 ? lembretes : null
     campos.data_cadastro = dataCadastroModal || modal.data_cadastro || null
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
@@ -870,7 +918,10 @@ export default function App() {
                   </div>
 
                   <div style={{ padding:'0 14px 8px' }}>
-                    <ReguaEtapasUN obra={obra} />
+                    {obra.tipo === 'TRANSF UN'
+                      ? <ReguaEtapasUN obra={obra} />
+                      : <ReguaStatus status={obra.status} lembretes={obra.lembretes} onRemoverLembrete={l => removerLembrete(obra.id, l)} />
+                    }
                   </div>
 
                   {estaAberta && (
@@ -1023,6 +1074,7 @@ export default function App() {
               </div>
             </div>
 
+            {modal.tipo === 'TRANSF UN' && (
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
                 <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Datas de visita ao ponto</div>
                 {ETAPAS_UN.map((etapa, i) => (
@@ -1056,34 +1108,25 @@ export default function App() {
                   </div>
                 ))}
               </div>
+            )}
 
-            <div style={{ background:'#F0F7FF', borderRadius:12, padding:14, marginBottom:16, border:'1px solid #BFDBFE' }}>
-              <div style={{ fontSize:12, color:'#1E40AF', fontWeight:700, marginBottom:8 }}>Data de entrada no pipeline</div>
-              <input type="date" value={dataCadastroModal}
-                onChange={e => setDataCadastroModal(e.target.value)}
-                style={{ width:'100%', padding:'8px 10px', border:'1px solid #BFDBFE', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
-              <div style={{ fontSize:10, color:'#64748B', marginTop:5 }}>Quando esta demanda entrou no pipeline (usada para calcular dias parado)</div>
-            </div>
-
+            {modal.tipo !== 'TRANSF UN' && (
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
                 <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Datas da obra</div>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
                   <div>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Início</label>
-                    <input type="date" value={dataObra.inicio}
-                      onChange={e => setDataObra(d => ({...d, inicio: e.target.value}))}
+                    <input type="date" value={dataObra.inicio} onChange={e => setDataObra(d => ({...d, inicio: e.target.value}))}
                       style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                   </div>
                   <div>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Término</label>
-                    <input type="date" value={dataObra.termino}
-                      onChange={e => setDataObra(d => ({...d, termino: e.target.value}))}
+                    <input type="date" value={dataObra.termino} onChange={e => setDataObra(d => ({...d, termino: e.target.value}))}
                       style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                   </div>
                   <div>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>ART pronta em</label>
-                    <input type="date" value={dataArt}
-                      onChange={e => setDataArt(e.target.value)}
+                    <input type="date" value={dataArt} onChange={e => setDataArt(e.target.value)}
                       style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                   </div>
                 </div>
@@ -1100,6 +1143,15 @@ export default function App() {
                   </div>
                 </div>
               </div>
+            )}
+
+            <div style={{ background:'#F0F7FF', borderRadius:12, padding:14, marginBottom:16, border:'1px solid #BFDBFE' }}>
+              <div style={{ fontSize:12, color:'#1E40AF', fontWeight:700, marginBottom:8 }}>Data de entrada no pipeline</div>
+              <input type="date" value={dataCadastroModal}
+                onChange={e => setDataCadastroModal(e.target.value)}
+                style={{ width:'100%', padding:'8px 10px', border:'1px solid #BFDBFE', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+              <div style={{ fontSize:10, color:'#64748B', marginTop:5 }}>Quando esta demanda entrou no pipeline (usada para calcular dias parado)</div>
+            </div>
 
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, marginBottom:8 }}>Etapa da régua:</div>
             {ETAPAS_OUTRAS.map((op, i) => {
