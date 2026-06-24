@@ -622,7 +622,7 @@ export default function App() {
         </select>
         <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)} style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff', flex:1, minWidth:100 }}>
           <option value="">Todos status</option>
-          {STATUS_OPCOES.map(s => <option key={s}>{s}</option>)}
+          {[...new Set(obras.map(o=>o.status))].filter(Boolean).sort().map(s => <option key={s}>{s}</option>)}
         </select>
         <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar..." style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', flex:2, minWidth:120 }} />
         <div style={{ display:'flex', gap:6, alignItems:'center', width:'100%' }}>
