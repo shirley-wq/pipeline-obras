@@ -373,6 +373,7 @@ export default function App() {
   const [novaDivTipo, setNovaDivTipo] = useState('DRYWALL')
   const [novaDivM2, setNovaDivM2] = useState('')
   const [itensEspeciais, setItensEspeciais] = useState([])
+  const [biomboFila, setBiomboFila] = useState('')
   const [selecionadas, setSelecionadas] = useState(new Set())
   const [modalBulk, setModalBulk] = useState(false)
   const [statusBulk, setStatusBulk] = useState('')
@@ -488,6 +489,7 @@ export default function App() {
       campos.vidros = vidros.length > 0 ? vidros : null
       campos.divisorias = divisorias.length > 0 ? divisorias : null
       campos.itens_especiais = itensEspeciais.length > 0 ? itensEspeciais : null
+      campos.biombo_fila = biomboFila !== '' ? parseInt(biomboFila) || 0 : null
     }
     if (modal.tipo !== 'TRANSF UN') {
       if (dataObra.inicio) campos.inicio = isoToBr(dataObra.inicio)
@@ -639,7 +641,7 @@ export default function App() {
   ].filter(g => g.obras.length > 0)
 
   function exportarCSV() {
-    const cab = ['Tipo','Nome','Local','Status','Valor','SIGE','Pedido','NF','Início','Término','ART pronta','Em negociação','Observação','Post-its Régua','Data Entrada Pipeline','Dias no Pipeline','Vidros','Divisórias','Itens Especiais','Atualizado por','Atualizado em']
+    const cab = ['Tipo','Nome','Local','Status','Valor','SIGE','Pedido','NF','Início','Término','ART pronta','Em negociação','Observação','Post-its Régua','Data Entrada Pipeline','Dias no Pipeline','Vidros','Divisórias','Itens Especiais','Biombo de Fila','Atualizado por','Atualizado em']
     const esc = v => { const s = String(v ?? ''); return (s.includes(';') || s.includes('"') || s.includes('\n')) ? `"${s.replace(/"/g,'""')}"` : s }
     const linhas = obrasFiltradas.map(o => {
       const d = diasNoPipeline(o.data_cadastro)
@@ -659,6 +661,7 @@ export default function App() {
         Array.isArray(o.vidros) && o.vidros.length > 0 ? o.vidros.join(' | ') : '',
         Array.isArray(o.divisorias) && o.divisorias.length > 0 ? o.divisorias.map(d => `${d.tipo} ${d.m2}m²`).join(' | ') : '',
         Array.isArray(o.itens_especiais) && o.itens_especiais.length > 0 ? o.itens_especiais.join(' | ') : '',
+        o.biombo_fila != null ? String(o.biombo_fila) : '',
         o.atualizado_por||'',
         o.atualizado_em ? new Date(o.atualizado_em).toLocaleString('pt-BR') : ''
       ].map(esc).join(';')
@@ -985,12 +988,15 @@ export default function App() {
                                       ))}
                                     </div>
                                   )}
-                                  {i === 0 && Array.isArray(obra.itens_especiais) && obra.itens_especiais.length > 0 && (
+                                  {i === 0 && (Array.isArray(obra.itens_especiais) && obra.itens_especiais.length > 0 || obra.biombo_fila) && (
                                     <div style={{ marginTop:5, textAlign:'left' }}>
                                       <div style={{ fontSize:8, color:'#065F46', fontWeight:700, marginBottom:2 }}>ITENS:</div>
-                                      {obra.itens_especiais.map((it, ii) => (
+                                      {Array.isArray(obra.itens_especiais) && obra.itens_especiais.map((it, ii) => (
                                         <div key={ii} style={{ fontSize:8, color:'#065F46', background:'#D1FAE5', borderRadius:3, padding:'1px 4px', marginBottom:2 }}>✓ {it}</div>
                                       ))}
+                                      {obra.biombo_fila > 0 && (
+                                        <div style={{ fontSize:8, color:'#065F46', background:'#D1FAE5', borderRadius:3, padding:'1px 4px', marginBottom:2 }}>📦 Biombo de fila: {obra.biombo_fila}</div>
+                                      )}
                                     </div>
                                   )}
                                 </div>
@@ -1037,6 +1043,7 @@ export default function App() {
                         setNovaDivTipo('DRYWALL')
                         setNovaDivM2('')
                         setItensEspeciais(Array.isArray(obra.itens_especiais) ? obra.itens_especiais : [])
+                        setBiomboFila(obra.biombo_fila != null ? String(obra.biombo_fila) : '')
                         setEditDados({ nome: obra.nome||'', local: obra.local||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', pedido: obra.pedido||'', nf: obra.nf||'' })
                         setDataCadastroModal(obra.data_cadastro || '')
                       }}
@@ -1238,7 +1245,7 @@ export default function App() {
                         </div>
                         <div style={{ marginTop:10 }}>
                           <div style={{ fontSize:10, color:'#64748B', fontWeight:600, marginBottom:6 }}>Itens existentes na agência:</div>
-                          <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                          <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:8 }}>
                             {ITENS_ESPECIAIS_UN.map(item => {
                               const sel = itensEspeciais.includes(item)
                               return (
@@ -1251,6 +1258,12 @@ export default function App() {
                                 </div>
                               )
                             })}
+                          </div>
+                          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                            <label style={{ fontSize:11, color:'#64748B', fontWeight:600, whiteSpace:'nowrap' }}>Qtd. Biombo de fila:</label>
+                            <input type="number" min="0" value={biomboFila} onChange={e => setBiomboFila(e.target.value)}
+                              placeholder="0"
+                              style={{ width:70, padding:'6px 10px', border:'1.5px solid #BBF7D0', borderRadius:8, fontSize:13, fontWeight:700, color:'#1A2340', textAlign:'center', boxSizing:'border-box' }} />
                           </div>
                         </div>
                       </div>
