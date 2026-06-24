@@ -158,6 +158,149 @@ function brToIso(br) {
 const TIPOS_ADESIVO = ['PUXE','EMPURRE','DESLIZE','CADEIRANTE','FAIXA BOLINHA','FAIXA JATEADO']
 const ITENS_ESPECIAIS_UN = ['BALCÃO DE ENVELOPE','GUARDA VOLUMES','ESCADA DO SEGURANÇA']
 
+const BASES_GRUPOPG = [
+  { nome: 'Contagem', label: 'Contagem — MG', endereco: 'Contagem, MG, Brasil', lat: -19.9317, lon: -44.0536 },
+  { nome: 'Butantã', label: 'Butantã — SP', endereco: 'Butantã, São Paulo, SP, Brasil', lat: -23.5665, lon: -46.7172 },
+  { nome: 'Recreio dos Bandeirantes', label: 'Recreio dos Bandeirantes — RJ', endereco: 'Recreio dos Bandeirantes, Rio de Janeiro, RJ, Brasil', lat: -23.0085, lon: -43.4627 },
+  { nome: 'São José dos Pinhais', label: 'São José dos Pinhais — PR', endereco: 'São José dos Pinhais, PR, Brasil', lat: -25.5328, lon: -49.2056 },
+]
+
+const UF_COORDS = {
+  'SP':{ lat:-23.5505, lon:-46.6333 }, 'RJ':{ lat:-22.9068, lon:-43.1729 },
+  'MG':{ lat:-19.9167, lon:-43.9345 }, 'PR':{ lat:-25.4297, lon:-49.2711 },
+  'RS':{ lat:-30.0346, lon:-51.2177 }, 'SC':{ lat:-27.5954, lon:-48.5480 },
+  'BA':{ lat:-12.9714, lon:-38.5014 }, 'ES':{ lat:-20.3155, lon:-40.3128 },
+  'GO':{ lat:-16.6864, lon:-49.2643 }, 'DF':{ lat:-15.7801, lon:-47.9292 },
+  'MT':{ lat:-15.6014, lon:-56.0979 }, 'MS':{ lat:-20.4697, lon:-54.6201 },
+  'PE':{ lat:-8.0476, lon:-34.8770  }, 'CE':{ lat:-3.7172,  lon:-38.5433  },
+  'PA':{ lat:-1.4558,  lon:-48.4902 }, 'AM':{ lat:-3.1190,  lon:-60.0217  },
+  'MA':{ lat:-2.5297,  lon:-44.3028 }, 'PB':{ lat:-7.1195,  lon:-34.8450  },
+  'RN':{ lat:-5.7945,  lon:-35.2110 }, 'AL':{ lat:-9.6658,  lon:-35.7350  },
+  'SE':{ lat:-10.9472, lon:-37.0731 }, 'PI':{ lat:-5.0892,  lon:-42.8019  },
+  'TO':{ lat:-10.1753, lon:-48.2982 }, 'RO':{ lat:-8.7612,  lon:-63.9004  },
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371, toRad = x => x * Math.PI / 180
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1)
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2
+  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)))
+}
+
+function baseProxima(local) {
+  const ufStr = (local||'').includes('-') ? local.split('-').pop().trim().toUpperCase() : ''
+  const coords = UF_COORDS[ufStr]
+  if (!coords) return { base: BASES_GRUPOPG[0], km: null }
+  let nearest = BASES_GRUPOPG[0], minKm = haversineKm(coords.lat, coords.lon, BASES_GRUPOPG[0].lat, BASES_GRUPOPG[0].lon)
+  BASES_GRUPOPG.slice(1).forEach(b => {
+    const km = haversineKm(coords.lat, coords.lon, b.lat, b.lon)
+    if (km < minKm) { minKm = km; nearest = b }
+  })
+  return { base: nearest, km: minKm }
+}
+
+function gerarBriefing(obra) {
+  const { base, km } = baseProxima(obra.local)
+  const destino = encodeURIComponent((obra.local||'').replace('-', ', ') + ', Brasil')
+  const origem = encodeURIComponent(base.endereco)
+  const mapsUrl = `https://www.google.com/maps/dir/${origem}/${destino}`
+  const hoje = new Date().toLocaleDateString('pt-BR')
+
+  const etapasUN = [
+    { label: '1ª Visita — Vistoria + BDN', data: obra.data_etapa1 },
+    { label: '2ª Visita — Troca de Fechaduras', data: obra.data_etapa2 },
+    { label: '3ª Visita — Obra Final', data: obra.data_etapa3 },
+  ]
+
+  const rowEtapa = e => `<tr style="border-bottom:1px solid #e5e7eb">
+    <td style="padding:8px 12px;font-size:14px">${e.data ? '✅' : '⏳'} ${e.label}</td>
+    <td style="padding:8px 12px;font-size:14px;font-weight:${e.data?'700':'400'};color:${e.data?'#065F46':'#9CA3AF'}">${e.data ? new Date(e.data+'T12:00').toLocaleDateString('pt-BR') : 'Pendente'}</td>
+  </tr>`
+
+  const vidrosHtml = Array.isArray(obra.vidros) && obra.vidros.length > 0
+    ? obra.vidros.map(v => `<li>🪟 ${v}</li>`).join('') : '<li style="color:#9CA3AF">Nenhum</li>'
+
+  const divisoriasHtml = Array.isArray(obra.divisorias) && obra.divisorias.length > 0
+    ? obra.divisorias.map(d => `<li>🧱 ${d.tipo} — ${d.m2} m²</li>`).join('') : '<li style="color:#9CA3AF">Nenhuma</li>'
+
+  const adesivosBadges = obra.adesivos
+    ? obra.adesivos.split(',').map(a => `<span style="background:#1E40AF;color:#fff;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600">${a}</span>`).join(' ')
+    : '<span style="color:#9CA3AF">Nenhum</span>'
+
+  const itensHtml = Array.isArray(obra.itens_especiais) && obra.itens_especiais.length > 0
+    ? obra.itens_especiais.map(i => `<span style="background:#D1FAE5;color:#065F46;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600">✓ ${i}</span>`).join(' ')
+    : '<span style="color:#9CA3AF">Nenhum</span>'
+
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+  <title>Briefing de Campo — ${obra.nome}</title>
+  <style>
+    body{font-family:Arial,sans-serif;margin:0;padding:24px;color:#1A2340;background:#f8fafc}
+    .card{background:#fff;border-radius:12px;padding:20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+    h1{font-size:18px;margin:0 0 4px;color:#1A2340} h2{font-size:13px;font-weight:700;color:#2D3A8C;margin:0 0 12px;text-transform:uppercase;letter-spacing:.5px}
+    .badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700}
+    table{width:100%;border-collapse:collapse} ul{margin:6px 0;padding-left:20px;line-height:2}
+    .tag{font-size:11px;background:#EFF6FF;color:#1E40AF;padding:2px 8px;border-radius:6px;font-weight:600}
+    @media print{body{background:#fff;padding:12px}.no-print{display:none!important}}
+  </style></head><body>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div>
+      <div style="font-size:11px;color:#64748B;font-weight:600;text-transform:uppercase;letter-spacing:1px">Grupopg — Briefing de Campo</div>
+      <h1>${obra.nome}</h1>
+      <div style="font-size:13px;color:#475569">${obra.local || ''} &nbsp;·&nbsp; <span class="tag">${obra.tipo}</span>${obra.sige ? ` &nbsp;·&nbsp; SIGE: <b>${obra.sige}</b>` : ''}</div>
+    </div>
+    <button class="no-print" onclick="window.print()" style="padding:10px 20px;background:#2D3A8C;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🖨 Imprimir / PDF</button>
+  </div>
+
+  <div class="card" style="background:#EFF6FF;border:1px solid #BFDBFE">
+    <h2>📍 Base mais próxima</h2>
+    <div style="font-size:16px;font-weight:700;color:#1E40AF;margin-bottom:4px">${base.label}</div>
+    ${km ? `<div style="font-size:13px;color:#475569;margin-bottom:10px">~${km} km em linha reta até ${(obra.local||'').replace('-',' - ')}</div>` : ''}
+    <a href="${mapsUrl}" target="_blank" style="display:inline-block;background:#2D3A8C;color:#fff;padding:8px 18px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:700">🗺 Ver rota no Google Maps</a>
+    <div style="font-size:10px;color:#9CA3AF;margin-top:6px">* distância em linha reta — consultar rota real no Maps</div>
+  </div>
+
+  <div class="card">
+    <h2>📅 Etapas de campo</h2>
+    <table>${etapasUN.map(rowEtapa).join('')}</table>
+  </div>
+
+  <div class="card">
+    <h2>🔧 Material previsto para o dia da obra</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div>
+        <div style="font-size:12px;color:#64748B;font-weight:600;margin-bottom:4px">VIDROS A TROCAR</div>
+        <ul style="margin:0;padding-left:18px;font-size:14px;line-height:2">${vidrosHtml}</ul>
+      </div>
+      <div>
+        <div style="font-size:12px;color:#64748B;font-weight:600;margin-bottom:4px">FECHAMENTO (DRYWALL / NAVAL)</div>
+        <ul style="margin:0;padding-left:18px;font-size:14px;line-height:2">${divisoriasHtml}</ul>
+      </div>
+    </div>
+    ${obra.biombo_fila > 0 ? `<div style="margin-top:12px;font-size:14px">📦 <b>Biombo de fila:</b> ${obra.biombo_fila} unidade(s)</div>` : ''}
+  </div>
+
+  <div class="card">
+    <h2>🏷 Adesivos necessários</h2>
+    <div>${adesivosBadges}</div>
+  </div>
+
+  <div class="card">
+    <h2>🏢 Itens existentes na agência</h2>
+    <div>${itensHtml}</div>
+  </div>
+
+  ${obra.obs ? `<div class="card" style="border-left:4px solid #F5A623;background:#FFFBEB">
+    <h2>📌 Observações</h2>
+    <div style="font-size:14px;color:#7A5A00">${obra.obs}</div>
+  </div>` : ''}
+
+  <div style="text-align:center;font-size:11px;color:#9CA3AF;margin-top:20px">Gerado em ${hoje} · Pipeline de Obras — Grupopg</div>
+  </body></html>`
+
+  const win = window.open('', '_blank')
+  if (win) { win.document.write(html); win.document.close() }
+}
+
 // Régua de 3 etapas para TRANSF UN com datas de visita
 const ETAPAS_UN = [
   { titulo: 'Vistoria + BDN', desc: 'Vistoria local e projeto de movimentação de BDN', campo: 'data_etapa1' },
@@ -1003,6 +1146,10 @@ export default function App() {
                               )
                             })}
                           </div>
+                          <button onClick={() => gerarBriefing(obra)}
+                            style={{ marginTop:10, width:'100%', padding:'9px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:9, fontSize:12, fontWeight:700, cursor:'pointer', letterSpacing:.3 }}>
+                            📋 Gerar Briefing de Campo
+                          </button>
                         </div>
                       )}
 
