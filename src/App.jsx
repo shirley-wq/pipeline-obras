@@ -366,6 +366,8 @@ export default function App() {
   const [novoLembreteTexto, setNovoLembreteTexto] = useState('')
   const [editDados, setEditDados] = useState({ nome:'', local:'', valor:'', sige:'', pedido:'', nf:'' })
   const [adesivos, setAdesivos] = useState([])
+  const [vidros, setVidros] = useState([])
+  const [novoVidro, setNovoVidro] = useState('')
   const [selecionadas, setSelecionadas] = useState(new Set())
   const [modalBulk, setModalBulk] = useState(false)
   const [statusBulk, setStatusBulk] = useState('')
@@ -478,6 +480,7 @@ export default function App() {
       campos.data_etapa2 = datas.data_etapa2 || null
       campos.data_etapa3 = datas.data_etapa3 || null
       campos.adesivos = adesivos.length > 0 ? adesivos.join(',') : null
+      campos.vidros = vidros.length > 0 ? vidros : null
     }
     if (modal.tipo !== 'TRANSF UN') {
       if (dataObra.inicio) campos.inicio = isoToBr(dataObra.inicio)
@@ -956,6 +959,14 @@ export default function App() {
                                       ))}
                                     </div>
                                   )}
+                                  {i === 0 && Array.isArray(obra.vidros) && obra.vidros.length > 0 && (
+                                    <div style={{ marginTop:5, textAlign:'left' }}>
+                                      <div style={{ fontSize:8, color:'#0369A1', fontWeight:700, marginBottom:2 }}>VIDROS:</div>
+                                      {obra.vidros.map((v, vi) => (
+                                        <div key={vi} style={{ fontSize:8, color:'#1E40AF', background:'#EFF6FF', borderRadius:3, padding:'1px 4px', marginBottom:2 }}>🪟 {v}</div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               )
                             })}
@@ -994,6 +1005,8 @@ export default function App() {
                         setNovoLembreteEtapa('')
                         setNovoLembreteTexto('')
                         setAdesivos(obra.adesivos ? obra.adesivos.split(',') : [])
+                        setVidros(Array.isArray(obra.vidros) ? obra.vidros : [])
+                        setNovoVidro('')
                         setEditDados({ nome: obra.nome||'', local: obra.local||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', pedido: obra.pedido||'', nf: obra.nf||'' })
                         setDataCadastroModal(obra.data_cadastro || '')
                       }}
@@ -1139,6 +1152,30 @@ export default function App() {
                               </div>
                             )
                           })}
+                        </div>
+                        <div style={{ marginTop:10 }}>
+                          <div style={{ fontSize:10, color:'#64748B', fontWeight:600, marginBottom:6 }}>Vidros a trocar (informe o tamanho):</div>
+                          {vidros.length > 0 && (
+                            <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:6 }}>
+                              {vidros.map((v, idx) => (
+                                <div key={idx} style={{ display:'flex', alignItems:'center', gap:6, background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:8, padding:'5px 10px' }}>
+                                  <span style={{ fontSize:12, color:'#1E40AF', flex:1 }}>🪟 {v}</span>
+                                  <span onClick={() => setVidros(prev => prev.filter((_, i) => i !== idx))}
+                                    style={{ fontSize:13, color:'#EF4444', cursor:'pointer', fontWeight:700, padding:'0 4px' }}>✕</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div style={{ display:'flex', gap:6 }}>
+                            <input value={novoVidro} onChange={e => setNovoVidro(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter' && novoVidro.trim()) { setVidros(prev => [...prev, novoVidro.trim()]); setNovoVidro('') }}}
+                              placeholder="Ex: 1,20 x 0,90 m — porta AA"
+                              style={{ flex:1, padding:'7px 10px', border:'1px solid #BFDBFE', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                            <button onClick={() => { if (novoVidro.trim()) { setVidros(prev => [...prev, novoVidro.trim()]); setNovoVidro('') }}}
+                              style={{ padding:'7px 14px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                              + Adicionar
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )}
