@@ -76,32 +76,31 @@ const OBRAS_INICIAIS = [
 ]
 
 const STATUS_OPCOES = [
-  'REALIZAR VISTORIA',
-  'VISTORIA REALIZADA ELABORAR BOOK E ORÇAMENTO',
-  'BOOK E ORÇAMENTOS ENVIADOS',
-  'ORÇAMENTO APROVADO/REPROVADO',
-  'OBRA EMITIR ART',
-  'DCM E TERMOS ENTREGUES AO CAMPO',
-  'TERMOS E DCMS ASSINADOS',
-  'BDNS, MOBILIÁRIOS E EQUIPAMENTO REMOVIDOS',
-  'FOTOS DO AMBIENTE VAZIO',
-  'ELABORAR QRCODE OU BOOK DE CONCLUSÃO',
+  'VISTORIA',
+  'ELABORAR BOOK E ORÇAMENTO',
+  'ORÇAMENTO APROVADO',
+  'DCM E LAUDOS ENTREGUES',
+  'ELABORAR ART',
+  'LAUDOS ASSINADOS',
+  'FOTOS DO AMBIENTE',
+  'BOOK DE CONCLUSÃO E QR CODE',
+  'AGUARDANDO PEDIDO',
   'ELABORAR RM',
-  'NF EMITIDO','PENDÊNCIA','CANCELADO',
+  'ENVIAR RM',
+  'EMITIR NF',
+  'NF EMITIDO',
+  'CANCELADO',
 ]
 
 const STATUS_COR = {
   'NF EMITIDO':{ bg:'#D1FAE5',text:'#065F46' },
-  'RM ENVIADA':{ bg:'#DBEAFE',text:'#1E40AF' },
-  'RM ENVIADA (ART)':{ bg:'#E0F2FE',text:'#0369A1' },
-  'ELABORAR BOOK':{ bg:'#FEF9E7',text:'#856404' },
-  'BOOK PENDENTE':{ bg:'#FEF3C7',text:'#92400E' },
-  'EM ANDAMENTO':{ bg:'#EDE9FE',text:'#5B21B6' },
-  'AG. PEDIDO':{ bg:'#FFF7ED',text:'#9A3412' },
+  'EMITIR NF':{ bg:'#DBEAFE',text:'#1E40AF' },
   'ENVIAR RM':{ bg:'#FEE2E2',text:'#991B1B' },
-  'RM PRONTA AGUARDANDO ORDEM':{ bg:'#F0FDF4',text:'#166534' },
-  'PRECISA DE ARQUIVO RM':{ bg:'#FEE2E2',text:'#991B1B' },
-  'PENDÊNCIA':{ bg:'#FEE2E2',text:'#991B1B' },
+  'ELABORAR RM':{ bg:'#FEF3C7',text:'#92400E' },
+  'AGUARDANDO PEDIDO':{ bg:'#FFF7ED',text:'#9A3412' },
+  'BOOK DE CONCLUSÃO E QR CODE':{ bg:'#EDE9FE',text:'#5B21B6' },
+  'FOTOS DO AMBIENTE':{ bg:'#F0FDF4',text:'#166534' },
+  'LAUDOS ASSINADOS':{ bg:'#F0F9FF',text:'#0369A1' },
   'CANCELADO':{ bg:'#F1F5F9',text:'#64748B' },
 }
 
@@ -120,7 +119,7 @@ const TIPO_COR = {
 function fmt(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) }
 
 const STATUS_CONCLUIDO = ['NF EMITIDO', 'CANCELADO']
-const STATUS_FATURAR = ['RM ENVIADA', 'RM ENVIADA (ART)', 'RM PRONTA AGUARDANDO ORDEM']
+const STATUS_FATURAR = ['EMITIR NF']
 
 function uf(local) {
   if (!local) return '—'
@@ -199,17 +198,17 @@ function ReguaEtapasUN({ obra }) {
 }
 
 const ETAPAS_DESC = [
-  'REALIZAR VISTORIA',
-  'VISTORIA REALIZADA ELABORAR BOOK E ORÇAMENTO',
-  'BOOK E ORÇAMENTOS ENVIADOS',
-  'ORÇAMENTO APROVADO/REPROVADO',
-  'OBRA EMITIR ART',
-  'DCM E TERMOS ENTREGUES AO CAMPO',
-  'TERMOS E DCMS ASSINADOS',
-  'BDNS, MOBILIÁRIOS E EQUIPAMENTO REMOVIDOS',
-  'FOTOS DO AMBIENTE VAZIO',
-  'ELABORAR QRCODE OU BOOK DE CONCLUSÃO',
+  'VISTORIA',
+  'ELABORAR BOOK E ORÇAMENTO',
+  'ORÇAMENTO APROVADO',
+  'DCM E LAUDOS ENTREGUES',
+  'ELABORAR ART',
+  'LAUDOS ASSINADOS',
+  'FOTOS DO AMBIENTE',
+  'BOOK DE CONCLUSÃO E QR CODE',
+  'AGUARDANDO PEDIDO',
   'ELABORAR RM',
+  'ENVIAR RM',
 ]
 const ETAPAS_EN = ETAPAS_DESC
 const ETAPAS_OUTRAS = ['Início','Em andamento','Conclusão','EMITIR NF','Faturamento']
@@ -265,38 +264,30 @@ function getEtapas() {
 function getEtapaAtual(status) {
   const etapas = getEtapas()
   const n = etapas.length
-  // Busca direta pelo nome da etapa da régua
   const idx = etapas.findIndex(e => e.toLowerCase() === (status||'').toLowerCase())
   if (idx !== -1) return idx + 1
-  // Compatibilidade com status antigos do banco
+  // Compatibilidade com status antigos ainda no banco
   const s = (status||'').toUpperCase()
-  if (s.includes('NF EMITIDO') || s.includes('RM LIBERADA') || s.includes('EMITIR NF')) return n
-  if (s.includes('ELABORAR RM') || s.includes('RM ENVIADA') || s.includes('RM PRONTA') || s.includes('ENVIAR RM') || s.includes('ARQUIVO RM')) return n
-  if (s.includes('QRCODE') || s.includes('QR CODE') || s.includes('BOOK FINAL') || s.includes('BOOK POS') || s.includes('BOOK DE CONCLUSAO') || s.includes('ELABORAR BOOK') || s.includes('BOOK PENDENTE')) return 10
-  if (s.includes('FOTOS') || s.includes('AMBIENTE VAZIO')) return 9
-  if (s.includes('BDN') || s.includes('REMOVIDO') || s.includes('MOBILI')) return 8
-  if (s.includes('TERMOS E DCMS') || s.includes('TERMO ASSIN') || s.includes('ASSINATURA')) return 7
-  if (s.includes('DCM E TERMOS') || s.includes('ENTREGUES AO CAMPO')) return 6
-  if (s.includes('OBRA') || s.includes('EMITIR ART') || s.includes('EXECUCAO') || s.includes('EM ANDAMENTO') || s.includes('AG. PEDIDO') || s.includes('OBRA INICIADA')) return 5
-  if (s.includes('APROVADO') || s.includes('REPROVADO') || s.includes('APROVACAO') || s.includes('APROVAÇÃO')) return 4
-  if (s.includes('ORÇAMENTOS ENVIADOS') || s.includes('ENVIADO') || s.includes('TECBAN') || s.includes('ENVIO')) return 3
-  if (s.includes('ORCAMENTO LPU') || s.includes('ORÇAMENTO LPU') || s.includes('BOOK') || s.includes('CROQUI') || s.includes('VISTORIA REALIZADA')) return 2
+  if (s.includes('NF EMITIDO') || s.includes('EMITIR NF') || s.includes('FATURAMENTO') || s.includes('CONCLUS')) return n + 1
+  if (s.includes('RM ENVIADA') || s.includes('RM PRONTA') || s.includes('ARQUIVO RM')) return n
+  if (s.includes('ELABORAR RM') || s.includes('ENVIAR RM')) return n - 1
+  if (s.includes('QRCODE') || s.includes('QR CODE') || s.includes('BOOK DE CONCLUS') || s.includes('BOOK FINAL') || s.includes('BOOK POS')) return n - 2
+  if (s.includes('FOTOS') || s.includes('AMBIENTE VAZIO') || s.includes('BDN') || s.includes('REMOVIDO')) return n - 3
+  if (s.includes('TERMOS') || s.includes('ASSINADOS') || s.includes('ASSINATURA')) return n - 4
+  if (s.includes('DCM') || s.includes('ENTREGUES') || s.includes('EMITIR ART') || s.includes('AG. PEDIDO') || s.includes('EM ANDAMENTO')) return n - 5
+  if (s.includes('APROVADO') || s.includes('REPROVADO')) return 3
+  if (s.includes('BOOK') || s.includes('ORÇAMENTO') || s.includes('ORCAMENTO') || s.includes('CROQUI') || s.includes('VISTORIA REALIZADA')) return 2
   if (s.includes('VISTORIA') || s.includes('REALIZAR')) return 1
   return 1
 }
 
 function getGrupoObra(o) {
   const status = o.status || ''
-  if (['PENDÊNCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM'].includes(status)) return 'pendencias'
+  if (status === 'AGUARDANDO PEDIDO') return 'pendencias'
   if (status === 'NF EMITIDO') return 'concluido'
   if (status === 'CANCELADO') return 'outros'
-  if (['ELABORAR BOOK','BOOK PENDENTE'].includes(status)) return 'elaborar'
-  if (['RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM'].includes(status)) return 'rm'
-  const n = getEtapas().length
-  const etapa = getEtapaAtual(status)
-  if (etapa >= n) return 'concluido'
-  if (etapa >= n - 1) return 'rm'
-  if (etapa >= n - 2) return 'elaborar'
+  if (['ELABORAR RM','ENVIAR RM'].includes(status)) return 'rm'
+  if (['LAUDOS ASSINADOS','FOTOS DO AMBIENTE','BOOK DE CONCLUSÃO E QR CODE'].includes(status)) return 'elaborar'
   return 'em_andamento'
 }
 
