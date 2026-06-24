@@ -156,6 +156,7 @@ function brToIso(br) {
 }
 
 const TIPOS_ADESIVO = ['PUXE','EMPURRE','DESLIZE','CADEIRANTE','FAIXA BOLINHA','FAIXA JATEADO']
+const ITENS_ESPECIAIS_UN = ['BALCÃO DE ENVELOPE','GUARDA VOLUMES','ESCADA DO SEGURANÇA']
 
 // Régua de 3 etapas para TRANSF UN com datas de visita
 const ETAPAS_UN = [
@@ -371,6 +372,7 @@ export default function App() {
   const [divisorias, setDivisorias] = useState([])
   const [novaDivTipo, setNovaDivTipo] = useState('DRYWALL')
   const [novaDivM2, setNovaDivM2] = useState('')
+  const [itensEspeciais, setItensEspeciais] = useState([])
   const [selecionadas, setSelecionadas] = useState(new Set())
   const [modalBulk, setModalBulk] = useState(false)
   const [statusBulk, setStatusBulk] = useState('')
@@ -485,6 +487,7 @@ export default function App() {
       campos.adesivos = adesivos.length > 0 ? adesivos.join(',') : null
       campos.vidros = vidros.length > 0 ? vidros : null
       campos.divisorias = divisorias.length > 0 ? divisorias : null
+      campos.itens_especiais = itensEspeciais.length > 0 ? itensEspeciais : null
     }
     if (modal.tipo !== 'TRANSF UN') {
       if (dataObra.inicio) campos.inicio = isoToBr(dataObra.inicio)
@@ -636,7 +639,7 @@ export default function App() {
   ].filter(g => g.obras.length > 0)
 
   function exportarCSV() {
-    const cab = ['Tipo','Nome','Local','Status','Valor','SIGE','Pedido','NF','Início','Término','ART pronta','Em negociação','Observação','Post-its Régua','Data Entrada Pipeline','Dias no Pipeline','Atualizado por','Atualizado em']
+    const cab = ['Tipo','Nome','Local','Status','Valor','SIGE','Pedido','NF','Início','Término','ART pronta','Em negociação','Observação','Post-its Régua','Data Entrada Pipeline','Dias no Pipeline','Vidros','Divisórias','Itens Especiais','Atualizado por','Atualizado em']
     const esc = v => { const s = String(v ?? ''); return (s.includes(';') || s.includes('"') || s.includes('\n')) ? `"${s.replace(/"/g,'""')}"` : s }
     const linhas = obrasFiltradas.map(o => {
       const d = diasNoPipeline(o.data_cadastro)
@@ -653,6 +656,9 @@ export default function App() {
           : '',
         o.data_cadastro ? isoToBr(o.data_cadastro) : '',
         d !== null ? String(d) : '',
+        Array.isArray(o.vidros) && o.vidros.length > 0 ? o.vidros.join(' | ') : '',
+        Array.isArray(o.divisorias) && o.divisorias.length > 0 ? o.divisorias.map(d => `${d.tipo} ${d.m2}m²`).join(' | ') : '',
+        Array.isArray(o.itens_especiais) && o.itens_especiais.length > 0 ? o.itens_especiais.join(' | ') : '',
         o.atualizado_por||'',
         o.atualizado_em ? new Date(o.atualizado_em).toLocaleString('pt-BR') : ''
       ].map(esc).join(';')
@@ -979,6 +985,14 @@ export default function App() {
                                       ))}
                                     </div>
                                   )}
+                                  {i === 0 && Array.isArray(obra.itens_especiais) && obra.itens_especiais.length > 0 && (
+                                    <div style={{ marginTop:5, textAlign:'left' }}>
+                                      <div style={{ fontSize:8, color:'#065F46', fontWeight:700, marginBottom:2 }}>ITENS:</div>
+                                      {obra.itens_especiais.map((it, ii) => (
+                                        <div key={ii} style={{ fontSize:8, color:'#065F46', background:'#D1FAE5', borderRadius:3, padding:'1px 4px', marginBottom:2 }}>✓ {it}</div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               )
                             })}
@@ -1022,6 +1036,7 @@ export default function App() {
                         setDivisorias(Array.isArray(obra.divisorias) ? obra.divisorias : [])
                         setNovaDivTipo('DRYWALL')
                         setNovaDivM2('')
+                        setItensEspeciais(Array.isArray(obra.itens_especiais) ? obra.itens_especiais : [])
                         setEditDados({ nome: obra.nome||'', local: obra.local||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', pedido: obra.pedido||'', nf: obra.nf||'' })
                         setDataCadastroModal(obra.data_cadastro || '')
                       }}
@@ -1219,6 +1234,23 @@ export default function App() {
                               style={{ padding:'7px 14px', background:'#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
                               + Add
                             </button>
+                          </div>
+                        </div>
+                        <div style={{ marginTop:10 }}>
+                          <div style={{ fontSize:10, color:'#64748B', fontWeight:600, marginBottom:6 }}>Itens existentes na agência:</div>
+                          <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                            {ITENS_ESPECIAIS_UN.map(item => {
+                              const sel = itensEspeciais.includes(item)
+                              return (
+                                <div key={item} onClick={() => setItensEspeciais(prev => sel ? prev.filter(i => i !== item) : [...prev, item])}
+                                  style={{ padding:'5px 11px', borderRadius:20, fontSize:11, fontWeight:600, cursor:'pointer',
+                                    background: sel ? '#1A6B4A' : '#fff',
+                                    color: sel ? '#fff' : '#1A6B4A',
+                                    border: `1.5px solid ${sel ? '#1A6B4A' : '#BBF7D0'}` }}>
+                                  {sel ? '✓ ' : ''}{item}
+                                </div>
+                              )
+                            })}
                           </div>
                         </div>
                       </div>
