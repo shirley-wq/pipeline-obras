@@ -258,14 +258,12 @@ function ReguaStatus({ status, lembretes, onRemoverLembrete }) {
   )
 }
 
-function getEtapas(tipo) {
-  if (tipo === 'TRANSF EN') return ETAPAS_EN
-  if (['DESC. PA','DESC. PAB','TRANSF PAE','ENCER. AG'].includes(tipo)) return ETAPAS_DESC
-  return ETAPAS_OUTRAS
+function getEtapas() {
+  return ETAPAS_DESC
 }
 
-function getEtapaAtual(status, tipo) {
-  const etapas = getEtapas(tipo)
+function getEtapaAtual(status) {
+  const etapas = getEtapas()
   const n = etapas.length
   // Busca direta pelo nome da etapa da régua
   const idx = etapas.findIndex(e => e.toLowerCase() === (status||'').toLowerCase())
@@ -294,8 +292,8 @@ function getGrupoObra(o) {
   if (status === 'CANCELADO') return 'outros'
   if (['ELABORAR BOOK','BOOK PENDENTE'].includes(status)) return 'elaborar'
   if (['RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM'].includes(status)) return 'rm'
-  const n = getEtapas(o.tipo).length
-  const etapa = getEtapaAtual(status, o.tipo)
+  const n = getEtapas().length
+  const etapa = getEtapaAtual(status)
   if (etapa >= n) return 'concluido'
   if (etapa >= n - 1) return 'rm'
   if (etapa >= n - 2) return 'elaborar'
@@ -303,8 +301,8 @@ function getGrupoObra(o) {
 }
 
 function Regua({ tipo, status, lembretes, onRemoverLembrete }) {
-  const etapas = getEtapas(tipo)
-  const atual = getEtapaAtual(status, tipo)
+  const etapas = getEtapas()
+  const atual = getEtapaAtual(status)
   const lista = Array.isArray(lembretes) ? lembretes : []
   return (
     <div style={{ display:'flex', alignItems:'flex-start', padding:'10px 0 6px', overflowX:'auto', gap:0 }}>
@@ -918,7 +916,8 @@ export default function App() {
                   </div>
 
                   <div style={{ padding:'0 14px 8px' }}>
-                    <Regua tipo={obra.tipo} status={obra.status} lembretes={obra.lembretes} onRemoverLembrete={l => removerLembrete(obra.id, l)} />
+                    <Regua status={obra.status} lembretes={obra.lembretes} onRemoverLembrete={l => removerLembrete(obra.id, l)} />
+                    {obra.tipo === 'TRANSF UN' && <ReguaEtapasUN obra={obra} />}
                   </div>
 
                   {estaAberta && (
@@ -1151,7 +1150,7 @@ export default function App() {
             </div>
 
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, marginBottom:8 }}>Etapa da régua:</div>
-            {ETAPAS_OUTRAS.map((op, i) => {
+            {getEtapas().map((op, i) => {
               const ativo = novoStatus === op
               return (
                 <div key={op} onClick={() => setNovoStatus(op)}
@@ -1185,7 +1184,7 @@ export default function App() {
                 <select value={novoLembreteEtapa} onChange={e => setNovoLembreteEtapa(e.target.value)}
                   style={{ padding:'8px 6px', border:'1px solid #FECACA', borderRadius:8, fontSize:11, color:'#1A2340', background:'#fff', width:52, flexShrink:0 }}>
                   <option value="">Etapa</option>
-                  {getEtapas(modal.tipo).map((_, i) => (
+                  {getEtapas().map((_, i) => (
                     <option key={i} value={i+1}>{i+1}</option>
                   ))}
                 </select>
