@@ -341,6 +341,7 @@ export default function App() {
   const [importando, setImportando] = useState(false)
   const [dataCadastroModal, setDataCadastroModal] = useState('')
   const [aba, setAba] = useState('pipeline')
+  const [faturarDados, setFaturarDados] = useState({})
   const [filtroHistTipo, setFiltroHistTipo] = useState('')
   const [filtroHistRegiao, setFiltroHistRegiao] = useState('')
   const [filtroHistDe, setFiltroHistDe] = useState('')
@@ -433,18 +434,14 @@ export default function App() {
       pedido: editDados.pedido || null,
       nf: editDados.nf || null,
     }
-    if (modal.tipo === 'TRANSF UN') {
-      campos.data_etapa1 = datas.data_etapa1 || null
-      campos.data_etapa2 = datas.data_etapa2 || null
-      campos.data_etapa3 = datas.data_etapa3 || null
-      campos.adesivos = adesivos.length > 0 ? adesivos.join(',') : null
-    }
-    if (modal.tipo !== 'TRANSF UN') {
-      if (dataObra.inicio) campos.inicio = isoToBr(dataObra.inicio)
-      if (dataObra.termino) campos.termino = isoToBr(dataObra.termino)
-      if (dataArt) campos.data_art = dataArt
-      campos.em_negociacao = emNegociacao
-    }
+    campos.data_etapa1 = datas.data_etapa1 || null
+    campos.data_etapa2 = datas.data_etapa2 || null
+    campos.data_etapa3 = datas.data_etapa3 || null
+    campos.adesivos = adesivos.length > 0 ? adesivos.join(',') : null
+    if (dataObra.inicio) campos.inicio = isoToBr(dataObra.inicio)
+    if (dataObra.termino) campos.termino = isoToBr(dataObra.termino)
+    if (dataArt) campos.data_art = dataArt
+    campos.em_negociacao = emNegociacao
     campos.lembretes = lembretes.length > 0 ? lembretes : null
     campos.data_cadastro = dataCadastroModal || modal.data_cadastro || null
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
@@ -470,9 +467,19 @@ export default function App() {
   }
 
   async function marcarFaturado(id) {
-    const campos = { status: 'NF EMITIDO', atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+    const d = faturarDados[id] || {}
+    const campos = {
+      status: 'NF EMITIDO',
+      nf: d.nf || null,
+      vencimento: d.vencimento || null,
+      atualizado_em: new Date().toISOString(),
+      atualizado_por: usuario.email
+    }
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', id)
-    if (!error) setObras(prev => prev.map(o => o.id === id ? { ...o, ...campos } : o))
+    if (!error) {
+      setObras(prev => prev.map(o => o.id === id ? { ...o, ...campos } : o))
+      setFaturarDados(prev => { const n = {...prev}; delete n[id]; return n })
+    }
   }
 
   async function removerLembrete(obraId, lembrete) {
@@ -698,8 +705,25 @@ export default function App() {
                       {o.nf && <span>NF: <b>{o.nf}</b></span>}
                     </div>
                     {o.obs && <div style={{ fontSize:11, background:'#FFF9E6', borderLeft:'3px solid #F5A623', padding:'5px 8px', borderRadius:4, color:'#7A5A00', marginBottom:10 }}>📌 {o.obs}</div>}
-                    <button onClick={() => { if(window.confirm(`Marcar "${o.nome}" como Faturado (NF Emitido)?`)) marcarFaturado(o.id) }}
-                      style={{ width:'100%', padding:'10px', background:'#1A6B4A', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer' }}>
+                    <div style={{ background:'#F0F4F8', borderRadius:10, padding:10, marginBottom:10 }}>
+                      <div style={{ fontSize:11, color:'#2D3A8C', fontWeight:700, marginBottom:8 }}>Dados para faturamento</div>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                        <div>
+                          <label style={{ fontSize:10, color:'#64748B', fontWeight:600, display:'block', marginBottom:3 }}>Nº da NF *</label>
+                          <input value={(faturarDados[o.id]||{}).nf||''} onChange={e => setFaturarDados(prev => ({...prev, [o.id]: {...(prev[o.id]||{}), nf: e.target.value}}))}
+                            placeholder="Ex: 3185"
+                            style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize:10, color:'#64748B', fontWeight:600, display:'block', marginBottom:3 }}>Vencimento</label>
+                          <input type="date" value={(faturarDados[o.id]||{}).vencimento||''} onChange={e => setFaturarDados(prev => ({...prev, [o.id]: {...(prev[o.id]||{}), vencimento: e.target.value}}))}
+                            style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                        </div>
+                      </div>
+                    </div>
+                    <button onClick={() => marcarFaturado(o.id)}
+                      disabled={!(faturarDados[o.id]||{}).nf}
+                      style={{ width:'100%', padding:'10px', background: (faturarDados[o.id]||{}).nf ? '#1A6B4A' : '#ccc', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor: (faturarDados[o.id]||{}).nf ? 'pointer' : 'default' }}>
                       ✓ Marcar como Faturado
                     </button>
                   </div>
@@ -755,6 +779,7 @@ export default function App() {
                   {o.sige && <span>SIGE: <b>{o.sige}</b></span>}
                   {o.pedido && <span>Pedido: <b>{o.pedido}</b></span>}
                   {o.nf && <span>NF: <b>{o.nf}</b></span>}
+                  {o.vencimento && <span style={{ color:'#92400E' }}>Vence: <b>{isoToBr(o.vencimento)}</b></span>}
                   {o.atualizado_em && <span style={{ color:'#1A6B4A' }}>Faturado: <b>{new Date(o.atualizado_em).toLocaleDateString('pt-BR')}</b></span>}
                 </div>
               </div>
@@ -845,10 +870,7 @@ export default function App() {
                   </div>
 
                   <div style={{ padding:'0 14px 8px' }}>
-                    {obra.tipo === 'TRANSF UN'
-                      ? <ReguaEtapasUN obra={obra} />
-                      : <Regua tipo={obra.tipo} status={obra.status} lembretes={obra.lembretes} onRemoverLembrete={l => removerLembrete(obra.id, l)} />
-                    }
+                    <ReguaEtapasUN obra={obra} />
                   </div>
 
                   {estaAberta && (
@@ -1001,8 +1023,7 @@ export default function App() {
               </div>
             </div>
 
-            {modal.tipo === 'TRANSF UN' && (
-              <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
+            <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
                 <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Datas de visita ao ponto</div>
                 {ETAPAS_UN.map((etapa, i) => (
                   <div key={etapa.campo} style={{ marginBottom:12 }}>
@@ -1035,7 +1056,6 @@ export default function App() {
                   </div>
                 ))}
               </div>
-            )}
 
             <div style={{ background:'#F0F7FF', borderRadius:12, padding:14, marginBottom:16, border:'1px solid #BFDBFE' }}>
               <div style={{ fontSize:12, color:'#1E40AF', fontWeight:700, marginBottom:8 }}>Data de entrada no pipeline</div>
@@ -1045,8 +1065,7 @@ export default function App() {
               <div style={{ fontSize:10, color:'#64748B', marginTop:5 }}>Quando esta demanda entrou no pipeline (usada para calcular dias parado)</div>
             </div>
 
-            {modal.tipo !== 'TRANSF UN' && (
-              <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
+            <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
                 <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Datas da obra</div>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
                   <div>
@@ -1081,10 +1100,9 @@ export default function App() {
                   </div>
                 </div>
               </div>
-            )}
 
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, marginBottom:8 }}>Etapa da régua:</div>
-            {getEtapas(modal.tipo).map((op, i) => {
+            {ETAPAS_OUTRAS.map((op, i) => {
               const ativo = novoStatus === op
               return (
                 <div key={op} onClick={() => setNovoStatus(op)}
