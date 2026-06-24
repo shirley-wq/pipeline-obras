@@ -120,7 +120,7 @@ const TIPO_COR = {
 function fmt(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) }
 
 const STATUS_CONCLUIDO = ['NF EMITIDO', 'CANCELADO']
-const STATUS_FATURAR = ['ELABORAR RM', 'RM ENVIADA', 'RM ENVIADA (ART)', 'RM PRONTA AGUARDANDO ORDEM']
+const STATUS_FATURAR = ['RM ENVIADA', 'RM ENVIADA (ART)', 'RM PRONTA AGUARDANDO ORDEM']
 
 function uf(local) {
   if (!local) return '—'
