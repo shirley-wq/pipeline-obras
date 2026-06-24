@@ -917,11 +917,36 @@ export default function App() {
 
                   <div style={{ padding:'0 14px 8px' }}>
                     <Regua status={obra.status} lembretes={obra.lembretes} onRemoverLembrete={l => removerLembrete(obra.id, l)} />
-                    {obra.tipo === 'TRANSF UN' && <ReguaEtapasUN obra={obra} />}
                   </div>
 
                   {estaAberta && (
                     <div style={{ padding:'12px 14px', borderTop:'1px solid #F0F4F8', background:'#FAFBFF' }}>
+
+                      {obra.tipo === 'TRANSF UN' && (
+                        <div style={{ background:'#EEF2FF', border:'1px solid #C7D2FE', borderRadius:12, padding:12, marginBottom:12 }}>
+                          <div style={{ fontSize:11, fontWeight:700, color:'#2D3A8C', marginBottom:10 }}>Visitas ao ponto</div>
+                          <div style={{ display:'flex', gap:8 }}>
+                            {ETAPAS_UN.map((etapa, i) => {
+                              const data = obra[etapa.campo]
+                              return (
+                                <div key={i} style={{ flex:1, background: data ? '#D1FAE5' : '#fff', border:`1.5px solid ${data ? '#BBF7D0' : '#C7D2FE'}`, borderRadius:10, padding:'8px 10px', textAlign:'center' }}>
+                                  <div style={{ fontSize:9, fontWeight:700, color: data ? '#1A6B4A' : '#2D3A8C', textTransform:'uppercase', marginBottom:3 }}>{i+1}ª Etapa</div>
+                                  <div style={{ fontSize:10, fontWeight:600, color:'#1A2340', marginBottom:5, lineHeight:1.2 }}>{etapa.titulo}</div>
+                                  <div style={{ fontSize:13, fontWeight:700, color: data ? '#1A6B4A' : '#9CA3AF' }}>{data ? isoToBr(data) : '—'}</div>
+                                  {i === 0 && obra.adesivos && (
+                                    <div style={{ display:'flex', flexWrap:'wrap', gap:3, justifyContent:'center', marginTop:6 }}>
+                                      {obra.adesivos.split(',').map(a => (
+                                        <span key={a} style={{ fontSize:8, background:'#2D3A8C', color:'#fff', borderRadius:4, padding:'1px 5px', fontWeight:600 }}>{a}</span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+
                       {obra.obs && (
                         <div style={{ fontSize:11, background:'#FFF9E6', borderLeft:'3px solid #F5A623', padding:'6px 10px', borderRadius:4, color:'#7A5A00', marginBottom:10 }}>
                           📌 {obra.obs}
