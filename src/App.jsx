@@ -368,6 +368,9 @@ export default function App() {
   const [adesivos, setAdesivos] = useState([])
   const [vidros, setVidros] = useState([])
   const [novoVidro, setNovoVidro] = useState('')
+  const [divisorias, setDivisorias] = useState([])
+  const [novaDivTipo, setNovaDivTipo] = useState('DRYWALL')
+  const [novaDivM2, setNovaDivM2] = useState('')
   const [selecionadas, setSelecionadas] = useState(new Set())
   const [modalBulk, setModalBulk] = useState(false)
   const [statusBulk, setStatusBulk] = useState('')
@@ -481,6 +484,7 @@ export default function App() {
       campos.data_etapa3 = datas.data_etapa3 || null
       campos.adesivos = adesivos.length > 0 ? adesivos.join(',') : null
       campos.vidros = vidros.length > 0 ? vidros : null
+      campos.divisorias = divisorias.length > 0 ? divisorias : null
     }
     if (modal.tipo !== 'TRANSF UN') {
       if (dataObra.inicio) campos.inicio = isoToBr(dataObra.inicio)
@@ -967,6 +971,14 @@ export default function App() {
                                       ))}
                                     </div>
                                   )}
+                                  {i === 0 && Array.isArray(obra.divisorias) && obra.divisorias.length > 0 && (
+                                    <div style={{ marginTop:5, textAlign:'left' }}>
+                                      <div style={{ fontSize:8, color:'#166534', fontWeight:700, marginBottom:2 }}>DIVISÓRIA:</div>
+                                      {obra.divisorias.map((d, di) => (
+                                        <div key={di} style={{ fontSize:8, color:'#166534', background:'#F0FDF4', borderRadius:3, padding:'1px 4px', marginBottom:2 }}>🧱 {d.tipo} {d.m2}m²</div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               )
                             })}
@@ -1007,6 +1019,9 @@ export default function App() {
                         setAdesivos(obra.adesivos ? obra.adesivos.split(',') : [])
                         setVidros(Array.isArray(obra.vidros) ? obra.vidros : [])
                         setNovoVidro('')
+                        setDivisorias(Array.isArray(obra.divisorias) ? obra.divisorias : [])
+                        setNovaDivTipo('DRYWALL')
+                        setNovaDivM2('')
                         setEditDados({ nome: obra.nome||'', local: obra.local||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', pedido: obra.pedido||'', nf: obra.nf||'' })
                         setDataCadastroModal(obra.data_cadastro || '')
                       }}
@@ -1174,6 +1189,35 @@ export default function App() {
                             <button onClick={() => { if (novoVidro.trim()) { setVidros(prev => [...prev, novoVidro.trim()]); setNovoVidro('') }}}
                               style={{ padding:'7px 14px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
                               + Adicionar
+                            </button>
+                          </div>
+                        </div>
+                        <div style={{ marginTop:10 }}>
+                          <div style={{ fontSize:10, color:'#64748B', fontWeight:600, marginBottom:6 }}>Fechamento em drywall / divisória naval:</div>
+                          {divisorias.length > 0 && (
+                            <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:6 }}>
+                              {divisorias.map((d, idx) => (
+                                <div key={idx} style={{ display:'flex', alignItems:'center', gap:6, background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:8, padding:'5px 10px' }}>
+                                  <span style={{ fontSize:12, color:'#166534', flex:1 }}>🧱 {d.tipo} — {d.m2} m²</span>
+                                  <span onClick={() => setDivisorias(prev => prev.filter((_, i) => i !== idx))}
+                                    style={{ fontSize:13, color:'#EF4444', cursor:'pointer', fontWeight:700, padding:'0 4px' }}>✕</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                            <select value={novaDivTipo} onChange={e => setNovaDivTipo(e.target.value)}
+                              style={{ padding:'7px 8px', border:'1px solid #BBF7D0', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                              <option>DRYWALL</option>
+                              <option>DIVISÓRIA NAVAL</option>
+                            </select>
+                            <input value={novaDivM2} onChange={e => setNovaDivM2(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter' && novaDivM2.trim()) { setDivisorias(prev => [...prev, { tipo: novaDivTipo, m2: novaDivM2.trim() }]); setNovaDivM2('') }}}
+                              placeholder="m² (ex: 12,5)"
+                              style={{ flex:1, padding:'7px 10px', border:'1px solid #BBF7D0', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                            <button onClick={() => { if (novaDivM2.trim()) { setDivisorias(prev => [...prev, { tipo: novaDivTipo, m2: novaDivM2.trim() }]); setNovaDivM2('') }}}
+                              style={{ padding:'7px 14px', background:'#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                              + Add
                             </button>
                           </div>
                         </div>
