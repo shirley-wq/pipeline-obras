@@ -918,10 +918,7 @@ export default function App() {
                   </div>
 
                   <div style={{ padding:'0 14px 8px' }}>
-                    {obra.tipo === 'TRANSF UN'
-                      ? <ReguaEtapasUN obra={obra} />
-                      : <ReguaStatus status={obra.status} lembretes={obra.lembretes} onRemoverLembrete={l => removerLembrete(obra.id, l)} />
-                    }
+                    <Regua tipo={obra.tipo} status={obra.status} lembretes={obra.lembretes} onRemoverLembrete={l => removerLembrete(obra.id, l)} />
                   </div>
 
                   {estaAberta && (
