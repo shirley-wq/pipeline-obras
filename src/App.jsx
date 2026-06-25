@@ -188,7 +188,9 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 }
 
 function baseProxima(local) {
-  const ufStr = (local||'').includes('-') ? local.split('-').pop().trim().toUpperCase() : ''
+  const str = (local||'').toUpperCase().trim()
+  const match = str.match(/[-\s]([A-Z]{2})$/)
+  const ufStr = match ? match[1] : ''
   const coords = UF_COORDS[ufStr]
   if (!coords) return { base: BASES_GRUPOPG[0], km: null }
   let nearest = BASES_GRUPOPG[0], minKm = haversineKm(coords.lat, coords.lon, BASES_GRUPOPG[0].lat, BASES_GRUPOPG[0].lon)
