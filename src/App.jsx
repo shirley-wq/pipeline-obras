@@ -209,14 +209,15 @@ function gerarBriefing(obra) {
   const hoje = new Date().toLocaleDateString('pt-BR')
 
   const etapasUN = [
-    { label: '1ª Visita — Vistoria + BDN', data: obra.data_etapa1 },
-    { label: '2ª Visita — Troca de Fechaduras', data: obra.data_etapa2 },
-    { label: '3ª Visita — Obra Final', data: obra.data_etapa3 },
+    { label: '1ª Visita — Vistoria + BDN', data: obra.data_etapa1, resp: obra.resp_etapa1 },
+    { label: '2ª Visita — Troca de Fechaduras', data: obra.data_etapa2, resp: obra.resp_etapa2 },
+    { label: '3ª Visita — Obra Final', data: obra.data_etapa3, resp: obra.resp_etapa3 },
   ]
 
   const rowEtapa = e => `<tr style="border-bottom:1px solid #e5e7eb">
     <td style="padding:8px 12px;font-size:14px">${e.data ? '✅' : '⏳'} ${e.label}</td>
     <td style="padding:8px 12px;font-size:14px;font-weight:${e.data?'700':'400'};color:${e.data?'#065F46':'#9CA3AF'}">${e.data ? new Date(e.data+'T12:00').toLocaleDateString('pt-BR') : 'Pendente'}</td>
+    <td style="padding:8px 12px;font-size:13px;color:#475569">${e.resp ? '👤 '+e.resp : ''}</td>
   </tr>`
 
   const vidrosHtml = Array.isArray(obra.vidros) && obra.vidros.length > 0
@@ -504,6 +505,7 @@ export default function App() {
   const [novaObs, setNovaObs] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [datas, setDatas] = useState({ data_etapa1:'', data_etapa2:'', data_etapa3:'' })
+  const [resps, setResps] = useState({ resp_etapa1:'', resp_etapa2:'', resp_etapa3:'' })
   const [dataObra, setDataObra] = useState({ inicio:'', termino:'' })
   const [dataArt, setDataArt] = useState('')
   const [emNegociacao, setEmNegociacao] = useState(false)
@@ -630,6 +632,9 @@ export default function App() {
       campos.data_etapa1 = datas.data_etapa1 || null
       campos.data_etapa2 = datas.data_etapa2 || null
       campos.data_etapa3 = datas.data_etapa3 || null
+      campos.resp_etapa1 = resps.resp_etapa1 || null
+      campos.resp_etapa2 = resps.resp_etapa2 || null
+      campos.resp_etapa3 = resps.resp_etapa3 || null
       campos.adesivos = adesivos.length > 0 ? adesivos.join(',') : null
       campos.vidros = vidros.length > 0 ? vidros : null
       campos.divisorias = divisorias.length > 0 ? divisorias : null
@@ -1110,6 +1115,7 @@ export default function App() {
                                   <div style={{ fontSize:9, fontWeight:700, color: data ? '#1A6B4A' : '#2D3A8C', textTransform:'uppercase', marginBottom:3 }}>{i+1}ª Etapa</div>
                                   <div style={{ fontSize:10, fontWeight:600, color:'#1A2340', marginBottom:5, lineHeight:1.2 }}>{etapa.titulo}</div>
                                   <div style={{ fontSize:13, fontWeight:700, color: data ? '#1A6B4A' : '#9CA3AF' }}>{data ? isoToBr(data) : '—'}</div>
+                                  {obra[`resp_etapa${i+1}`] && <div style={{ fontSize:9, color:'#475569', marginTop:3 }}>👤 {obra[`resp_etapa${i+1}`]}</div>}
                                   {i === 0 && obra.adesivos && (
                                     <div style={{ display:'flex', flexWrap:'wrap', gap:3, justifyContent:'center', marginTop:6 }}>
                                       {obra.adesivos.split(',').map(a => (
@@ -1176,6 +1182,7 @@ export default function App() {
                         setNovoStatus(obra.status)
                         setNovaObs(obra.obs||'')
                         setDatas({ data_etapa1: obra.data_etapa1||'', data_etapa2: obra.data_etapa2||'', data_etapa3: obra.data_etapa3||'' })
+                        setResps({ resp_etapa1: obra.resp_etapa1||'', resp_etapa2: obra.resp_etapa2||'', resp_etapa3: obra.resp_etapa3||'' })
                         setDataObra({ inicio: obra.inicio ? brToIso(obra.inicio) : '', termino: obra.termino ? brToIso(obra.termino) : '' })
                         setDataArt(obra.data_art || '')
                         setEmNegociacao(obra.em_negociacao || false)
@@ -1323,9 +1330,15 @@ export default function App() {
                       {i+1}ª Etapa — {etapa.titulo}
                     </label>
                     <div style={{ fontSize:10, color:'#888', marginBottom:4 }}>{etapa.desc}</div>
-                    <input type="date" value={datas[etapa.campo]||''}
-                      onChange={e => setDatas(d => ({...d, [etapa.campo]: e.target.value}))}
-                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                    <div style={{ display:'flex', gap:8, marginBottom: i === 0 ? 0 : undefined }}>
+                      <input type="date" value={datas[etapa.campo]||''}
+                        onChange={e => setDatas(d => ({...d, [etapa.campo]: e.target.value}))}
+                        style={{ flex:1, padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                      <input value={resps[`resp_etapa${i+1}`]||''}
+                        onChange={e => setResps(r => ({...r, [`resp_etapa${i+1}`]: e.target.value}))}
+                        placeholder="Responsável"
+                        style={{ flex:1, padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                    </div>
                     {i === 0 && (
                       <div style={{ marginTop:8 }}>
                         <div style={{ fontSize:10, color:'#64748B', fontWeight:600, marginBottom:6 }}>Adesivos necessários:</div>
