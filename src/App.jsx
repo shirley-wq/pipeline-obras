@@ -1148,10 +1148,6 @@ export default function App() {
                               )
                             })}
                           </div>
-                          <button onClick={() => gerarBriefing(obra)}
-                            style={{ marginTop:10, width:'100%', padding:'9px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:9, fontSize:12, fontWeight:700, cursor:'pointer', letterSpacing:.3 }}>
-                            📋 Gerar Briefing de Campo
-                          </button>
                         </div>
                       )}
 
@@ -1174,6 +1170,7 @@ export default function App() {
                           Atualizado por {obra.atualizado_por} — {obra.atualizado_em ? new Date(obra.atualizado_em).toLocaleString('pt-BR') : ''}
                         </div>
                       )}
+                      <div style={{ display:'flex', gap:8 }}>
                       <button onClick={() => {
                         setModal(obra)
                         setNovoStatus(obra.status)
@@ -1196,9 +1193,16 @@ export default function App() {
                         setEditDados({ nome: obra.nome||'', local: obra.local||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', pedido: obra.pedido||'', nf: obra.nf||'' })
                         setDataCadastroModal(obra.data_cadastro || '')
                       }}
-                        style={{ width:'100%', padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                        style={{ flex:1, padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                         Atualizar status
                       </button>
+                      {obra.tipo === 'TRANSF UN' && (
+                        <button onClick={() => gerarBriefing(obra)}
+                          style={{ padding:'10px 12px', background:'#0E4D73', color:'#fff', border:'none', borderRadius:10, fontSize:13, cursor:'pointer', whiteSpace:'nowrap' }}>
+                          📋
+                        </button>
+                      )}
+                      </div>
                     </div>
                   )}
                   </div>
