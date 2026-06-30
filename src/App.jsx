@@ -629,7 +629,7 @@ export default function App() {
       atualizado_por: usuario.email,
       nome: editDados.nome || modal.nome,
       local: editDados.local || null,
-      valor: parseFloat(editDados.valor) || 0,
+      valor: editDados.valor !== '' ? parseFloat(String(editDados.valor).replace(',', '.')) || 0 : null,
       sige: editDados.sige || null,
       pedido: editDados.pedido || null,
       nf: editDados.nf || null,
@@ -656,11 +656,14 @@ export default function App() {
     campos.lembretes = lembretes.length > 0 ? lembretes : null
     campos.data_cadastro = dataCadastroModal || modal.data_cadastro || null
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
-    if (!error) {
-      setObras(prev => prev.map(o => o.id === modal.id
-        ? { ...o, ...campos }
-        : o))
+    if (error) {
+      alert('Erro ao salvar: ' + error.message)
+      setSalvando(false)
+      return
     }
+    setObras(prev => prev.map(o => o.id === modal.id
+      ? { ...o, ...campos }
+      : o))
     setSalvando(false)
     setModal(null)
     setNovoStatus('')
