@@ -111,7 +111,7 @@ const STATUS_COR = {
   'CANCELADO':{ bg:'#F1F5F9',text:'#64748B' },
 }
 
-const TIPOS_ENTREGAVEIS = ['PAB', 'PAE', 'AG']
+const TIPOS_ENTREGAVEIS = ['DESC. PAB', 'DESC. PA', 'ENCER. AG']
 const ENTREGAVEIS_BOOK = [
   'PDF',
   'Termo de Antena',
