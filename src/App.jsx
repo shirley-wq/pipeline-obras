@@ -85,8 +85,10 @@ const STATUS_OPCOES = [
   'LAUDOS ASSINADOS',
   'REMOÇÃO PORTA GIRATÓRIA / DRYWALL / VIDRO',
   'FOTOS DO AMBIENTE',
-  'BOOK DE CONCLUSÃO E QR CODE',
+  'BOOK DE CONCLUSÃO',
+  'QR CODE',
   'AGUARDANDO PEDIDO',
+  'OS TECBAN',
   'ELABORAR RM',
   'ENVIAR RM',
   'EMITIR NF',
@@ -102,7 +104,9 @@ const STATUS_COR = {
   'TROCA DE FECHADURAS':{ bg:'#FEF3C7',text:'#92400E' },
   'REMOÇÃO PORTA GIRATÓRIA / DRYWALL / VIDRO':{ bg:'#FCE7F3',text:'#9D174D' },
   'AGUARDANDO PEDIDO':{ bg:'#FFF7ED',text:'#9A3412' },
-  'BOOK DE CONCLUSÃO E QR CODE':{ bg:'#EDE9FE',text:'#5B21B6' },
+  'BOOK DE CONCLUSÃO':{ bg:'#EDE9FE',text:'#5B21B6' },
+  'QR CODE':{ bg:'#EDE9FE',text:'#5B21B6' },
+  'OS TECBAN':{ bg:'#CCFBF1',text:'#0F766E' },
   'FOTOS DO AMBIENTE':{ bg:'#F0FDF4',text:'#166534' },
   'LAUDOS ASSINADOS':{ bg:'#F0F9FF',text:'#0369A1' },
   'CANCELADO':{ bg:'#F1F5F9',text:'#64748B' },
@@ -358,16 +362,18 @@ const ETAPAS_DESC = [
   'LAUDOS ASSINADOS',
   'REMOÇÃO PORTA GIRATÓRIA / DRYWALL / VIDRO',
   'FOTOS DO AMBIENTE',
-  'BOOK DE CONCLUSÃO E QR CODE',
+  'BOOK DE CONCLUSÃO',
+  'QR CODE',
   'AGUARDANDO PEDIDO',
+  'OS TECBAN',
   'ELABORAR RM',
   'ENVIAR RM',
 ]
 const ETAPAS_EN = ETAPAS_DESC
 const ETAPAS_OUTRAS = ['Início','Em andamento','Conclusão','EMITIR NF','Faturamento']
 
-const STATUS_ETAPA1_DONE = ['EM ANDAMENTO','VISTORIA REALIZADA ELABORAR BOOK E ORÇAMENTO','BOOK E ORÇAMENTOS ENVIADOS','ORÇAMENTO APROVADO/REPROVADO','OBRA EMITIR ART','DCM E TERMOS ENTREGUES AO CAMPO','TERMOS E DCMS ASSINADOS','BDNS, MOBILIÁRIOS E EQUIPAMENTO REMOVIDOS','FOTOS DO AMBIENTE VAZIO','ELABORAR QRCODE OU BOOK DE CONCLUSÃO','ELABORAR BOOK','BOOK PENDENTE','ELABORAR RM','RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM','EMITIR NF','NF EMITIDO','Em andamento','Conclusão','Faturamento']
-const STATUS_ETAPA2_DONE = ['ELABORAR RM','RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM','EMITIR NF','NF EMITIDO','Conclusão','Faturamento']
+const STATUS_ETAPA1_DONE = ['EM ANDAMENTO','VISTORIA REALIZADA ELABORAR BOOK E ORÇAMENTO','BOOK E ORÇAMENTOS ENVIADOS','ORÇAMENTO APROVADO/REPROVADO','OBRA EMITIR ART','DCM E TERMOS ENTREGUES AO CAMPO','TERMOS E DCMS ASSINADOS','BDNS, MOBILIÁRIOS E EQUIPAMENTO REMOVIDOS','FOTOS DO AMBIENTE VAZIO','ELABORAR QRCODE OU BOOK DE CONCLUSÃO','ELABORAR BOOK','BOOK PENDENTE','BOOK DE CONCLUSÃO','QR CODE','OS TECBAN','ELABORAR RM','RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM','EMITIR NF','NF EMITIDO','Em andamento','Conclusão','Faturamento']
+const STATUS_ETAPA2_DONE = ['OS TECBAN','ELABORAR RM','RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM','EMITIR NF','NF EMITIDO','Conclusão','Faturamento']
 const STATUS_ETAPA3_DONE = ['NF EMITIDO','Faturamento']
 
 function ReguaStatus({ status, lembretes, onRemoverLembrete }) {
@@ -439,8 +445,8 @@ function getGrupoObra(o) {
   if (status === 'AGUARDANDO PEDIDO') return 'pendencias'
   if (status === 'NF EMITIDO') return 'concluido'
   if (status === 'CANCELADO') return 'outros'
-  if (['ELABORAR RM','ENVIAR RM'].includes(status)) return 'rm'
-  if (['LAUDOS ASSINADOS','FOTOS DO AMBIENTE','BOOK DE CONCLUSÃO E QR CODE'].includes(status)) return 'elaborar'
+  if (['ELABORAR RM','ENVIAR RM','OS TECBAN'].includes(status)) return 'rm'
+  if (['LAUDOS ASSINADOS','FOTOS DO AMBIENTE','BOOK DE CONCLUSÃO','QR CODE'].includes(status)) return 'elaborar'
   return 'em_andamento'
 }
 
@@ -1064,7 +1070,7 @@ export default function App() {
               return (
                 <div key={obra.id} style={{ background: estaSelecionada ? '#EEF2FF' : '#fff', borderRadius:12, marginBottom:10, border: estaSelecionada ? '2px solid #2D3A8C' : alerta ? `2px solid ${alerta.cor}` : '1px solid #E0E8F0', overflow:'hidden' }}>
                   <div style={{ position:'relative' }}>
-                  {usuario?.email === 'shirley@grupopg.com.br' && (
+                  {['shirley@grupopg.com.br', 'bruna@grupopg.com.br'].includes(usuario?.email) && (
                     <button onClick={e => { e.stopPropagation(); setMenuAberto(menuAberto === obra.id ? null : obra.id) }}
                       style={{ position:'absolute', top:8, right:8, background:'none', border:'none', fontSize:18, cursor:'pointer', color:'#888', zIndex:2, lineHeight:1 }}>•••</button>
                   )}
