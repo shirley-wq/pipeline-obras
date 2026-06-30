@@ -111,6 +111,17 @@ const STATUS_COR = {
   'CANCELADO':{ bg:'#F1F5F9',text:'#64748B' },
 }
 
+const TIPOS_ENTREGAVEIS = ['PAB', 'PAE', 'AG']
+const ENTREGAVEIS_BOOK = [
+  'PDF',
+  'Termo de Antena',
+  'Termo de Ar Condicionado',
+  'Termo de Descarte',
+  'Termo de Descarte Lista',
+  'ART Assinada',
+  'QR Code Concluído',
+]
+
 const TIPO_COR = {
   'TRANSF UN':{ bg:'#DBEAFE',text:'#1E40AF' },
   'TRANSF EN':{ bg:'#EDE9FE',text:'#5B21B6' },
@@ -514,6 +525,7 @@ export default function App() {
   const [dataArt, setDataArt] = useState('')
   const [emNegociacao, setEmNegociacao] = useState(false)
   const [lembretes, setLembretes] = useState([])
+  const [entregaveis, setEntregaveis] = useState([])
   const [novoLembreteEtapa, setNovoLembreteEtapa] = useState('')
   const [novoLembreteTexto, setNovoLembreteTexto] = useState('')
   const [editDados, setEditDados] = useState({ nome:'', local:'', valor:'', sige:'', pedido:'', nf:'' })
@@ -652,6 +664,9 @@ export default function App() {
       campos.em_negociacao = emNegociacao
     }
     campos.lembretes = lembretes.length > 0 ? lembretes : null
+    if (TIPOS_ENTREGAVEIS.includes(modal.tipo)) {
+      campos.entregaveis = entregaveis.length > 0 ? entregaveis : null
+    }
     campos.data_cadastro = dataCadastroModal || modal.data_cadastro || null
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
     if (error) {
@@ -671,6 +686,7 @@ export default function App() {
     setDataArt('')
     setEmNegociacao(false)
     setLembretes([])
+    setEntregaveis([])
     setNovoLembreteEtapa('')
     setNovoLembreteTexto('')
     setAdesivos([])
@@ -1107,6 +1123,28 @@ export default function App() {
                   <div style={{ padding:'0 14px 8px' }}>
                     <Regua status={obra.status} lembretes={obra.lembretes} onRemoverLembrete={l => removerLembrete(obra.id, l)} />
                   </div>
+                  {TIPOS_ENTREGAVEIS.includes(obra.tipo) && (() => {
+                    const lista = Array.isArray(obra.entregaveis) ? obra.entregaveis : []
+                    const feitos = lista.length
+                    const total = ENTREGAVEIS_BOOK.length
+                    const tudo = feitos === total
+                    return (
+                      <div style={{ padding:'0 14px 8px' }}>
+                        <div style={{ fontSize:10, color: tudo ? '#065F46' : '#92400E', fontWeight:700, marginBottom:4 }}>
+                          📋 Entregáveis: {feitos}/{total}{tudo ? ' — Completo ✓' : ''}
+                        </div>
+                        <div style={{ display:'flex', flexWrap:'wrap', gap:3 }}>
+                          {ENTREGAVEIS_BOOK.map(item => (
+                            <span key={item} style={{ fontSize:9, padding:'2px 6px', borderRadius:5,
+                              background: lista.includes(item) ? '#D1FAE5' : '#FEE2E2',
+                              color: lista.includes(item) ? '#065F46' : '#991B1B', fontWeight:600 }}>
+                              {lista.includes(item) ? '✓' : '○'} {item}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()}
 
                   {estaAberta && (
                     <div style={{ padding:'12px 14px', borderTop:'1px solid #F0F4F8', background:'#FAFBFF' }}>
@@ -1194,6 +1232,7 @@ export default function App() {
                         setDataArt(obra.data_art || '')
                         setEmNegociacao(obra.em_negociacao || false)
                         setLembretes(Array.isArray(obra.lembretes) ? obra.lembretes : [])
+                        setEntregaveis(Array.isArray(obra.entregaveis) ? obra.entregaveis : [])
                         setNovoLembreteEtapa('')
                         setNovoLembreteTexto('')
                         setAdesivos(obra.adesivos ? obra.adesivos.split(',') : [])
@@ -1327,6 +1366,25 @@ export default function App() {
                 </div>
               </div>
             </div>
+
+            {TIPOS_ENTREGAVEIS.includes(modal.tipo) && (
+              <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:12, padding:14, marginBottom:16 }}>
+                <div style={{ fontSize:12, color:'#065F46', fontWeight:700, marginBottom:10 }}>
+                  📋 Entregáveis do Book ({entregaveis.length}/{ENTREGAVEIS_BOOK.length})
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                  {ENTREGAVEIS_BOOK.map(item => (
+                    <label key={item} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+                      <input type="checkbox" checked={entregaveis.includes(item)}
+                        onChange={e => setEntregaveis(prev => e.target.checked ? [...prev, item] : prev.filter(i => i !== item))} />
+                      <span style={{ fontSize:13, color: entregaveis.includes(item) ? '#065F46' : '#1A2340', fontWeight: entregaveis.includes(item) ? 600 : 400 }}>
+                        {item}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {modal.tipo === 'TRANSF UN' && (
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
