@@ -1757,16 +1757,23 @@ export default function App() {
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:6, marginBottom:8 }}>
               {getEtapas().map((op, i) => {
                 const ativo = novoStatus === op
+                const bloqueado = op === 'ELABORAR RM' && !editDados.os_tecban.trim()
                 return (
-                  <div key={op} onClick={() => setNovoStatus(op)}
-                    style={{ padding:'8px 9px', borderRadius:10, border: ativo ? '2px solid #1A6B4A' : '1px solid #E0E8F0', cursor:'pointer', background: ativo ? '#D1FAE5' : '#fff', display:'flex', alignItems:'center', gap:6 }}>
-                    <span style={{ fontSize:10, background: ativo ? '#1A6B4A' : '#E6F1FB', color: ativo ? '#fff' : '#2D3A8C', fontWeight:700, borderRadius:'50%', width:18, height:18, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{i+1}</span>
+                  <div key={op} onClick={() => { if (!bloqueado) setNovoStatus(op) }}
+                    title={bloqueado ? 'Preencha o campo "OS Tecban" em Dados da obra para liberar esta etapa' : undefined}
+                    style={{ padding:'8px 9px', borderRadius:10, border: ativo ? '2px solid #1A6B4A' : '1px solid #E0E8F0', cursor: bloqueado ? 'not-allowed' : 'pointer', background: bloqueado ? '#F8FAFC' : ativo ? '#D1FAE5' : '#fff', opacity: bloqueado ? 0.55 : 1, display:'flex', alignItems:'center', gap:6 }}>
+                    <span style={{ fontSize:10, background: ativo ? '#1A6B4A' : '#E6F1FB', color: ativo ? '#fff' : '#2D3A8C', fontWeight:700, borderRadius:'50%', width:18, height:18, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{bloqueado ? '🔒' : i+1}</span>
                     <span style={{ fontSize:11, color:'#1A2340', fontWeight: ativo ? 600 : 400, lineHeight:1.2 }}>{op}</span>
                     {ativo && <span style={{ marginLeft:'auto', fontSize:12, flexShrink:0 }}>●</span>}
                   </div>
                 )
               })}
             </div>
+            {getEtapas().includes('ELABORAR RM') && !editDados.os_tecban.trim() && (
+              <div style={{ fontSize:11, color:'#92400E', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'6px 10px', marginBottom:8 }}>
+                🔒 "Elaborar RM" fica bloqueada até preencher a <b>OS Tecban</b> em Dados da obra.
+              </div>
+            )}
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, margin:'12px 0 6px' }}>Observação:</div>
             <textarea value={novaObs} onChange={e=>setNovaObs(e.target.value)} rows={3}
               placeholder="Pendências, próximos passos..."
@@ -1807,8 +1814,8 @@ export default function App() {
                 </button>
               </div>
             </div>
-            <button onClick={salvarStatus} disabled={!novoStatus || salvando}
-              style={{ width:'100%', padding:13, background: (!novoStatus||salvando) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor: (!novoStatus||salvando) ? 'default' : 'pointer' }}>
+            <button onClick={salvarStatus} disabled={!novoStatus || salvando || (novoStatus === 'ELABORAR RM' && !editDados.os_tecban.trim())}
+              style={{ width:'100%', padding:13, background: (!novoStatus||salvando||(novoStatus === 'ELABORAR RM' && !editDados.os_tecban.trim())) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor: (!novoStatus||salvando) ? 'default' : 'pointer' }}>
               {salvando ? 'Salvando...' : 'Salvar'}
             </button>
             <button onClick={() => setModal(null)}
