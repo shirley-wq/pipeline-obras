@@ -113,11 +113,10 @@ const STATUS_COR = {
 
 const TIPOS_ENTREGAVEIS = ['DESC. PAB', 'DESC. PA', 'ENCER. AG']
 const ENTREGAVEIS_BOOK = [
-  'PDF',
   'Termo de Antena',
   'Termo de Ar Condicionado',
   'Termo de Descarte',
-  'Termo de Descarte Lista',
+  'TERMO DE RECEBIMENTO DEFINITIVO',
   'ART Assinada',
   'QR Code Concluído',
 ]
