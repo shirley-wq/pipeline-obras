@@ -491,22 +491,24 @@ function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizad
   return (
     <div>
       <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:6 }}>{titulo}</div>
-      <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:180, overflowY:'auto', border:'1px solid #E0E8F0', borderRadius:8, padding:8 }}>
-        {COLABORADORES.map(nome => (
-          <label key={nome} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
-            <input type="checkbox" checked={selecionados.includes(nome)}
-              onChange={e => onChangeSelecionados(e.target.checked ? [...selecionados, nome] : selecionados.filter(n => n !== nome))} />
-            <span style={{ fontSize:13, color:'#1A2340' }}>{nome}</span>
-          </label>
-        ))}
-        <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', borderTop:'1px solid #F0F4F8', paddingTop:6, marginTop:2 }}>
+      <div style={{ border:'1px solid #E0E8F0', borderRadius:8, padding:8 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:6 }}>
+          {COLABORADORES.map(nome => (
+            <label key={nome} style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', minWidth:0 }}>
+              <input type="checkbox" checked={selecionados.includes(nome)}
+                onChange={e => onChangeSelecionados(e.target.checked ? [...selecionados, nome] : selecionados.filter(n => n !== nome))} />
+              <span style={{ fontSize:12, color:'#1A2340', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={nome}>{nome}</span>
+            </label>
+          ))}
+        </div>
+        <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', borderTop:'1px solid #F0F4F8', paddingTop:8, marginTop:8 }}>
           <input type="checkbox" checked={terceirizado} onChange={e => onChangeTerceirizado(e.target.checked)} />
           <span style={{ fontSize:13, color:'#1A2340', fontWeight:600 }}>Terceirizado</span>
         </label>
         {terceirizado && (
           <input value={terceirizadoTexto} onChange={e => onChangeTerceirizadoTexto(e.target.value)}
             placeholder="Nome da empresa/pessoa terceirizada"
-            style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+            style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginTop:8 }} />
         )}
       </div>
     </div>
