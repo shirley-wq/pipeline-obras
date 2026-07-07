@@ -611,6 +611,7 @@ export default function App() {
   const [colabsObra, setColabsObra] = useState([])
   const [terceirizadoObra, setTerceirizadoObra] = useState(false)
   const [terceirizadoObraTexto, setTerceirizadoObraTexto] = useState('')
+  const [equipeAberta, setEquipeAberta] = useState(false)
   const [selecionadas, setSelecionadas] = useState(new Set())
   const [modalBulk, setModalBulk] = useState(false)
   const [statusBulk, setStatusBulk] = useState('')
@@ -781,6 +782,7 @@ export default function App() {
     setColabsObra([])
     setTerceirizadoObra(false)
     setTerceirizadoObraTexto('')
+    setEquipeAberta(false)
   }
 
   async function marcarFaturado(id) {
@@ -1348,6 +1350,7 @@ export default function App() {
                         setColabsObra(listaObra.filter(c => !c.startsWith(TERCEIRIZADO_PREFIXO)))
                         setTerceirizadoObra(!!terceiroObra)
                         setTerceirizadoObraTexto(terceiroObra ? terceiroObra.slice(TERCEIRIZADO_PREFIXO.length) : '')
+                        setEquipeAberta(!!(obra.data_vistoria || listaVistoria.length > 0 || obra.data_obra_inicio || listaObra.length > 0))
                       }}
                         style={{ flex:1, padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                         Atualizar status
@@ -1471,23 +1474,31 @@ export default function App() {
             </div>
 
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
-              <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>👥 Equipe em campo</div>
-              <div style={{ marginBottom:14 }}>
-                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data da vistoria</label>
-                <input type="date" value={dataVistoria} onChange={e => setDataVistoria(e.target.value)}
-                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8 }} />
-                <SeletorEquipe titulo="Quem foi na vistoria" selecionados={colabsVistoria} onChangeSelecionados={setColabsVistoria}
-                  terceirizado={terceirizadoVistoria} onChangeTerceirizado={setTerceirizadoVistoria}
-                  terceirizadoTexto={terceirizadoVistoriaTexto} onChangeTerceirizadoTexto={setTerceirizadoVistoriaTexto} />
+              <div onClick={() => setEquipeAberta(a => !a)}
+                style={{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', marginBottom: equipeAberta ? 10 : 0 }}>
+                <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700 }}>👥 Equipe em campo</div>
+                <span style={{ fontSize:11, color:'#4A7FC1', fontWeight:600 }}>{equipeAberta ? '▲ Recolher' : '▼ Expandir'}</span>
               </div>
-              <div>
-                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data de início da obra</label>
-                <input type="date" value={dataObraInicio} onChange={e => setDataObraInicio(e.target.value)}
-                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8 }} />
-                <SeletorEquipe titulo="Quem foi na obra" selecionados={colabsObra} onChangeSelecionados={setColabsObra}
-                  terceirizado={terceirizadoObra} onChangeTerceirizado={setTerceirizadoObra}
-                  terceirizadoTexto={terceirizadoObraTexto} onChangeTerceirizadoTexto={setTerceirizadoObraTexto} />
-              </div>
+              {equipeAberta && (
+                <>
+                  <div style={{ marginBottom:14 }}>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data da vistoria</label>
+                    <input type="date" value={dataVistoria} onChange={e => setDataVistoria(e.target.value)}
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8 }} />
+                    <SeletorEquipe titulo="Quem foi na vistoria" selecionados={colabsVistoria} onChangeSelecionados={setColabsVistoria}
+                      terceirizado={terceirizadoVistoria} onChangeTerceirizado={setTerceirizadoVistoria}
+                      terceirizadoTexto={terceirizadoVistoriaTexto} onChangeTerceirizadoTexto={setTerceirizadoVistoriaTexto} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data de início da obra</label>
+                    <input type="date" value={dataObraInicio} onChange={e => setDataObraInicio(e.target.value)}
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8 }} />
+                    <SeletorEquipe titulo="Quem foi na obra" selecionados={colabsObra} onChangeSelecionados={setColabsObra}
+                      terceirizado={terceirizadoObra} onChangeTerceirizado={setTerceirizadoObra}
+                      terceirizadoTexto={terceirizadoObraTexto} onChangeTerceirizadoTexto={setTerceirizadoObraTexto} />
+                  </div>
+                </>
+              )}
             </div>
 
             {TIPOS_ENTREGAVEIS.includes(modal.tipo) && (
