@@ -493,9 +493,19 @@ function getEtapaAtual(status) {
   return 1
 }
 
-function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizado, onChangeTerceirizado, terceirizadoTexto, onChangeTerceirizadoTexto }) {
+function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizado, onChangeTerceirizado, terceirizadoTexto, onChangeTerceirizadoTexto, bloqueado, mensagemBloqueio }) {
   const [mostrarLista, setMostrarLista] = useState(false)
   const resumo = [...selecionados, ...(terceirizado ? [TERCEIRIZADO_PREFIXO + (terceirizadoTexto.trim() || '(não informado)')] : [])]
+  if (bloqueado) {
+    return (
+      <div>
+        <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>{titulo}</div>
+        <div style={{ fontSize:12, color:'#92400E', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'8px 10px' }}>
+          🔒 {mensagemBloqueio || 'Bloqueado'}
+        </div>
+      </div>
+    )
+  }
   return (
     <div>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:8, marginBottom:4 }}>
@@ -847,6 +857,8 @@ export default function App() {
     setSelecionadas(new Set())
     setStatusBulk('')
   }
+
+  const vistoriaCompleta = Boolean(dataVistoria) && (colabsVistoria.length > 0 || (terceirizadoVistoria && terceirizadoVistoriaTexto.trim() !== ''))
 
   const estilo = { fontFamily:'system-ui,sans-serif', minHeight:'100vh', background:'#F0F4F8' }
   const inp = { width:'100%', padding:'11px 12px', fontSize:14, border:'1px solid #B5D4F4', borderRadius:10, background:'#fff', color:'#1A2340', outline:'none', boxSizing:'border-box', marginBottom:12 }
@@ -1560,11 +1572,12 @@ export default function App() {
             {modal.tipo === 'TRANSF UN' && (
               <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data de início da obra</label>
-                <input type="date" value={dataObraInicio} onChange={e => setDataObraInicio(e.target.value)}
-                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8 }} />
+                <input type="date" value={dataObraInicio} disabled={!vistoriaCompleta} onChange={e => setDataObraInicio(e.target.value)}
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8, background: vistoriaCompleta ? '#fff' : '#F1F5F9', cursor: vistoriaCompleta ? 'text' : 'not-allowed' }} />
                 <SeletorEquipe titulo="Início da obra" selecionados={colabsObra} onChangeSelecionados={setColabsObra}
                   terceirizado={terceirizadoObra} onChangeTerceirizado={setTerceirizadoObra}
-                  terceirizadoTexto={terceirizadoObraTexto} onChangeTerceirizadoTexto={setTerceirizadoObraTexto} />
+                  terceirizadoTexto={terceirizadoObraTexto} onChangeTerceirizadoTexto={setTerceirizadoObraTexto}
+                  bloqueado={!vistoriaCompleta} mensagemBloqueio='Preencha a data da vistoria e quem foi antes de liberar esta etapa' />
               </div>
             )}
 
@@ -1711,8 +1724,8 @@ export default function App() {
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
                   <div>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Início</label>
-                    <input type="date" value={dataObra.inicio} onChange={e => setDataObra(d => ({...d, inicio: e.target.value}))}
-                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                    <input type="date" value={dataObra.inicio} disabled={!vistoriaCompleta} onChange={e => setDataObra(d => ({...d, inicio: e.target.value}))}
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', background: vistoriaCompleta ? '#fff' : '#F1F5F9', cursor: vistoriaCompleta ? 'text' : 'not-allowed' }} />
                   </div>
                   <div>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Término</label>
@@ -1728,7 +1741,8 @@ export default function App() {
                 <div style={{ marginBottom:10 }}>
                   <SeletorEquipe titulo="Quem foi na obra" selecionados={colabsObra} onChangeSelecionados={setColabsObra}
                     terceirizado={terceirizadoObra} onChangeTerceirizado={setTerceirizadoObra}
-                    terceirizadoTexto={terceirizadoObraTexto} onChangeTerceirizadoTexto={setTerceirizadoObraTexto} />
+                    terceirizadoTexto={terceirizadoObraTexto} onChangeTerceirizadoTexto={setTerceirizadoObraTexto}
+                    bloqueado={!vistoriaCompleta} mensagemBloqueio='Preencha a data da vistoria e quem foi antes de liberar esta etapa' />
                 </div>
                 <div onClick={() => setEmNegociacao(v => !v)}
                   style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'10px 12px', borderRadius:10,
