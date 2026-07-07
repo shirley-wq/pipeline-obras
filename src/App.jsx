@@ -121,6 +121,45 @@ const ENTREGAVEIS_BOOK = [
   'QR Code Concluído',
 ]
 
+const COLABORADORES = [
+  'Adriano Silva de Jesus',
+  'Aguinaldo da Silva Matos',
+  'Aline do Nascimento Roza',
+  'Anderson Santos',
+  'Bruna Carvalho de Oliveira',
+  'Bruno Correia dos Santos Silva',
+  'Carlos Carvalho dos Santos',
+  'Carlos Leandro Santos',
+  'Carolina Carvalho dos Santos',
+  'Daniel de Lima Machado',
+  'Daniela Leite Ferreira',
+  'Edimar Venceslau Gomes',
+  'Edkleber Felipe dos Santos',
+  'Fabio Henrique Fontes',
+  'Flavio de Oliveira Santos',
+  'Franciarley Freire Pereira Miranda',
+  'Gabriel Martins dos Santos Benassi',
+  'Genivaldo Rodrigues Lima',
+  'Glauce Lourenço Teixeira',
+  'Harlen Rodrigues Barbosa da Silva',
+  'Hyago Felipe Souza Menezes',
+  'Ivo Ferreira Marinho',
+  'Jair Arruda de Araújo',
+  'Leonardo Adelino Feitosa',
+  'Lorena Silva Dezzane',
+  'Lucas Correa de Moraes',
+  'Lucas Santana Souza da Paz',
+  'Ramon Parra Muro',
+  'Shirley de Carvalho Santos',
+  'Stephanie de Paulo Pereira Miranda',
+  'Victhor Mazella Costa Oliveira',
+  'Victor Jose Pereira Guabirapa',
+  'Wesley de Souza Rodrigues',
+  'Willian do Sacramento Elias',
+]
+
+const TERCEIRIZADO_PREFIXO = 'Terceirizado: '
+
 const TIPO_COR = {
   'TRANSF UN':{ bg:'#DBEAFE',text:'#1E40AF' },
   'TRANSF EN':{ bg:'#EDE9FE',text:'#5B21B6' },
@@ -448,6 +487,32 @@ function getEtapaAtual(status) {
   return 1
 }
 
+function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizado, onChangeTerceirizado, terceirizadoTexto, onChangeTerceirizadoTexto }) {
+  return (
+    <div>
+      <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:6 }}>{titulo}</div>
+      <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:180, overflowY:'auto', border:'1px solid #E0E8F0', borderRadius:8, padding:8 }}>
+        {COLABORADORES.map(nome => (
+          <label key={nome} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+            <input type="checkbox" checked={selecionados.includes(nome)}
+              onChange={e => onChangeSelecionados(e.target.checked ? [...selecionados, nome] : selecionados.filter(n => n !== nome))} />
+            <span style={{ fontSize:13, color:'#1A2340' }}>{nome}</span>
+          </label>
+        ))}
+        <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', borderTop:'1px solid #F0F4F8', paddingTop:6, marginTop:2 }}>
+          <input type="checkbox" checked={terceirizado} onChange={e => onChangeTerceirizado(e.target.checked)} />
+          <span style={{ fontSize:13, color:'#1A2340', fontWeight:600 }}>Terceirizado</span>
+        </label>
+        {terceirizado && (
+          <input value={terceirizadoTexto} onChange={e => onChangeTerceirizadoTexto(e.target.value)}
+            placeholder="Nome da empresa/pessoa terceirizada"
+            style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+        )}
+      </div>
+    </div>
+  )
+}
+
 function getGrupoObra(o) {
   const status = o.status || ''
   if (status === 'AGUARDANDO OS TECBAN') return 'pendencias'
@@ -536,6 +601,14 @@ export default function App() {
   const [novaDivM2, setNovaDivM2] = useState('')
   const [itensEspeciais, setItensEspeciais] = useState([])
   const [biomboFila, setBiomboFila] = useState('')
+  const [dataVistoria, setDataVistoria] = useState('')
+  const [colabsVistoria, setColabsVistoria] = useState([])
+  const [terceirizadoVistoria, setTerceirizadoVistoria] = useState(false)
+  const [terceirizadoVistoriaTexto, setTerceirizadoVistoriaTexto] = useState('')
+  const [dataObraInicio, setDataObraInicio] = useState('')
+  const [colabsObra, setColabsObra] = useState([])
+  const [terceirizadoObra, setTerceirizadoObra] = useState(false)
+  const [terceirizadoObraTexto, setTerceirizadoObraTexto] = useState('')
   const [selecionadas, setSelecionadas] = useState(new Set())
   const [modalBulk, setModalBulk] = useState(false)
   const [statusBulk, setStatusBulk] = useState('')
@@ -610,6 +683,7 @@ export default function App() {
       obs: novaObra.obs || null,
       status: 'VISTORIA',
       data_cadastro: novaObra.data_cadastro || new Date().toISOString().split('T')[0],
+      criado_por: usuario.email,
       atualizado_por: usuario.email,
       atualizado_em: new Date().toISOString(),
     }).select()
@@ -666,6 +740,12 @@ export default function App() {
     if (TIPOS_ENTREGAVEIS.includes(modal.tipo)) {
       campos.entregaveis = entregaveis.length > 0 ? entregaveis : null
     }
+    campos.data_vistoria = dataVistoria || null
+    const listaVistoria = [...colabsVistoria, ...(terceirizadoVistoria ? [TERCEIRIZADO_PREFIXO + (terceirizadoVistoriaTexto.trim() || '(não informado)')] : [])]
+    campos.colaboradores_vistoria = listaVistoria.length > 0 ? listaVistoria : null
+    campos.data_obra_inicio = dataObraInicio || null
+    const listaObra = [...colabsObra, ...(terceirizadoObra ? [TERCEIRIZADO_PREFIXO + (terceirizadoObraTexto.trim() || '(não informado)')] : [])]
+    campos.colaboradores_obra = listaObra.length > 0 ? listaObra : null
     campos.data_cadastro = dataCadastroModal || modal.data_cadastro || null
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
     if (error) {
@@ -691,6 +771,14 @@ export default function App() {
     setAdesivos([])
     setEditDados({ nome:'', local:'', valor:'', sige:'', pedido:'', nf:'' })
     setDataCadastroModal('')
+    setDataVistoria('')
+    setColabsVistoria([])
+    setTerceirizadoVistoria(false)
+    setTerceirizadoVistoriaTexto('')
+    setDataObraInicio('')
+    setColabsObra([])
+    setTerceirizadoObra(false)
+    setTerceirizadoObraTexto('')
   }
 
   async function marcarFaturado(id) {
@@ -1207,7 +1295,9 @@ export default function App() {
                         </div>
                       )}
                       <div style={{ display:'flex', gap:16, flexWrap:'wrap', marginBottom:10 }}>
-                        {obra.data_cadastro && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Entrada pipeline</div><div style={{ fontSize:12, color: alerta ? alerta.cor : '#1A2340', fontWeight:600 }}>{isoToBr(obra.data_cadastro)}{dias !== null ? ` · ${dias}d` : ''}</div></div>}
+                        {obra.data_cadastro && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Entrada pipeline</div><div style={{ fontSize:12, color: alerta ? alerta.cor : '#1A2340', fontWeight:600 }}>{isoToBr(obra.data_cadastro)}{dias !== null ? ` · ${dias}d` : ''}</div>{obra.criado_por && <div style={{ fontSize:10, color:'#888' }}>por {obra.criado_por}</div>}</div>}
+                        {obra.data_vistoria && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Vistoria</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:600 }}>{isoToBr(obra.data_vistoria)}</div>{Array.isArray(obra.colaboradores_vistoria) && obra.colaboradores_vistoria.length > 0 && <div style={{ fontSize:10, color:'#888' }}>{obra.colaboradores_vistoria.join(', ')}</div>}</div>}
+                        {obra.data_obra_inicio && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Início da obra</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:600 }}>{isoToBr(obra.data_obra_inicio)}</div>{Array.isArray(obra.colaboradores_obra) && obra.colaboradores_obra.length > 0 && <div style={{ fontSize:10, color:'#888' }}>{obra.colaboradores_obra.join(', ')}</div>}</div>}
                         {obra.sige && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>SIGE</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.sige}</div></div>}
                         {obra.pedido && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Pedido</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.pedido}</div></div>}
                         {obra.nf && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>NF</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.nf}</div></div>}
@@ -1244,6 +1334,18 @@ export default function App() {
                         setBiomboFila(obra.biombo_fila != null ? String(obra.biombo_fila) : '')
                         setEditDados({ nome: obra.nome||'', local: obra.local||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', pedido: obra.pedido||'', nf: obra.nf||'' })
                         setDataCadastroModal(obra.data_cadastro || '')
+                        setDataVistoria(obra.data_vistoria || '')
+                        const listaVistoria = Array.isArray(obra.colaboradores_vistoria) ? obra.colaboradores_vistoria : []
+                        const terceiroVistoria = listaVistoria.find(c => c.startsWith(TERCEIRIZADO_PREFIXO))
+                        setColabsVistoria(listaVistoria.filter(c => !c.startsWith(TERCEIRIZADO_PREFIXO)))
+                        setTerceirizadoVistoria(!!terceiroVistoria)
+                        setTerceirizadoVistoriaTexto(terceiroVistoria ? terceiroVistoria.slice(TERCEIRIZADO_PREFIXO.length) : '')
+                        setDataObraInicio(obra.data_obra_inicio || '')
+                        const listaObra = Array.isArray(obra.colaboradores_obra) ? obra.colaboradores_obra : []
+                        const terceiroObra = listaObra.find(c => c.startsWith(TERCEIRIZADO_PREFIXO))
+                        setColabsObra(listaObra.filter(c => !c.startsWith(TERCEIRIZADO_PREFIXO)))
+                        setTerceirizadoObra(!!terceiroObra)
+                        setTerceirizadoObraTexto(terceiroObra ? terceiroObra.slice(TERCEIRIZADO_PREFIXO.length) : '')
                       }}
                         style={{ flex:1, padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                         Atualizar status
@@ -1363,6 +1465,26 @@ export default function App() {
                   <input value={editDados.nf} onChange={e => setEditDados(d => ({...d, nf:e.target.value}))}
                     style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                 </div>
+              </div>
+            </div>
+
+            <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
+              <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>👥 Equipe em campo</div>
+              <div style={{ marginBottom:14 }}>
+                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data da vistoria</label>
+                <input type="date" value={dataVistoria} onChange={e => setDataVistoria(e.target.value)}
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8 }} />
+                <SeletorEquipe titulo="Quem foi na vistoria" selecionados={colabsVistoria} onChangeSelecionados={setColabsVistoria}
+                  terceirizado={terceirizadoVistoria} onChangeTerceirizado={setTerceirizadoVistoria}
+                  terceirizadoTexto={terceirizadoVistoriaTexto} onChangeTerceirizadoTexto={setTerceirizadoVistoriaTexto} />
+              </div>
+              <div>
+                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data de início da obra</label>
+                <input type="date" value={dataObraInicio} onChange={e => setDataObraInicio(e.target.value)}
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8 }} />
+                <SeletorEquipe titulo="Quem foi na obra" selecionados={colabsObra} onChangeSelecionados={setColabsObra}
+                  terceirizado={terceirizadoObra} onChangeTerceirizado={setTerceirizadoObra}
+                  terceirizadoTexto={terceirizadoObraTexto} onChangeTerceirizadoTexto={setTerceirizadoObraTexto} />
               </div>
             </div>
 
