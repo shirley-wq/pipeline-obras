@@ -183,6 +183,12 @@ function uf(local) {
   return p.length > 1 ? p[p.length - 1].trim() : local.trim()
 }
 
+function montaLocal(cidade, ufSigla) {
+  const c = (cidade||'').trim(), u = (ufSigla||'').trim()
+  if (c && u) return `${c}-${u}`
+  return c || u || null
+}
+
 function diasNoPipeline(dc) {
   if (!dc) return null
   return Math.floor((Date.now() - new Date(dc).getTime()) / 86400000)
@@ -606,7 +612,7 @@ export default function App() {
   const [entregaveis, setEntregaveis] = useState([])
   const [novoLembreteEtapa, setNovoLembreteEtapa] = useState('')
   const [novoLembreteTexto, setNovoLembreteTexto] = useState('')
-  const [editDados, setEditDados] = useState({ nome:'', local:'', valor:'', sige:'', pedido:'', nf:'', os_tecban:'' })
+  const [editDados, setEditDados] = useState({ nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', os_tecban:'' })
   const [adesivos, setAdesivos] = useState([])
   const [vidros, setVidros] = useState([])
   const [novoVidro, setNovoVidro] = useState('')
@@ -629,7 +635,7 @@ export default function App() {
   const [salvandoBulk, setSalvandoBulk] = useState(false)
   const [modalNovaObra, setModalNovaObra] = useState(false)
   const [menuAberto, setMenuAberto] = useState(null)
-  const [novaObra, setNovaObra] = useState({ tipo:'', nome:'', local:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0] })
+  const [novaObra, setNovaObra] = useState({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0] })
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [erroLogin, setErroLogin] = useState('')
@@ -689,7 +695,10 @@ export default function App() {
     const { data, error } = await supabase.from('pipeline_obras').insert({
       tipo: novaObra.tipo,
       nome: novaObra.nome,
-      local: novaObra.local || null,
+      local: montaLocal(novaObra.cidade, novaObra.uf),
+      endereco: novaObra.endereco || null,
+      cidade: novaObra.cidade || null,
+      uf: novaObra.uf || null,
       valor: parseFloat(novaObra.valor) || 0,
       sige: novaObra.sige || null,
       pedido: novaObra.pedido || null,
@@ -706,7 +715,7 @@ export default function App() {
     }
     setSalvando(false)
     setModalNovaObra(false)
-    setNovaObra({ tipo:'', nome:'', local:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0] })
+    setNovaObra({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0] })
   }
 
   async function excluirObra(id) {
@@ -725,7 +734,10 @@ export default function App() {
       atualizado_em: new Date().toISOString(),
       atualizado_por: usuario.email,
       nome: editDados.nome || modal.nome,
-      local: editDados.local || null,
+      local: montaLocal(editDados.cidade, editDados.uf),
+      endereco: editDados.endereco || null,
+      cidade: editDados.cidade || null,
+      uf: editDados.uf || null,
       valor: editDados.valor !== '' ? parseFloat(String(editDados.valor).replace(',', '.')) || 0 : null,
       sige: editDados.sige || null,
       pedido: editDados.pedido || null,
@@ -784,7 +796,7 @@ export default function App() {
     setNovoLembreteEtapa('')
     setNovoLembreteTexto('')
     setAdesivos([])
-    setEditDados({ nome:'', local:'', valor:'', sige:'', pedido:'', nf:'', os_tecban:'' })
+    setEditDados({ nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', os_tecban:'' })
     setDataCadastroModal('')
     setDataVistoria('')
     setColabsVistoria([])
@@ -1348,7 +1360,7 @@ export default function App() {
                         setNovaDivM2('')
                         setItensEspeciais(Array.isArray(obra.itens_especiais) ? obra.itens_especiais : [])
                         setBiomboFila(obra.biombo_fila != null ? String(obra.biombo_fila) : '')
-                        setEditDados({ nome: obra.nome||'', local: obra.local||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', pedido: obra.pedido||'', nf: obra.nf||'', os_tecban: obra.os_tecban||'' })
+                        setEditDados({ nome: obra.nome||'', endereco: obra.endereco||'', cidade: obra.cidade||'', uf: obra.uf||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', pedido: obra.pedido||'', nf: obra.nf||'', os_tecban: obra.os_tecban||'' })
                         setDataCadastroModal(obra.data_cadastro || '')
                         setDataVistoria(obra.data_vistoria || '')
                         const listaVistoria = Array.isArray(obra.colaboradores_vistoria) ? obra.colaboradores_vistoria : []
@@ -1395,12 +1407,6 @@ export default function App() {
             {[
               { label:'Tipo *', field:'tipo', type:'select', options:['TRANSF UN','TRANSF EN','TRANSF PAE','DESC. PA','DESC. PAB','ENCER. AG','REFORMA','TB FORTE','LINK'] },
               { label:'Nome da obra *', field:'nome', type:'text', placeholder:'Ex: BR_UN 1234 - NOME-USP' },
-              { label:'Local', field:'local', type:'text', placeholder:'Ex: SÃO PAULO-SP' },
-              { label:'Valor (R$)', field:'valor', type:'number', placeholder:'Ex: 12500.00' },
-              { label:'SIGE', field:'sige', type:'text', placeholder:'Ex: 14500' },
-              { label:'Pedido', field:'pedido', type:'text', placeholder:'Ex: ORDEM 1000079999' },
-              { label:'NF', field:'nf', type:'text', placeholder:'Ex: 3181' },
-              { label:'Observação', field:'obs', type:'textarea', placeholder:'Detalhes, pendências...' },
             ].map(f => (
               <div key={f.field} style={{ marginBottom:12 }}>
                 <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>{f.label}</label>
@@ -1411,6 +1417,46 @@ export default function App() {
                     {f.options.map(o => <option key={o}>{o}</option>)}
                   </select>
                 ) : f.type === 'textarea' ? (
+                  <textarea value={novaObra[f.field]} onChange={e => setNovaObra(p => ({...p, [f.field]:e.target.value}))}
+                    rows={3} placeholder={f.placeholder}
+                    style={{ width:'100%', padding:'10px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, resize:'none', boxSizing:'border-box', color:'#1A2340' }} />
+                ) : (
+                  <input type={f.type} value={novaObra[f.field]} onChange={e => setNovaObra(p => ({...p, [f.field]:e.target.value}))}
+                    placeholder={f.placeholder}
+                    style={{ width:'100%', padding:'10px 12px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                )}
+              </div>
+            ))}
+            <div style={{ display:'grid', gridTemplateColumns:'2fr 1.3fr 0.6fr', gap:8, marginBottom:12 }}>
+              <div>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Endereço</label>
+                <input value={novaObra.endereco} onChange={e => setNovaObra(p => ({...p, endereco:e.target.value}))}
+                  placeholder="Rua, número, CEP"
+                  style={{ width:'100%', padding:'10px 8px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Cidade</label>
+                <input value={novaObra.cidade} onChange={e => setNovaObra(p => ({...p, cidade:e.target.value}))}
+                  placeholder="Ex: São Paulo"
+                  style={{ width:'100%', padding:'10px 8px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>UF</label>
+                <input value={novaObra.uf} maxLength={2} onChange={e => setNovaObra(p => ({...p, uf:e.target.value.toUpperCase()}))}
+                  placeholder="SP"
+                  style={{ width:'100%', padding:'10px 8px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:12, color:'#1A2340', boxSizing:'border-box', textTransform:'uppercase' }} />
+              </div>
+            </div>
+            {[
+              { label:'Valor (R$)', field:'valor', type:'number', placeholder:'Ex: 12500.00' },
+              { label:'SIGE', field:'sige', type:'text', placeholder:'Ex: 14500' },
+              { label:'Pedido', field:'pedido', type:'text', placeholder:'Ex: ORDEM 1000079999' },
+              { label:'NF', field:'nf', type:'text', placeholder:'Ex: 3181' },
+              { label:'Observação', field:'obs', type:'textarea', placeholder:'Detalhes, pendências...' },
+            ].map(f => (
+              <div key={f.field} style={{ marginBottom:12 }}>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>{f.label}</label>
+                {f.type === 'textarea' ? (
                   <textarea value={novaObra[f.field]} onChange={e => setNovaObra(p => ({...p, [f.field]:e.target.value}))}
                     rows={3} placeholder={f.placeholder}
                     style={{ width:'100%', padding:'10px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, resize:'none', boxSizing:'border-box', color:'#1A2340' }} />
@@ -1455,10 +1501,23 @@ export default function App() {
                 <input value={editDados.nome} onChange={e => setEditDados(d => ({...d, nome:e.target.value}))}
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
               </div>
-              <div style={{ marginBottom:10 }}>
-                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Local</label>
-                <input value={editDados.local} onChange={e => setEditDados(d => ({...d, local:e.target.value}))}
-                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+              <div style={{ display:'grid', gridTemplateColumns:'2fr 1.3fr 0.6fr', gap:8, marginBottom:10 }}>
+                <div>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Endereço</label>
+                  <input value={editDados.endereco} onChange={e => setEditDados(d => ({...d, endereco:e.target.value}))}
+                    placeholder="Rua, número, CEP"
+                    style={{ width:'100%', padding:'8px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Cidade</label>
+                  <input value={editDados.cidade} onChange={e => setEditDados(d => ({...d, cidade:e.target.value}))}
+                    style={{ width:'100%', padding:'8px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>UF</label>
+                  <input value={editDados.uf} maxLength={2} onChange={e => setEditDados(d => ({...d, uf:e.target.value.toUpperCase()}))}
+                    style={{ width:'100%', padding:'8px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', textTransform:'uppercase' }} />
+                </div>
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr', gap:8 }}>
                 <div>
