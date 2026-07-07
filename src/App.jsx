@@ -1688,15 +1688,15 @@ export default function App() {
             </div>
 
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, marginBottom:8 }}>Etapa da régua:</div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:8, marginBottom:8 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:6, marginBottom:8 }}>
               {getEtapas().map((op, i) => {
                 const ativo = novoStatus === op
                 return (
                   <div key={op} onClick={() => setNovoStatus(op)}
-                    style={{ padding:'10px 12px', borderRadius:10, border: ativo ? '2px solid #1A6B4A' : '1px solid #E0E8F0', cursor:'pointer', background: ativo ? '#D1FAE5' : '#fff', display:'flex', alignItems:'center', gap:8 }}>
-                    <span style={{ fontSize:11, background: ativo ? '#1A6B4A' : '#E6F1FB', color: ativo ? '#fff' : '#2D3A8C', fontWeight:700, borderRadius:'50%', width:20, height:20, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{i+1}</span>
-                    <span style={{ fontSize:12, color:'#1A2340', fontWeight: ativo ? 600 : 400, lineHeight:1.25 }}>{op}</span>
-                    {ativo && <span style={{ marginLeft:'auto', fontSize:14, flexShrink:0 }}>●</span>}
+                    style={{ padding:'8px 9px', borderRadius:10, border: ativo ? '2px solid #1A6B4A' : '1px solid #E0E8F0', cursor:'pointer', background: ativo ? '#D1FAE5' : '#fff', display:'flex', alignItems:'center', gap:6 }}>
+                    <span style={{ fontSize:10, background: ativo ? '#1A6B4A' : '#E6F1FB', color: ativo ? '#fff' : '#2D3A8C', fontWeight:700, borderRadius:'50%', width:18, height:18, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{i+1}</span>
+                    <span style={{ fontSize:11, color:'#1A2340', fontWeight: ativo ? 600 : 400, lineHeight:1.2 }}>{op}</span>
+                    {ativo && <span style={{ marginLeft:'auto', fontSize:12, flexShrink:0 }}>●</span>}
                   </div>
                 )
               })}
