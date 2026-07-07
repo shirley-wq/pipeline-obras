@@ -1757,7 +1757,7 @@ export default function App() {
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:6, marginBottom:8 }}>
               {getEtapas().map((op, i) => {
                 const ativo = novoStatus === op
-                const bloqueado = op === 'ELABORAR RM' && !editDados.os_tecban.trim()
+                const bloqueado = ['ELABORAR RM','ENVIAR RM'].includes(op) && !editDados.os_tecban.trim()
                 return (
                   <div key={op} onClick={() => { if (!bloqueado) setNovoStatus(op) }}
                     title={bloqueado ? 'Preencha o campo "OS Tecban" em Dados da obra para liberar esta etapa' : undefined}
@@ -1771,7 +1771,7 @@ export default function App() {
             </div>
             {getEtapas().includes('ELABORAR RM') && !editDados.os_tecban.trim() && (
               <div style={{ fontSize:11, color:'#92400E', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'6px 10px', marginBottom:8 }}>
-                🔒 "Elaborar RM" fica bloqueada até preencher a <b>OS Tecban</b> em Dados da obra.
+                🔒 "Elaborar RM" e "Enviar RM" ficam bloqueadas até preencher a <b>OS Tecban</b> em Dados da obra.
               </div>
             )}
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, margin:'12px 0 6px' }}>Observação:</div>
@@ -1814,8 +1814,8 @@ export default function App() {
                 </button>
               </div>
             </div>
-            <button onClick={salvarStatus} disabled={!novoStatus || salvando || (novoStatus === 'ELABORAR RM' && !editDados.os_tecban.trim())}
-              style={{ width:'100%', padding:13, background: (!novoStatus||salvando||(novoStatus === 'ELABORAR RM' && !editDados.os_tecban.trim())) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor: (!novoStatus||salvando) ? 'default' : 'pointer' }}>
+            <button onClick={salvarStatus} disabled={!novoStatus || salvando || (['ELABORAR RM','ENVIAR RM'].includes(novoStatus) && !editDados.os_tecban.trim())}
+              style={{ width:'100%', padding:13, background: (!novoStatus||salvando||(['ELABORAR RM','ENVIAR RM'].includes(novoStatus) && !editDados.os_tecban.trim())) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor: (!novoStatus||salvando) ? 'default' : 'pointer' }}>
               {salvando ? 'Salvando...' : 'Salvar'}
             </button>
             <button onClick={() => setModal(null)}
