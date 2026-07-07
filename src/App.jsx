@@ -541,51 +541,41 @@ function Regua({ tipo, status, lembretes, onRemoverLembrete }) {
   const etapas = getEtapas()
   const atual = getEtapaAtual(status)
   const lista = Array.isArray(lembretes) ? lembretes : []
-  const meio = Math.ceil(etapas.length / 2)
-  const linhas = [etapas.slice(0, meio), etapas.slice(meio)]
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:16, padding:'10px 0 6px' }}>
-      {linhas.map((linha, linhaIdx) => {
-        const inicioIdx = linhaIdx === 0 ? 0 : meio
+    <div style={{ display:'flex', alignItems:'flex-start', padding:'10px 0 6px', overflowX:'auto', gap:0 }}>
+      {etapas.map((etapa, i) => {
+        const num = i + 1
+        const concluida = num < atual
+        const ativa = num === atual
+        const lembretesAqui = lista.filter(l => Number(l.etapa) === num)
+        const cor = concluida ? '#1A6B4A' : ativa ? '#2D3A8C' : '#D1D5DB'
         return (
-          <div key={linhaIdx} style={{ display:'flex', alignItems:'flex-start', overflowX:'auto', gap:0 }}>
-            {linha.map((etapa, j) => {
-              const i = inicioIdx + j
-              const num = i + 1
-              const concluida = num < atual
-              const ativa = num === atual
-              const lembretesAqui = lista.filter(l => Number(l.etapa) === num)
-              const cor = concluida ? '#1A6B4A' : ativa ? '#2D3A8C' : '#D1D5DB'
-              return (
-                <div key={i} style={{ flex:1, minWidth:48, display:'flex', flexDirection:'column', alignItems:'center', position:'relative' }}>
-                  {j < linha.length - 1 && (
-                    <div style={{ position:'absolute', top:11, left:'50%', right:'-50%', height:2, background: concluida ? '#1A6B4A' : '#E5E7EB', zIndex:0 }} />
-                  )}
-                  <div style={{ position:'relative', zIndex:1, flexShrink:0 }}>
-                    <div style={{ width:24, height:24, borderRadius:'50%', background: cor, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, border: ativa ? '2px solid #2D3A8C' : 'none', boxShadow: ativa ? '0 0 0 3px rgba(45,58,140,.2)' : 'none' }}>
-                      {concluida ? '✓' : num}
-                    </div>
-                    {lembretesAqui.length > 0 && (
-                      <div style={{ position:'absolute', top:-6, right:-6, width:14, height:14, borderRadius:'50%', background:'#EF4444', border:'2px solid #fff', zIndex:2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, color:'#fff', fontWeight:700 }}>
-                        {lembretesAqui.length}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ fontSize:8, color: concluida ? '#1A6B4A' : ativa ? '#2D3A8C' : '#9CA3AF', marginTop:4, textAlign:'center', lineHeight:1.2, maxWidth:48 }}>{etapa}</div>
-                  {lembretesAqui.map((l, idx) => (
-                    <div key={idx} style={{ background:'#FEE2E2', color:'#991B1B', fontSize:7, fontWeight:700, borderRadius:4, padding:'2px 4px', marginTop:2, textAlign:'center', maxWidth:52, lineHeight:1.3, border:'1px solid #FECACA', wordBreak:'break-word' }}>
-                      ⚠ {l.texto}
-                      {onRemoverLembrete && (
-                        <span onClick={e => { e.stopPropagation(); onRemoverLembrete(l) }}
-                          style={{ display:'block', marginTop:2, color:'#991B1B', fontWeight:900, fontSize:9, cursor:'pointer', letterSpacing:.5 }}>
-                          ✕ remover
-                        </span>
-                      )}
-                    </div>
-                  ))}
+          <div key={i} style={{ flex:1, minWidth:48, display:'flex', flexDirection:'column', alignItems:'center', position:'relative' }}>
+            {i < etapas.length - 1 && (
+              <div style={{ position:'absolute', top:11, left:'50%', right:'-50%', height:2, background: concluida ? '#1A6B4A' : '#E5E7EB', zIndex:0 }} />
+            )}
+            <div style={{ position:'relative', zIndex:1, flexShrink:0 }}>
+              <div style={{ width:24, height:24, borderRadius:'50%', background: cor, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, border: ativa ? '2px solid #2D3A8C' : 'none', boxShadow: ativa ? '0 0 0 3px rgba(45,58,140,.2)' : 'none' }}>
+                {concluida ? '✓' : num}
+              </div>
+              {lembretesAqui.length > 0 && (
+                <div style={{ position:'absolute', top:-6, right:-6, width:14, height:14, borderRadius:'50%', background:'#EF4444', border:'2px solid #fff', zIndex:2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, color:'#fff', fontWeight:700 }}>
+                  {lembretesAqui.length}
                 </div>
-              )
-            })}
+              )}
+            </div>
+            <div style={{ fontSize:8, color: concluida ? '#1A6B4A' : ativa ? '#2D3A8C' : '#9CA3AF', marginTop:4, textAlign:'center', lineHeight:1.2, maxWidth:48 }}>{etapa}</div>
+            {lembretesAqui.map((l, idx) => (
+              <div key={idx} style={{ background:'#FEE2E2', color:'#991B1B', fontSize:7, fontWeight:700, borderRadius:4, padding:'2px 4px', marginTop:2, textAlign:'center', maxWidth:52, lineHeight:1.3, border:'1px solid #FECACA', wordBreak:'break-word' }}>
+                ⚠ {l.texto}
+                {onRemoverLembrete && (
+                  <span onClick={e => { e.stopPropagation(); onRemoverLembrete(l) }}
+                    style={{ display:'block', marginTop:2, color:'#991B1B', fontWeight:900, fontSize:9, cursor:'pointer', letterSpacing:.5 }}>
+                    ✕ remover
+                  </span>
+                )}
+              </div>
+            ))}
           </div>
         )
       })}
