@@ -606,7 +606,7 @@ export default function App() {
   const [entregaveis, setEntregaveis] = useState([])
   const [novoLembreteEtapa, setNovoLembreteEtapa] = useState('')
   const [novoLembreteTexto, setNovoLembreteTexto] = useState('')
-  const [editDados, setEditDados] = useState({ nome:'', local:'', valor:'', sige:'', pedido:'', nf:'' })
+  const [editDados, setEditDados] = useState({ nome:'', local:'', valor:'', sige:'', pedido:'', nf:'', os_tecban:'' })
   const [adesivos, setAdesivos] = useState([])
   const [vidros, setVidros] = useState([])
   const [novoVidro, setNovoVidro] = useState('')
@@ -730,6 +730,7 @@ export default function App() {
       sige: editDados.sige || null,
       pedido: editDados.pedido || null,
       nf: editDados.nf || null,
+      os_tecban: editDados.os_tecban || null,
     }
     if (modal.tipo === 'TRANSF UN') {
       campos.data_etapa1 = datas.data_etapa1 || null
@@ -783,7 +784,7 @@ export default function App() {
     setNovoLembreteEtapa('')
     setNovoLembreteTexto('')
     setAdesivos([])
-    setEditDados({ nome:'', local:'', valor:'', sige:'', pedido:'', nf:'' })
+    setEditDados({ nome:'', local:'', valor:'', sige:'', pedido:'', nf:'', os_tecban:'' })
     setDataCadastroModal('')
     setDataVistoria('')
     setColabsVistoria([])
@@ -1315,6 +1316,7 @@ export default function App() {
                         {obra.sige && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>SIGE</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.sige}</div></div>}
                         {obra.pedido && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Pedido</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.pedido}</div></div>}
                         {obra.nf && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>NF</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.nf}</div></div>}
+                        {obra.os_tecban && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>OS Tecban</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.os_tecban}</div></div>}
                         {obra.inicio && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Início</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.inicio}</div></div>}
                         {obra.termino && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Término</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.termino}</div></div>}
                         {obra.data_art && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>ART pronta</div><div style={{ fontSize:12, color:'#1A6B4A', fontWeight:600 }}>{isoToBr(obra.data_art)}</div></div>}
@@ -1346,7 +1348,7 @@ export default function App() {
                         setNovaDivM2('')
                         setItensEspeciais(Array.isArray(obra.itens_especiais) ? obra.itens_especiais : [])
                         setBiomboFila(obra.biombo_fila != null ? String(obra.biombo_fila) : '')
-                        setEditDados({ nome: obra.nome||'', local: obra.local||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', pedido: obra.pedido||'', nf: obra.nf||'' })
+                        setEditDados({ nome: obra.nome||'', local: obra.local||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', pedido: obra.pedido||'', nf: obra.nf||'', os_tecban: obra.os_tecban||'' })
                         setDataCadastroModal(obra.data_cadastro || '')
                         setDataVistoria(obra.data_vistoria || '')
                         const listaVistoria = Array.isArray(obra.colaboradores_vistoria) ? obra.colaboradores_vistoria : []
@@ -1453,12 +1455,12 @@ export default function App() {
                 <input value={editDados.nome} onChange={e => setEditDados(d => ({...d, nome:e.target.value}))}
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
               </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
-                <div>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Local</label>
-                  <input value={editDados.local} onChange={e => setEditDados(d => ({...d, local:e.target.value}))}
-                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
-                </div>
+              <div style={{ marginBottom:10 }}>
+                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Local</label>
+                <input value={editDados.local} onChange={e => setEditDados(d => ({...d, local:e.target.value}))}
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:10 }}>
                 <div>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Valor (R$)</label>
                   <input type="number" value={editDados.valor} onChange={e => setEditDados(d => ({...d, valor:e.target.value}))}
@@ -1474,9 +1476,16 @@ export default function App() {
                   <input value={editDados.pedido} onChange={e => setEditDados(d => ({...d, pedido:e.target.value}))}
                     style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                 </div>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
                 <div>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>NF</label>
                   <input value={editDados.nf} onChange={e => setEditDados(d => ({...d, nf:e.target.value}))}
+                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>OS Tecban</label>
+                  <input value={editDados.os_tecban} onChange={e => setEditDados(d => ({...d, os_tecban:e.target.value}))}
                     style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                 </div>
               </div>
