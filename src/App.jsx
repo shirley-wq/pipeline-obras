@@ -488,29 +488,41 @@ function getEtapaAtual(status) {
 }
 
 function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizado, onChangeTerceirizado, terceirizadoTexto, onChangeTerceirizadoTexto }) {
+  const [mostrarLista, setMostrarLista] = useState(false)
+  const resumo = [...selecionados, ...(terceirizado ? [TERCEIRIZADO_PREFIXO + (terceirizadoTexto.trim() || '(não informado)')] : [])]
   return (
     <div>
-      <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:6 }}>{titulo}</div>
-      <div style={{ border:'1px solid #E0E8F0', borderRadius:8, padding:8 }}>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:6 }}>
-          {COLABORADORES.map(nome => (
-            <label key={nome} style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', minWidth:0 }}>
-              <input type="checkbox" checked={selecionados.includes(nome)}
-                onChange={e => onChangeSelecionados(e.target.checked ? [...selecionados, nome] : selecionados.filter(n => n !== nome))} />
-              <span style={{ fontSize:12, color:'#1A2340', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={nome}>{nome}</span>
-            </label>
-          ))}
-        </div>
-        <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', borderTop:'1px solid #F0F4F8', paddingTop:8, marginTop:8 }}>
-          <input type="checkbox" checked={terceirizado} onChange={e => onChangeTerceirizado(e.target.checked)} />
-          <span style={{ fontSize:13, color:'#1A2340', fontWeight:600 }}>Terceirizado</span>
-        </label>
-        {terceirizado && (
-          <input value={terceirizadoTexto} onChange={e => onChangeTerceirizadoTexto(e.target.value)}
-            placeholder="Nome da empresa/pessoa terceirizada"
-            style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginTop:8 }} />
-        )}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:8, marginBottom:4 }}>
+        <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600 }}>{titulo}</div>
+        <span onClick={() => setMostrarLista(v => !v)} style={{ fontSize:11, color:'#2D3A8C', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
+          {mostrarLista ? '▲ Ocultar lista' : '▼ Selecionar equipe'}
+        </span>
       </div>
+      <div style={{ fontSize:13, fontWeight:600, color: resumo.length > 0 ? '#065F46' : '#9CA3AF', marginBottom: mostrarLista ? 8 : 0 }}>
+        {resumo.length > 0 ? `👤 ${resumo.join(', ')}` : 'Ninguém selecionado ainda'}
+      </div>
+      {mostrarLista && (
+        <div style={{ border:'1px solid #E0E8F0', borderRadius:8, padding:8 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:6 }}>
+            {COLABORADORES.map(nome => (
+              <label key={nome} style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', minWidth:0 }}>
+                <input type="checkbox" checked={selecionados.includes(nome)}
+                  onChange={e => onChangeSelecionados(e.target.checked ? [...selecionados, nome] : selecionados.filter(n => n !== nome))} />
+                <span style={{ fontSize:12, color:'#1A2340', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={nome}>{nome}</span>
+              </label>
+            ))}
+          </div>
+          <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', borderTop:'1px solid #F0F4F8', paddingTop:8, marginTop:8 }}>
+            <input type="checkbox" checked={terceirizado} onChange={e => onChangeTerceirizado(e.target.checked)} />
+            <span style={{ fontSize:13, color:'#1A2340', fontWeight:600 }}>Terceirizado</span>
+          </label>
+          {terceirizado && (
+            <input value={terceirizadoTexto} onChange={e => onChangeTerceirizadoTexto(e.target.value)}
+              placeholder="Nome da empresa/pessoa terceirizada"
+              style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginTop:8 }} />
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -611,7 +623,6 @@ export default function App() {
   const [colabsObra, setColabsObra] = useState([])
   const [terceirizadoObra, setTerceirizadoObra] = useState(false)
   const [terceirizadoObraTexto, setTerceirizadoObraTexto] = useState('')
-  const [equipeAberta, setEquipeAberta] = useState(false)
   const [selecionadas, setSelecionadas] = useState(new Set())
   const [modalBulk, setModalBulk] = useState(false)
   const [statusBulk, setStatusBulk] = useState('')
@@ -746,7 +757,7 @@ export default function App() {
     campos.data_vistoria = dataVistoria || null
     const listaVistoria = [...colabsVistoria, ...(terceirizadoVistoria ? [TERCEIRIZADO_PREFIXO + (terceirizadoVistoriaTexto.trim() || '(não informado)')] : [])]
     campos.colaboradores_vistoria = listaVistoria.length > 0 ? listaVistoria : null
-    campos.data_obra_inicio = dataObraInicio || null
+    campos.data_obra_inicio = modal.tipo === 'TRANSF UN' ? (dataObraInicio || null) : (dataObra.inicio || null)
     const listaObra = [...colabsObra, ...(terceirizadoObra ? [TERCEIRIZADO_PREFIXO + (terceirizadoObraTexto.trim() || '(não informado)')] : [])]
     campos.colaboradores_obra = listaObra.length > 0 ? listaObra : null
     campos.data_cadastro = dataCadastroModal || modal.data_cadastro || null
@@ -782,7 +793,6 @@ export default function App() {
     setColabsObra([])
     setTerceirizadoObra(false)
     setTerceirizadoObraTexto('')
-    setEquipeAberta(false)
   }
 
   async function marcarFaturado(id) {
@@ -1350,7 +1360,6 @@ export default function App() {
                         setColabsObra(listaObra.filter(c => !c.startsWith(TERCEIRIZADO_PREFIXO)))
                         setTerceirizadoObra(!!terceiroObra)
                         setTerceirizadoObraTexto(terceiroObra ? terceiroObra.slice(TERCEIRIZADO_PREFIXO.length) : '')
-                        setEquipeAberta(!!(obra.data_vistoria || listaVistoria.length > 0 || obra.data_obra_inicio || listaObra.length > 0))
                       }}
                         style={{ flex:1, padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                         Atualizar status
@@ -1474,32 +1483,24 @@ export default function App() {
             </div>
 
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
-              <div onClick={() => setEquipeAberta(a => !a)}
-                style={{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', marginBottom: equipeAberta ? 10 : 0 }}>
-                <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700 }}>👥 Equipe em campo</div>
-                <span style={{ fontSize:11, color:'#4A7FC1', fontWeight:600 }}>{equipeAberta ? '▲ Recolher' : '▼ Expandir'}</span>
-              </div>
-              {equipeAberta && (
-                <>
-                  <div style={{ marginBottom:14 }}>
-                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data da vistoria</label>
-                    <input type="date" value={dataVistoria} onChange={e => setDataVistoria(e.target.value)}
-                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8 }} />
-                    <SeletorEquipe titulo="Quem foi na vistoria" selecionados={colabsVistoria} onChangeSelecionados={setColabsVistoria}
-                      terceirizado={terceirizadoVistoria} onChangeTerceirizado={setTerceirizadoVistoria}
-                      terceirizadoTexto={terceirizadoVistoriaTexto} onChangeTerceirizadoTexto={setTerceirizadoVistoriaTexto} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data de início da obra</label>
-                    <input type="date" value={dataObraInicio} onChange={e => setDataObraInicio(e.target.value)}
-                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8 }} />
-                    <SeletorEquipe titulo="Quem foi na obra" selecionados={colabsObra} onChangeSelecionados={setColabsObra}
-                      terceirizado={terceirizadoObra} onChangeTerceirizado={setTerceirizadoObra}
-                      terceirizadoTexto={terceirizadoObraTexto} onChangeTerceirizadoTexto={setTerceirizadoObraTexto} />
-                  </div>
-                </>
-              )}
+              <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data da vistoria</label>
+              <input type="date" value={dataVistoria} onChange={e => setDataVistoria(e.target.value)}
+                style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8 }} />
+              <SeletorEquipe titulo="Vistoria" selecionados={colabsVistoria} onChangeSelecionados={setColabsVistoria}
+                terceirizado={terceirizadoVistoria} onChangeTerceirizado={setTerceirizadoVistoria}
+                terceirizadoTexto={terceirizadoVistoriaTexto} onChangeTerceirizadoTexto={setTerceirizadoVistoriaTexto} />
             </div>
+
+            {modal.tipo === 'TRANSF UN' && (
+              <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
+                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data de início da obra</label>
+                <input type="date" value={dataObraInicio} onChange={e => setDataObraInicio(e.target.value)}
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8 }} />
+                <SeletorEquipe titulo="Início da obra" selecionados={colabsObra} onChangeSelecionados={setColabsObra}
+                  terceirizado={terceirizadoObra} onChangeTerceirizado={setTerceirizadoObra}
+                  terceirizadoTexto={terceirizadoObraTexto} onChangeTerceirizadoTexto={setTerceirizadoObraTexto} />
+              </div>
+            )}
 
             {TIPOS_ENTREGAVEIS.includes(modal.tipo) && (
               <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:12, padding:14, marginBottom:16 }}>
@@ -1657,6 +1658,11 @@ export default function App() {
                     <input type="date" value={dataArt} onChange={e => setDataArt(e.target.value)}
                       style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                   </div>
+                </div>
+                <div style={{ marginBottom:10 }}>
+                  <SeletorEquipe titulo="Quem foi na obra" selecionados={colabsObra} onChangeSelecionados={setColabsObra}
+                    terceirizado={terceirizadoObra} onChangeTerceirizado={setTerceirizadoObra}
+                    terceirizadoTexto={terceirizadoObraTexto} onChangeTerceirizadoTexto={setTerceirizadoObraTexto} />
                 </div>
                 <div onClick={() => setEmNegociacao(v => !v)}
                   style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'10px 12px', borderRadius:10,
