@@ -120,6 +120,12 @@ const ENTREGAVEIS_BOOK = [
   'ART Assinada',
   'QR Code Concluído',
 ]
+const ENTREGAVEIS_VISTORIA = [
+  'Book de Vistoria PPT',
+  'Book Checklist Fácil',
+  'Orçamento de Reforma',
+  'Orçamento de Descaracterização',
+]
 
 const COLABORADORES = [
   'Adriano Silva de Jesus',
@@ -620,6 +626,7 @@ export default function App() {
   const [emNegociacao, setEmNegociacao] = useState(false)
   const [lembretes, setLembretes] = useState([])
   const [entregaveis, setEntregaveis] = useState([])
+  const [entregaveisVistoria, setEntregaveisVistoria] = useState([])
   const [novoLembreteEtapa, setNovoLembreteEtapa] = useState('')
   const [novoLembreteTexto, setNovoLembreteTexto] = useState('')
   const [editDados, setEditDados] = useState({ nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', os_tecban:'' })
@@ -777,6 +784,7 @@ export default function App() {
     if (TIPOS_ENTREGAVEIS.includes(modal.tipo)) {
       campos.entregaveis = entregaveis.length > 0 ? entregaveis : null
     }
+    campos.entregaveis_vistoria = entregaveisVistoria.length > 0 ? entregaveisVistoria : null
     campos.data_vistoria = dataVistoria || null
     const listaVistoria = [...colabsVistoria, ...(terceirizadoVistoria ? [TERCEIRIZADO_PREFIXO + (terceirizadoVistoriaTexto.trim() || '(não informado)')] : [])]
     campos.colaboradores_vistoria = listaVistoria.length > 0 ? listaVistoria : null
@@ -1362,6 +1370,7 @@ export default function App() {
                         setEmNegociacao(obra.em_negociacao || false)
                         setLembretes(Array.isArray(obra.lembretes) ? obra.lembretes : [])
                         setEntregaveis(Array.isArray(obra.entregaveis) ? obra.entregaveis : [])
+                        setEntregaveisVistoria(Array.isArray(obra.entregaveis_vistoria) ? obra.entregaveis_vistoria : [])
                         setNovoLembreteEtapa('')
                         setNovoLembreteTexto('')
                         setAdesivos(obra.adesivos ? obra.adesivos.split(',') : [])
@@ -1725,6 +1734,24 @@ export default function App() {
                     terceirizadoTexto={terceirizadoObraTexto} onChangeTerceirizadoTexto={setTerceirizadoObraTexto}
                     bloqueado={!vistoriaCompleta} mensagemBloqueio='Preencha a data da vistoria e quem foi antes de liberar esta etapa' />
                 </div>
+                {TIPOS_ENTREGAVEIS.includes(modal.tipo) && (
+                  <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:12, padding:14, marginBottom:10 }}>
+                    <div style={{ fontSize:12, color:'#065F46', fontWeight:700, marginBottom:10 }}>
+                      📋 Entregáveis do Book ({entregaveis.length}/{ENTREGAVEIS_BOOK.length})
+                    </div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                      {ENTREGAVEIS_BOOK.map(item => (
+                        <label key={item} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+                          <input type="checkbox" checked={entregaveis.includes(item)}
+                            onChange={e => setEntregaveis(prev => e.target.checked ? [...prev, item] : prev.filter(i => i !== item))} />
+                          <span style={{ fontSize:13, color: entregaveis.includes(item) ? '#065F46' : '#1A2340', fontWeight: entregaveis.includes(item) ? 600 : 400 }}>
+                            {item}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div onClick={() => setEmNegociacao(v => !v)}
                   style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'10px 12px', borderRadius:10,
                     background: emNegociacao ? '#FEF3C7' : '#fff', border:`1.5px solid ${emNegociacao ? '#F59E0B' : '#E0E8F0'}` }}>
@@ -1748,24 +1775,22 @@ export default function App() {
               <div style={{ fontSize:10, color:'#64748B', marginTop:5 }}>Quando esta demanda entrou no pipeline (usada para calcular dias parado)</div>
             </div>
 
-            {TIPOS_ENTREGAVEIS.includes(modal.tipo) && (
-              <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:12, padding:14, marginBottom:16 }}>
-                <div style={{ fontSize:12, color:'#065F46', fontWeight:700, marginBottom:10 }}>
-                  📋 Entregáveis do Book ({entregaveis.length}/{ENTREGAVEIS_BOOK.length})
-                </div>
-                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                  {ENTREGAVEIS_BOOK.map(item => (
-                    <label key={item} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
-                      <input type="checkbox" checked={entregaveis.includes(item)}
-                        onChange={e => setEntregaveis(prev => e.target.checked ? [...prev, item] : prev.filter(i => i !== item))} />
-                      <span style={{ fontSize:13, color: entregaveis.includes(item) ? '#065F46' : '#1A2340', fontWeight: entregaveis.includes(item) ? 600 : 400 }}>
-                        {item}
-                      </span>
-                    </label>
-                  ))}
-                </div>
+            <div style={{ background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:12, padding:14, marginBottom:16 }}>
+              <div style={{ fontSize:12, color:'#1E40AF', fontWeight:700, marginBottom:10 }}>
+                📋 Entregáveis pós-vistoria ({entregaveisVistoria.length}/{ENTREGAVEIS_VISTORIA.length})
               </div>
-            )}
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {ENTREGAVEIS_VISTORIA.map(item => (
+                  <label key={item} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+                    <input type="checkbox" checked={entregaveisVistoria.includes(item)}
+                      onChange={e => setEntregaveisVistoria(prev => e.target.checked ? [...prev, item] : prev.filter(i => i !== item))} />
+                    <span style={{ fontSize:13, color: entregaveisVistoria.includes(item) ? '#1E40AF' : '#1A2340', fontWeight: entregaveisVistoria.includes(item) ? 600 : 400 }}>
+                      {item}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
 
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, marginBottom:8 }}>Etapa da régua:</div>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:6, marginBottom:8 }}>
