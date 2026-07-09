@@ -147,6 +147,7 @@ const COLABORADORES = [
   'Gabriel Martins dos Santos Benassi',
   'Genivaldo Rodrigues Lima',
   'Glauce Lourenço Teixeira',
+  'Guilherme de Carvalho Santos',
   'Harlen Rodrigues Barbosa da Silva',
   'Hyago Felipe Souza Menezes',
   'Ivo Ferreira Marinho',
