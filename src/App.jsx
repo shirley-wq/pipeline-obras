@@ -1579,6 +1579,23 @@ export default function App() {
                 terceirizadoTexto={terceirizadoVistoriaTexto} onChangeTerceirizadoTexto={setTerceirizadoVistoriaTexto} />
             </div>
 
+            <div style={{ background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:12, padding:14, marginBottom:16 }}>
+              <div style={{ fontSize:12, color:'#1E40AF', fontWeight:700, marginBottom:10 }}>
+                📋 Entregáveis pós-vistoria ({entregaveisVistoria.length}/{ENTREGAVEIS_VISTORIA.length})
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {ENTREGAVEIS_VISTORIA.map(item => (
+                  <label key={item} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+                    <input type="checkbox" checked={entregaveisVistoria.includes(item)}
+                      onChange={e => setEntregaveisVistoria(prev => e.target.checked ? [...prev, item] : prev.filter(i => i !== item))} />
+                    <span style={{ fontSize:13, color: entregaveisVistoria.includes(item) ? '#1E40AF' : '#1A2340', fontWeight: entregaveisVistoria.includes(item) ? 600 : 400 }}>
+                      {item}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             {modal.tipo === 'TRANSF UN' && (
               <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data de início da obra</label>
@@ -1734,22 +1751,6 @@ export default function App() {
                     terceirizado={terceirizadoObra} onChangeTerceirizado={setTerceirizadoObra}
                     terceirizadoTexto={terceirizadoObraTexto} onChangeTerceirizadoTexto={setTerceirizadoObraTexto}
                     bloqueado={!vistoriaCompleta} mensagemBloqueio='Preencha a data da vistoria e quem foi antes de liberar esta etapa' />
-                </div>
-                <div style={{ background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:12, padding:14, marginBottom:10 }}>
-                  <div style={{ fontSize:12, color:'#1E40AF', fontWeight:700, marginBottom:10 }}>
-                    📋 Entregáveis pós-vistoria ({entregaveisVistoria.length}/{ENTREGAVEIS_VISTORIA.length})
-                  </div>
-                  <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                    {ENTREGAVEIS_VISTORIA.map(item => (
-                      <label key={item} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
-                        <input type="checkbox" checked={entregaveisVistoria.includes(item)}
-                          onChange={e => setEntregaveisVistoria(prev => e.target.checked ? [...prev, item] : prev.filter(i => i !== item))} />
-                        <span style={{ fontSize:13, color: entregaveisVistoria.includes(item) ? '#1E40AF' : '#1A2340', fontWeight: entregaveisVistoria.includes(item) ? 600 : 400 }}>
-                          {item}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
                 </div>
                 <div onClick={() => setEmNegociacao(v => !v)}
                   style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'10px 12px', borderRadius:10,
