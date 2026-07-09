@@ -589,8 +589,9 @@ function Regua({ tipo, status, lembretes, onRemoverLembrete }) {
             </div>
             <div style={{ fontSize:8, color: concluida ? '#1A6B4A' : ativa ? '#2D3A8C' : '#9CA3AF', marginTop:4, textAlign:'center', lineHeight:1.2, maxWidth:48 }}>{etapa}</div>
             {lembretesAqui.map((l, idx) => (
-              <div key={idx} style={{ background:'#FEE2E2', color:'#991B1B', fontSize:7, fontWeight:700, borderRadius:4, padding:'2px 4px', marginTop:2, textAlign:'center', maxWidth:52, lineHeight:1.3, border:'1px solid #FECACA', wordBreak:'break-word' }}>
+              <div key={idx} title={l.autor ? `Colocado por ${l.autor}` : undefined} style={{ background:'#FEE2E2', color:'#991B1B', fontSize:7, fontWeight:700, borderRadius:4, padding:'2px 4px', marginTop:2, textAlign:'center', maxWidth:52, lineHeight:1.3, border:'1px solid #FECACA', wordBreak:'break-word' }}>
                 ⚠ {l.texto}
+                {l.autor && <div style={{ fontWeight:400, fontSize:6, marginTop:1, opacity:.8 }}>{l.autor}</div>}
                 {onRemoverLembrete && (
                   <span onClick={e => { e.stopPropagation(); onRemoverLembrete(l) }}
                     style={{ display:'block', marginTop:2, color:'#991B1B', fontWeight:900, fontSize:9, cursor:'pointer', letterSpacing:.5 }}>
@@ -962,7 +963,7 @@ export default function App() {
         o.em_negociacao ? 'Sim' : '',
         (o.obs||'').replace(/\n/g,' '),
         Array.isArray(o.lembretes) && o.lembretes.length > 0
-          ? o.lembretes.map(l => `Etapa ${l.etapa}: ${l.texto}`).join(' | ')
+          ? o.lembretes.map(l => `Etapa ${l.etapa}: ${l.texto}${l.autor ? ` (${l.autor})` : ''}`).join(' | ')
           : '',
         o.data_cadastro ? isoToBr(o.data_cadastro) : '',
         d !== null ? String(d) : '',
@@ -1827,7 +1828,10 @@ export default function App() {
                   {lembretes.map((l, idx) => (
                     <div key={idx} style={{ display:'flex', alignItems:'center', gap:8, background:'#fff', border:'1px solid #FECACA', borderRadius:8, padding:'8px 10px' }}>
                       <span style={{ fontSize:10, background:'#EF4444', color:'#fff', borderRadius:'50%', width:18, height:18, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, flexShrink:0 }}>{l.etapa}</span>
-                      <span style={{ fontSize:12, color:'#1A2340', flex:1 }}>{l.texto}</span>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:12, color:'#1A2340' }}>{l.texto}</div>
+                        {l.autor && <div style={{ fontSize:10, color:'#991B1B', marginTop:2 }}>por {l.autor}</div>}
+                      </div>
                       <span onClick={() => setLembretes(prev => prev.filter((_, i) => i !== idx))}
                         style={{ fontSize:14, color:'#EF4444', cursor:'pointer', fontWeight:700, padding:'0 4px' }}>✕</span>
                     </div>
@@ -1847,7 +1851,7 @@ export default function App() {
                   style={{ flex:1, padding:'8px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }} />
                 <button onClick={() => {
                   if (!novoLembreteEtapa || !novoLembreteTexto.trim()) return
-                  setLembretes(prev => [...prev, { etapa: Number(novoLembreteEtapa), texto: novoLembreteTexto.trim() }])
+                  setLembretes(prev => [...prev, { etapa: Number(novoLembreteEtapa), texto: novoLembreteTexto.trim(), autor: usuario.email }])
                   setNovoLembreteEtapa('')
                   setNovoLembreteTexto('')
                 }} style={{ padding:'8px 12px', background:'#EF4444', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', flexShrink:0 }}>
