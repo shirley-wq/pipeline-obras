@@ -748,7 +748,7 @@ export default function App() {
     if (!novoStatus) return
     setSalvando(true)
     const campos = {
-      status: novoStatus,
+      status: novoStatus === 'ELABORAR RM' ? 'EMITIR NF' : novoStatus,
       obs: novaObs || modal.obs || null,
       atualizado_em: new Date().toISOString(),
       atualizado_por: usuario.email,
