@@ -1581,25 +1581,6 @@ export default function App() {
               </div>
             )}
 
-            {TIPOS_ENTREGAVEIS.includes(modal.tipo) && (
-              <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:12, padding:14, marginBottom:16 }}>
-                <div style={{ fontSize:12, color:'#065F46', fontWeight:700, marginBottom:10 }}>
-                  📋 Entregáveis do Book ({entregaveis.length}/{ENTREGAVEIS_BOOK.length})
-                </div>
-                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                  {ENTREGAVEIS_BOOK.map(item => (
-                    <label key={item} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
-                      <input type="checkbox" checked={entregaveis.includes(item)}
-                        onChange={e => setEntregaveis(prev => e.target.checked ? [...prev, item] : prev.filter(i => i !== item))} />
-                      <span style={{ fontSize:13, color: entregaveis.includes(item) ? '#065F46' : '#1A2340', fontWeight: entregaveis.includes(item) ? 600 : 400 }}>
-                        {item}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {modal.tipo === 'TRANSF UN' && (
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
                 <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Datas de visita ao ponto</div>
@@ -1766,6 +1747,25 @@ export default function App() {
                 style={{ width:'100%', padding:'8px 10px', border:'1px solid #BFDBFE', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
               <div style={{ fontSize:10, color:'#64748B', marginTop:5 }}>Quando esta demanda entrou no pipeline (usada para calcular dias parado)</div>
             </div>
+
+            {TIPOS_ENTREGAVEIS.includes(modal.tipo) && (
+              <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:12, padding:14, marginBottom:16 }}>
+                <div style={{ fontSize:12, color:'#065F46', fontWeight:700, marginBottom:10 }}>
+                  📋 Entregáveis do Book ({entregaveis.length}/{ENTREGAVEIS_BOOK.length})
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                  {ENTREGAVEIS_BOOK.map(item => (
+                    <label key={item} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+                      <input type="checkbox" checked={entregaveis.includes(item)}
+                        onChange={e => setEntregaveis(prev => e.target.checked ? [...prev, item] : prev.filter(i => i !== item))} />
+                      <span style={{ fontSize:13, color: entregaveis.includes(item) ? '#065F46' : '#1A2340', fontWeight: entregaveis.includes(item) ? 600 : 400 }}>
+                        {item}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, marginBottom:8 }}>Etapa da régua:</div>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:6, marginBottom:8 }}>
