@@ -427,7 +427,6 @@ const ETAPAS_DESC = [
   'QR CODE',
   'AGUARDANDO OS TECBAN',
   'ELABORAR RM',
-  'ENVIAR RM',
 ]
 const ETAPAS_EN = ETAPAS_DESC
 const ETAPAS_OUTRAS = ['Início','Em andamento','Conclusão','EMITIR NF','Faturamento']
