@@ -426,7 +426,7 @@ const ETAPAS_DESC = [
   'BOOK DE CONCLUSÃO',
   'QR CODE',
   'AGUARDANDO OS TECBAN',
-  'ELABORAR RM',
+  'RM ENVIADA',
 ]
 const ETAPAS_EN = ETAPAS_DESC
 const ETAPAS_OUTRAS = ['Início','Em andamento','Conclusão','EMITIR NF','Faturamento']
@@ -501,7 +501,7 @@ function getEtapaAtual(status) {
 
 function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizado, onChangeTerceirizado, terceirizadoTexto, onChangeTerceirizadoTexto, bloqueado, mensagemBloqueio }) {
   const [mostrarLista, setMostrarLista] = useState(false)
-  const resumo = [...selecionados, ...(terceirizado ? [TERCEIRIZADO_PREFIXO + (terceirizadoTexto.trim() || '(não informado)')] : [])]
+  const [busca, setBusca] = useState('')
   if (bloqueado) {
     return (
       <div>
@@ -512,27 +512,60 @@ function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizad
       </div>
     )
   }
+  const normaliza = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  const sugestoes = busca.trim()
+    ? COLABORADORES.filter(nome => !selecionados.includes(nome) && normaliza(nome).includes(normaliza(busca.trim())))
+    : []
+  function adicionar(nome) {
+    onChangeSelecionados([...selecionados, nome])
+    setBusca('')
+  }
   return (
     <div>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:8, marginBottom:4 }}>
         <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600 }}>{titulo}</div>
         <span onClick={() => setMostrarLista(v => !v)} style={{ fontSize:11, color:'#2D3A8C', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
-          {mostrarLista ? '▲ Ocultar lista' : '▼ Selecionar equipe'}
+          {mostrarLista ? '▲ Fechar' : '▼ Adicionar pessoa'}
         </span>
       </div>
-      <div style={{ fontSize:13, fontWeight:600, color: resumo.length > 0 ? '#065F46' : '#9CA3AF', marginBottom: mostrarLista ? 8 : 0 }}>
-        {resumo.length > 0 ? `👤 ${resumo.join(', ')}` : 'Ninguém selecionado ainda'}
-      </div>
+      {selecionados.length > 0 || terceirizado ? (
+        <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom: mostrarLista ? 8 : 0 }}>
+          {selecionados.map(nome => (
+            <div key={nome} style={{ display:'flex', alignItems:'center', gap:6, background:'#D1FAE5', border:'1px solid #A7F3D0', borderRadius:20, padding:'4px 6px 4px 12px' }}>
+              <span style={{ fontSize:12, color:'#065F46', fontWeight:600 }}>👤 {nome}</span>
+              <span onClick={() => onChangeSelecionados(selecionados.filter(n => n !== nome))}
+                style={{ fontSize:12, color:'#065F46', cursor:'pointer', fontWeight:700, background:'#fff', borderRadius:'50%', width:16, height:16, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</span>
+            </div>
+          ))}
+          {terceirizado && (
+            <div style={{ display:'flex', alignItems:'center', gap:6, background:'#EEF2FF', border:'1px solid #C7D2FE', borderRadius:20, padding:'4px 12px' }}>
+              <span style={{ fontSize:12, color:'#3730A3', fontWeight:600 }}>🔧 {TERCEIRIZADO_PREFIXO}{terceirizadoTexto.trim() || '(não informado)'}</span>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ fontSize:13, fontWeight:600, color:'#9CA3AF', marginBottom: mostrarLista ? 8 : 0 }}>Ninguém selecionado ainda</div>
+      )}
       {mostrarLista && (
         <div style={{ border:'1px solid #E0E8F0', borderRadius:8, padding:8 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:6 }}>
-            {COLABORADORES.map(nome => (
-              <label key={nome} style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', minWidth:0 }}>
-                <input type="checkbox" checked={selecionados.includes(nome)}
-                  onChange={e => onChangeSelecionados(e.target.checked ? [...selecionados, nome] : selecionados.filter(n => n !== nome))} />
-                <span style={{ fontSize:12, color:'#1A2340', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={nome}>{nome}</span>
-              </label>
-            ))}
+          <div style={{ position:'relative' }}>
+            <input value={busca} onChange={e => setBusca(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && sugestoes.length > 0) adicionar(sugestoes[0]) }}
+              placeholder="Digite o nome da pessoa..." autoFocus
+              style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+            {busca.trim() && (
+              <div style={{ border:'1px solid #E0E8F0', borderRadius:8, marginTop:4, maxHeight:180, overflowY:'auto' }}>
+                {sugestoes.length > 0 ? sugestoes.map(nome => (
+                  <div key={nome} onClick={() => adicionar(nome)}
+                    style={{ padding:'8px 10px', fontSize:13, color:'#1A2340', cursor:'pointer', borderBottom:'1px solid #F0F4F8' }}
+                    onMouseDown={e => e.preventDefault()}>
+                    👤 {nome}
+                  </div>
+                )) : (
+                  <div style={{ padding:'8px 10px', fontSize:12, color:'#9CA3AF' }}>Nenhum nome encontrado</div>
+                )}
+              </div>
+            )}
           </div>
           <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', borderTop:'1px solid #F0F4F8', paddingTop:8, marginTop:8 }}>
             <input type="checkbox" checked={terceirizado} onChange={e => onChangeTerceirizado(e.target.checked)} />
@@ -747,7 +780,7 @@ export default function App() {
     if (!novoStatus) return
     setSalvando(true)
     const campos = {
-      status: novoStatus === 'ELABORAR RM' ? 'EMITIR NF' : novoStatus,
+      status: novoStatus === 'RM ENVIADA' ? 'EMITIR NF' : novoStatus,
       obs: novaObs || modal.obs || null,
       atualizado_em: new Date().toISOString(),
       atualizado_por: usuario.email,
@@ -1099,7 +1132,7 @@ export default function App() {
                     </div>
                     <div style={{ display:'flex', gap:8 }}>
                       <button onClick={async () => {
-                        const campos = { status:'ELABORAR RM', atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+                        const campos = { status:'RM ENVIADA', atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
                         const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', o.id)
                         if (!error) setObras(prev => prev.map(ob => ob.id === o.id ? { ...ob, ...campos } : ob))
                       }}
@@ -1798,7 +1831,7 @@ export default function App() {
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:6, marginBottom:8 }}>
               {getEtapas().map((op, i) => {
                 const ativo = novoStatus === op
-                const bloqueado = ['ELABORAR RM','ENVIAR RM'].includes(op) && !editDados.os_tecban.trim()
+                const bloqueado = op === 'RM ENVIADA' && !editDados.os_tecban.trim()
                 return (
                   <div key={op} onClick={() => { if (!bloqueado) setNovoStatus(op) }}
                     title={bloqueado ? 'Preencha o campo "OS Tecban" em Dados da obra para liberar esta etapa' : undefined}
@@ -1810,9 +1843,9 @@ export default function App() {
                 )
               })}
             </div>
-            {getEtapas().includes('ELABORAR RM') && !editDados.os_tecban.trim() && (
+            {getEtapas().includes('RM ENVIADA') && !editDados.os_tecban.trim() && (
               <div style={{ fontSize:11, color:'#92400E', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'6px 10px', marginBottom:8 }}>
-                🔒 "Elaborar RM" e "Enviar RM" ficam bloqueadas até preencher a <b>OS Tecban</b> em Dados da obra.
+                🔒 "RM Enviada" fica bloqueada até preencher a <b>OS Tecban</b> em Dados da obra.
               </div>
             )}
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, margin:'12px 0 6px' }}>Observação:</div>
@@ -1858,8 +1891,8 @@ export default function App() {
                 </button>
               </div>
             </div>
-            <button onClick={salvarStatus} disabled={!novoStatus || salvando || (['ELABORAR RM','ENVIAR RM'].includes(novoStatus) && !editDados.os_tecban.trim())}
-              style={{ width:'100%', padding:13, background: (!novoStatus||salvando||(['ELABORAR RM','ENVIAR RM'].includes(novoStatus) && !editDados.os_tecban.trim())) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor: (!novoStatus||salvando) ? 'default' : 'pointer' }}>
+            <button onClick={salvarStatus} disabled={!novoStatus || salvando || (novoStatus === 'RM ENVIADA' && !editDados.os_tecban.trim())}
+              style={{ width:'100%', padding:13, background: (!novoStatus||salvando||(novoStatus === 'RM ENVIADA' && !editDados.os_tecban.trim())) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor: (!novoStatus||salvando) ? 'default' : 'pointer' }}>
               {salvando ? 'Salvando...' : 'Salvar'}
             </button>
             <button onClick={() => setModal(null)}
