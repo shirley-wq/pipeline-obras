@@ -500,7 +500,6 @@ function getEtapaAtual(status) {
 }
 
 function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizado, onChangeTerceirizado, terceirizadoTexto, onChangeTerceirizadoTexto, bloqueado, mensagemBloqueio }) {
-  const [mostrarLista, setMostrarLista] = useState(false)
   const [busca, setBusca] = useState('')
   if (bloqueado) {
     return (
@@ -522,14 +521,9 @@ function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizad
   }
   return (
     <div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:8, marginBottom:4 }}>
-        <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600 }}>{titulo}</div>
-        <span onClick={() => setMostrarLista(v => !v)} style={{ fontSize:11, color:'#2D3A8C', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
-          {mostrarLista ? '▲ Fechar' : '▼ Adicionar pessoa'}
-        </span>
-      </div>
-      {selecionados.length > 0 || terceirizado ? (
-        <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom: mostrarLista ? 8 : 0 }}>
+      <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>{titulo}</div>
+      {(selecionados.length > 0 || terceirizado) && (
+        <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:8 }}>
           {selecionados.map(nome => (
             <div key={nome} style={{ display:'flex', alignItems:'center', gap:6, background:'#D1FAE5', border:'1px solid #A7F3D0', borderRadius:20, padding:'4px 6px 4px 12px' }}>
               <span style={{ fontSize:12, color:'#065F46', fontWeight:600 }}>👤 {nome}</span>
@@ -543,40 +537,34 @@ function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizad
             </div>
           )}
         </div>
-      ) : (
-        <div style={{ fontSize:13, fontWeight:600, color:'#9CA3AF', marginBottom: mostrarLista ? 8 : 0 }}>Ninguém selecionado ainda</div>
       )}
-      {mostrarLista && (
-        <div style={{ border:'1px solid #E0E8F0', borderRadius:8, padding:8 }}>
-          <div style={{ position:'relative' }}>
-            <input value={busca} onChange={e => setBusca(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && sugestoes.length > 0) adicionar(sugestoes[0]) }}
-              placeholder="Digite o nome da pessoa..." autoFocus
-              style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
-            {busca.trim() && (
-              <div style={{ border:'1px solid #E0E8F0', borderRadius:8, marginTop:4, maxHeight:180, overflowY:'auto' }}>
-                {sugestoes.length > 0 ? sugestoes.map(nome => (
-                  <div key={nome} onClick={() => adicionar(nome)}
-                    style={{ padding:'8px 10px', fontSize:13, color:'#1A2340', cursor:'pointer', borderBottom:'1px solid #F0F4F8' }}
-                    onMouseDown={e => e.preventDefault()}>
-                    👤 {nome}
-                  </div>
-                )) : (
-                  <div style={{ padding:'8px 10px', fontSize:12, color:'#9CA3AF' }}>Nenhum nome encontrado</div>
-                )}
+      <div style={{ position:'relative' }}>
+        <input value={busca} onChange={e => setBusca(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && sugestoes.length > 0) adicionar(sugestoes[0]) }}
+          placeholder="Digite o nome da pessoa..."
+          style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+        {busca.trim() && (
+          <div style={{ border:'1px solid #E0E8F0', borderRadius:8, marginTop:4, maxHeight:180, overflowY:'auto' }}>
+            {sugestoes.length > 0 ? sugestoes.map(nome => (
+              <div key={nome} onClick={() => adicionar(nome)}
+                style={{ padding:'8px 10px', fontSize:13, color:'#1A2340', cursor:'pointer', borderBottom:'1px solid #F0F4F8' }}
+                onMouseDown={e => e.preventDefault()}>
+                👤 {nome}
               </div>
+            )) : (
+              <div style={{ padding:'8px 10px', fontSize:12, color:'#9CA3AF' }}>Nenhum nome encontrado</div>
             )}
           </div>
-          <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', borderTop:'1px solid #F0F4F8', paddingTop:8, marginTop:8 }}>
-            <input type="checkbox" checked={terceirizado} onChange={e => onChangeTerceirizado(e.target.checked)} />
-            <span style={{ fontSize:13, color:'#1A2340', fontWeight:600 }}>Terceirizado</span>
-          </label>
-          {terceirizado && (
-            <input value={terceirizadoTexto} onChange={e => onChangeTerceirizadoTexto(e.target.value)}
-              placeholder="Nome da empresa/pessoa terceirizada"
-              style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginTop:8 }} />
-          )}
-        </div>
+        )}
+      </div>
+      <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginTop:8 }}>
+        <input type="checkbox" checked={terceirizado} onChange={e => onChangeTerceirizado(e.target.checked)} />
+        <span style={{ fontSize:13, color:'#1A2340', fontWeight:600 }}>Terceirizado</span>
+      </label>
+      {terceirizado && (
+        <input value={terceirizadoTexto} onChange={e => onChangeTerceirizadoTexto(e.target.value)}
+          placeholder="Nome da empresa/pessoa terceirizada"
+          style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginTop:8 }} />
       )}
     </div>
   )
