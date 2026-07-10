@@ -648,6 +648,7 @@ export default function App() {
   const [emNegociacao, setEmNegociacao] = useState(false)
   const [lembretes, setLembretes] = useState([])
   const [entregaveis, setEntregaveis] = useState([])
+  const [entregaveisNA, setEntregaveisNA] = useState([])
   const [entregaveisVistoria, setEntregaveisVistoria] = useState([])
   const [novoLembreteEtapa, setNovoLembreteEtapa] = useState('')
   const [novoLembreteTexto, setNovoLembreteTexto] = useState('')
@@ -805,6 +806,7 @@ export default function App() {
     campos.lembretes = lembretes.length > 0 ? lembretes : null
     if (TIPOS_ENTREGAVEIS.includes(modal.tipo)) {
       campos.entregaveis = entregaveis.length > 0 ? entregaveis : null
+      campos.entregaveis_na = entregaveisNA.length > 0 ? entregaveisNA : null
     }
     campos.entregaveis_vistoria = entregaveisVistoria.length > 0 ? entregaveisVistoria : null
     campos.data_vistoria = dataVistoria || null
@@ -1281,22 +1283,28 @@ export default function App() {
                   </div>
                   {TIPOS_ENTREGAVEIS.includes(obra.tipo) && (() => {
                     const lista = Array.isArray(obra.entregaveis) ? obra.entregaveis : []
+                    const na = Array.isArray(obra.entregaveis_na) ? obra.entregaveis_na : []
                     const feitos = lista.length
-                    const total = ENTREGAVEIS_BOOK.length
-                    const tudo = feitos === total
+                    const total = ENTREGAVEIS_BOOK.length - na.length
+                    const tudo = total === 0 || feitos === total
                     return (
                       <div style={{ padding:'0 14px 8px' }}>
                         <div style={{ fontSize:10, color: tudo ? '#065F46' : '#92400E', fontWeight:700, marginBottom:4 }}>
                           📋 Entregáveis: {feitos}/{total}{tudo ? ' — Completo ✓' : ''}
                         </div>
                         <div style={{ display:'flex', flexWrap:'wrap', gap:3 }}>
-                          {ENTREGAVEIS_BOOK.map(item => (
-                            <span key={item} style={{ fontSize:9, padding:'2px 6px', borderRadius:5,
-                              background: lista.includes(item) ? '#D1FAE5' : '#FEE2E2',
-                              color: lista.includes(item) ? '#065F46' : '#991B1B', fontWeight:600 }}>
-                              {lista.includes(item) ? '✓' : '○'} {item}
-                            </span>
-                          ))}
+                          {ENTREGAVEIS_BOOK.map(item => {
+                            const feito = lista.includes(item)
+                            const naoAplica = na.includes(item)
+                            return (
+                              <span key={item} style={{ fontSize:9, padding:'2px 6px', borderRadius:5,
+                                background: feito ? '#D1FAE5' : naoAplica ? '#F1F5F9' : '#FEE2E2',
+                                color: feito ? '#065F46' : naoAplica ? '#64748B' : '#991B1B', fontWeight:600,
+                                textDecoration: naoAplica ? 'line-through' : 'none' }}>
+                                {feito ? '✓' : naoAplica ? '–' : '○'} {item}
+                              </span>
+                            )
+                          })}
                         </div>
                       </div>
                     )
@@ -1392,6 +1400,7 @@ export default function App() {
                         setEmNegociacao(obra.em_negociacao || false)
                         setLembretes(Array.isArray(obra.lembretes) ? obra.lembretes : [])
                         setEntregaveis(Array.isArray(obra.entregaveis) ? obra.entregaveis : [])
+                        setEntregaveisNA(Array.isArray(obra.entregaveis_na) ? obra.entregaveis_na : [])
                         setEntregaveisVistoria(Array.isArray(obra.entregaveis_vistoria) ? obra.entregaveis_vistoria : [])
                         setNovoLembreteEtapa('')
                         setNovoLembreteTexto('')
@@ -1799,18 +1808,31 @@ export default function App() {
             {TIPOS_ENTREGAVEIS.includes(modal.tipo) && (
               <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:12, padding:14, marginBottom:16 }}>
                 <div style={{ fontSize:12, color:'#065F46', fontWeight:700, marginBottom:10 }}>
-                  📋 Entregáveis do Book ({entregaveis.length}/{ENTREGAVEIS_BOOK.length})
+                  📋 Entregáveis do Book ({entregaveis.length}/{ENTREGAVEIS_BOOK.length - entregaveisNA.length})
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                  {ENTREGAVEIS_BOOK.map(item => (
-                    <label key={item} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
-                      <input type="checkbox" checked={entregaveis.includes(item)}
-                        onChange={e => setEntregaveis(prev => e.target.checked ? [...prev, item] : prev.filter(i => i !== item))} />
-                      <span style={{ fontSize:13, color: entregaveis.includes(item) ? '#065F46' : '#1A2340', fontWeight: entregaveis.includes(item) ? 600 : 400 }}>
-                        {item}
-                      </span>
-                    </label>
-                  ))}
+                  {ENTREGAVEIS_BOOK.map(item => {
+                    const na = entregaveisNA.includes(item)
+                    const feito = entregaveis.includes(item)
+                    return (
+                      <div key={item} style={{ display:'flex', alignItems:'center', gap:8 }}>
+                        <label style={{ display:'flex', alignItems:'center', gap:8, cursor: na ? 'not-allowed' : 'pointer', flex:1, minWidth:0, opacity: na ? 0.5 : 1 }}>
+                          <input type="checkbox" checked={feito} disabled={na}
+                            onChange={e => setEntregaveis(prev => e.target.checked ? [...prev, item] : prev.filter(i => i !== item))} />
+                          <span style={{ fontSize:13, color: feito ? '#065F46' : '#1A2340', fontWeight: feito ? 600 : 400, textDecoration: na ? 'line-through' : 'none' }}>
+                            {item}
+                          </span>
+                        </label>
+                        <span onClick={() => {
+                          setEntregaveisNA(prev => na ? prev.filter(i => i !== item) : [...prev, item])
+                          if (!na) setEntregaveis(prev => prev.filter(i => i !== item))
+                        }}
+                          style={{ fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:6, cursor:'pointer', flexShrink:0, background: na ? '#E0E7FF' : '#F1F5F9', color: na ? '#3730A3' : '#64748B' }}>
+                          {na ? '↺ Aplica' : 'Não se aplica'}
+                        </span>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}
