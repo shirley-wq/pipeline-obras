@@ -141,6 +141,7 @@ const COLABORADORES = [
   'Daniela Leite Ferreira',
   'Edimar Venceslau Gomes',
   'Edkleber Felipe dos Santos',
+  'Fabio Esteves',
   'Fabio Henrique Fontes',
   'Flavio de Oliveira Santos',
   'Franciarley Freire Pereira Miranda',
