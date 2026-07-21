@@ -669,8 +669,8 @@ export default function App() {
   const [colabsObra, setColabsObra] = useState([])
   const [terceirizadoObra, setTerceirizadoObra] = useState(false)
   const [terceirizadoObraTexto, setTerceirizadoObraTexto] = useState('')
-  const [responsavelObra, setResponsavelObra] = useState('')
-  const [auxiliarObra, setAuxiliarObra] = useState('')
+  const [responsavelEscritorio, setResponsavelEscritorio] = useState('')
+  const [auxiliarEscritorio, setAuxiliarEscritorio] = useState('')
   const [selecionadas, setSelecionadas] = useState(new Set())
   const [modalBulk, setModalBulk] = useState(false)
   const [statusBulk, setStatusBulk] = useState('')
@@ -817,8 +817,8 @@ export default function App() {
     campos.data_obra_inicio = modal.tipo === 'TRANSF UN' ? (dataObraInicio || null) : (dataObra.inicio || null)
     const listaObra = [...colabsObra, ...(terceirizadoObra ? [TERCEIRIZADO_PREFIXO + (terceirizadoObraTexto.trim() || '(não informado)')] : [])]
     campos.colaboradores_obra = listaObra.length > 0 ? listaObra : null
-    campos.responsavel_obra = responsavelObra || null
-    campos.auxiliar_obra = auxiliarObra || null
+    campos.responsavel_escritorio = responsavelEscritorio || null
+    campos.auxiliar_escritorio = auxiliarEscritorio || null
     campos.data_cadastro = dataCadastroModal || modal.data_cadastro || null
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
     if (error) {
@@ -852,8 +852,8 @@ export default function App() {
     setColabsObra([])
     setTerceirizadoObra(false)
     setTerceirizadoObraTexto('')
-    setResponsavelObra('')
-    setAuxiliarObra('')
+    setResponsavelEscritorio('')
+    setAuxiliarEscritorio('')
   }
 
   async function marcarFaturado(id) {
@@ -1381,7 +1381,7 @@ export default function App() {
                         {obra.data_cadastro && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Entrada pipeline</div><div style={{ fontSize:12, color: alerta ? alerta.cor : '#1A2340', fontWeight:600 }}>{isoToBr(obra.data_cadastro)}{dias !== null ? ` · ${dias}d` : ''}</div>{obra.criado_por && <div style={{ fontSize:10, color:'#888' }}>por {obra.criado_por}</div>}</div>}
                         {obra.data_vistoria && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Vistoria</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:600 }}>{isoToBr(obra.data_vistoria)}</div>{Array.isArray(obra.colaboradores_vistoria) && obra.colaboradores_vistoria.length > 0 && <div style={{ fontSize:10, color:'#888' }}>{obra.colaboradores_vistoria.join(', ')}</div>}</div>}
                         {obra.data_obra_inicio && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Início da obra</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:600 }}>{isoToBr(obra.data_obra_inicio)}</div>{Array.isArray(obra.colaboradores_obra) && obra.colaboradores_obra.length > 0 && <div style={{ fontSize:10, color:'#888' }}>{obra.colaboradores_obra.join(', ')}</div>}</div>}
-                        {(obra.responsavel_obra || obra.auxiliar_obra) && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Acompanhamento no dia</div>{obra.responsavel_obra && <div style={{ fontSize:12, color:'#1A2340', fontWeight:600 }}>👤 {obra.responsavel_obra}</div>}{obra.auxiliar_obra && <div style={{ fontSize:10, color:'#888' }}>aux: {obra.auxiliar_obra}</div>}</div>}
+                        {(obra.responsavel_escritorio || obra.auxiliar_escritorio) && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Acompanhamento (escritório)</div>{obra.responsavel_escritorio && <div style={{ fontSize:12, color:'#1A2340', fontWeight:600 }}>👤 {obra.responsavel_escritorio}</div>}{obra.auxiliar_escritorio && <div style={{ fontSize:10, color:'#888' }}>aux: {obra.auxiliar_escritorio}</div>}</div>}
                         {obra.sige && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>SIGE</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.sige}</div></div>}
                         {obra.pedido && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Pedido</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.pedido}</div></div>}
                         {obra.nf && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>NF</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.nf}</div></div>}
@@ -1433,8 +1433,8 @@ export default function App() {
                         setColabsObra(listaObra.filter(c => !c.startsWith(TERCEIRIZADO_PREFIXO)))
                         setTerceirizadoObra(!!terceiroObra)
                         setTerceirizadoObraTexto(terceiroObra ? terceiroObra.slice(TERCEIRIZADO_PREFIXO.length) : '')
-                        setResponsavelObra(obra.responsavel_obra || '')
-                        setAuxiliarObra(obra.auxiliar_obra || '')
+                        setResponsavelEscritorio(obra.responsavel_escritorio || '')
+                        setAuxiliarEscritorio(obra.auxiliar_escritorio || '')
                       }}
                         style={{ flex:1, padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                         Atualizar status
@@ -1646,16 +1646,16 @@ export default function App() {
                   bloqueado={!vistoriaCompleta} mensagemBloqueio='Preencha a data da vistoria e quem foi antes de liberar esta etapa' />
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:10 }}>
                   <div>
-                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Responsável por acompanhar no dia</label>
-                    <select value={responsavelObra} onChange={e => setResponsavelObra(e.target.value)}
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Responsável do escritório</label>
+                    <select value={responsavelEscritorio} onChange={e => setResponsavelEscritorio(e.target.value)}
                       style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
                       <option value="">—</option>
                       {COLABORADORES.map(nome => <option key={nome} value={nome}>{nome}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Auxiliar</label>
-                    <select value={auxiliarObra} onChange={e => setAuxiliarObra(e.target.value)}
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Auxiliar do escritório</label>
+                    <select value={auxiliarEscritorio} onChange={e => setAuxiliarEscritorio(e.target.value)}
                       style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
                       <option value="">—</option>
                       {COLABORADORES.map(nome => <option key={nome} value={nome}>{nome}</option>)}
@@ -1810,16 +1810,16 @@ export default function App() {
                     bloqueado={!vistoriaCompleta} mensagemBloqueio='Preencha a data da vistoria e quem foi antes de liberar esta etapa' />
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:10 }}>
                     <div>
-                      <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Responsável por acompanhar no dia</label>
-                      <select value={responsavelObra} onChange={e => setResponsavelObra(e.target.value)}
+                      <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Responsável do escritório</label>
+                      <select value={responsavelEscritorio} onChange={e => setResponsavelEscritorio(e.target.value)}
                         style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
                         <option value="">—</option>
                         {COLABORADORES.map(nome => <option key={nome} value={nome}>{nome}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Auxiliar</label>
-                      <select value={auxiliarObra} onChange={e => setAuxiliarObra(e.target.value)}
+                      <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Auxiliar do escritório</label>
+                      <select value={auxiliarEscritorio} onChange={e => setAuxiliarEscritorio(e.target.value)}
                         style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
                         <option value="">—</option>
                         {COLABORADORES.map(nome => <option key={nome} value={nome}>{nome}</option>)}
