@@ -224,6 +224,13 @@ function brToIso(br) {
 const TIPOS_ADESIVO = ['PUXE','EMPURRE','DESLIZE','CADEIRANTE','FAIXA BOLINHA','FAIXA JATEADO']
 const ITENS_ESPECIAIS_UN = ['BALCÃO DE ENVELOPE','GUARDA VOLUMES','ESCADA DO SEGURANÇA']
 
+const TIPOS_CUSTO_TERCEIRIZADO = ['GESSO','PINTURA','VIDRO','OUTRO']
+const CATEGORIAS_DESPESA_PESSOAL = ['Hospedagem','Refeição','Deslocamento','Pedágio','Combustível','Desgaste de veículo']
+
+function somaValores(lista) {
+  return (Array.isArray(lista) ? lista : []).reduce((soma, item) => soma + (Number(item.valor) || 0), 0)
+}
+
 const BASES_GRUPOPG = [
   { nome: 'Contagem', label: 'Contagem — MG', endereco: 'Contagem, MG, Brasil', lat: -19.9317, lon: -44.0536 },
   { nome: 'Butantã', label: 'Butantã — SP', endereco: 'Butantã, São Paulo, SP, Brasil', lat: -23.5665, lon: -46.7172 },
@@ -672,6 +679,15 @@ export default function App() {
   const [terceirizadoObraTexto, setTerceirizadoObraTexto] = useState('')
   const [responsavelEscritorio, setResponsavelEscritorio] = useState('')
   const [auxiliarEscritorio, setAuxiliarEscritorio] = useState('')
+  const [custosTerceirizados, setCustosTerceirizados] = useState([])
+  const [novoCustoTipo, setNovoCustoTipo] = useState('GESSO')
+  const [novoCustoValor, setNovoCustoValor] = useState('')
+  const [novoCustoObs, setNovoCustoObs] = useState('')
+  const [despesasPessoal, setDespesasPessoal] = useState([])
+  const [novaDespesaData, setNovaDespesaData] = useState('')
+  const [novaDespesaCategoria, setNovaDespesaCategoria] = useState('Hospedagem')
+  const [novaDespesaValor, setNovaDespesaValor] = useState('')
+  const [novaDespesaObs, setNovaDespesaObs] = useState('')
   const [selecionadas, setSelecionadas] = useState(new Set())
   const [modalBulk, setModalBulk] = useState(false)
   const [statusBulk, setStatusBulk] = useState('')
@@ -820,6 +836,8 @@ export default function App() {
     campos.colaboradores_obra = listaObra.length > 0 ? listaObra : null
     campos.responsavel_escritorio = responsavelEscritorio || null
     campos.auxiliar_escritorio = auxiliarEscritorio || null
+    campos.custos_terceirizados = custosTerceirizados.length > 0 ? custosTerceirizados : null
+    campos.despesas_pessoal = despesasPessoal.length > 0 ? despesasPessoal : null
     campos.data_cadastro = dataCadastroModal || modal.data_cadastro || null
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
     if (error) {
@@ -855,6 +873,15 @@ export default function App() {
     setTerceirizadoObraTexto('')
     setResponsavelEscritorio('')
     setAuxiliarEscritorio('')
+    setCustosTerceirizados([])
+    setNovoCustoTipo('GESSO')
+    setNovoCustoValor('')
+    setNovoCustoObs('')
+    setDespesasPessoal([])
+    setNovaDespesaData('')
+    setNovaDespesaCategoria('Hospedagem')
+    setNovaDespesaValor('')
+    setNovaDespesaObs('')
   }
 
   async function marcarFaturado(id) {
@@ -1383,6 +1410,7 @@ export default function App() {
                         {obra.data_vistoria && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Vistoria</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:600 }}>{isoToBr(obra.data_vistoria)}</div>{Array.isArray(obra.colaboradores_vistoria) && obra.colaboradores_vistoria.length > 0 && <div style={{ fontSize:10, color:'#888' }}>{obra.colaboradores_vistoria.join(', ')}</div>}</div>}
                         {obra.data_obra_inicio && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Início da obra</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:600 }}>{isoToBr(obra.data_obra_inicio)}</div>{Array.isArray(obra.colaboradores_obra) && obra.colaboradores_obra.length > 0 && <div style={{ fontSize:10, color:'#888' }}>{obra.colaboradores_obra.join(', ')}</div>}</div>}
                         {(obra.responsavel_escritorio || obra.auxiliar_escritorio) && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Acompanhamento (escritório)</div>{obra.responsavel_escritorio && <div style={{ fontSize:12, color:'#1A2340', fontWeight:600 }}>👤 {obra.responsavel_escritorio}</div>}{obra.auxiliar_escritorio && <div style={{ fontSize:10, color:'#888' }}>aux: {obra.auxiliar_escritorio}</div>}</div>}
+                        {(Array.isArray(obra.custos_terceirizados) && obra.custos_terceirizados.length > 0 || Array.isArray(obra.despesas_pessoal) && obra.despesas_pessoal.length > 0) && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Custos lançados</div><div style={{ fontSize:12, color:'#9A3412', fontWeight:600 }}>{fmt(somaValores(obra.custos_terceirizados) + somaValores(obra.despesas_pessoal))}</div></div>}
                         {obra.sige && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>SIGE</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.sige}</div></div>}
                         {obra.pedido && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Pedido</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.pedido}</div></div>}
                         {obra.nf && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>NF</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.nf}</div></div>}
@@ -1436,6 +1464,15 @@ export default function App() {
                         setTerceirizadoObraTexto(terceiroObra ? terceiroObra.slice(TERCEIRIZADO_PREFIXO.length) : '')
                         setResponsavelEscritorio(obra.responsavel_escritorio || '')
                         setAuxiliarEscritorio(obra.auxiliar_escritorio || '')
+                        setCustosTerceirizados(Array.isArray(obra.custos_terceirizados) ? obra.custos_terceirizados : [])
+                        setNovoCustoTipo('GESSO')
+                        setNovoCustoValor('')
+                        setNovoCustoObs('')
+                        setDespesasPessoal(Array.isArray(obra.despesas_pessoal) ? obra.despesas_pessoal : [])
+                        setNovaDespesaData('')
+                        setNovaDespesaCategoria('Hospedagem')
+                        setNovaDespesaValor('')
+                        setNovaDespesaObs('')
                       }}
                         style={{ flex:1, padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                         Atualizar status
@@ -1849,6 +1886,84 @@ export default function App() {
                 onChange={e => setDataCadastroModal(e.target.value)}
                 style={{ width:'100%', padding:'8px 10px', border:'1px solid #BFDBFE', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
               <div style={{ fontSize:10, color:'#64748B', marginTop:5 }}>Quando esta demanda entrou no pipeline (usada para calcular dias parado)</div>
+            </div>
+
+            <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:12, padding:14, marginBottom:16 }}>
+              <div style={{ fontSize:12, color:'#9A3412', fontWeight:700, marginBottom:10 }}>
+                💰 Custos terceirizados {custosTerceirizados.length > 0 ? `— ${fmt(somaValores(custosTerceirizados))}` : ''}
+              </div>
+              {custosTerceirizados.length > 0 && (
+                <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:8 }}>
+                  {custosTerceirizados.map((c, idx) => (
+                    <div key={idx} style={{ display:'flex', alignItems:'center', gap:6, background:'#fff', border:'1px solid #FED7AA', borderRadius:8, padding:'5px 10px' }}>
+                      <span style={{ fontSize:12, color:'#9A3412', flex:1 }}>{c.tipo}{c.obs ? ` — ${c.obs}` : ''}</span>
+                      <span style={{ fontSize:12, color:'#9A3412', fontWeight:700 }}>{fmt(c.valor)}</span>
+                      <span onClick={() => setCustosTerceirizados(prev => prev.filter((_, i) => i !== idx))}
+                        style={{ fontSize:13, color:'#EF4444', cursor:'pointer', fontWeight:700, padding:'0 4px' }}>✕</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                <select value={novoCustoTipo} onChange={e => setNovoCustoTipo(e.target.value)}
+                  style={{ padding:'7px 8px', border:'1px solid #FED7AA', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                  {TIPOS_CUSTO_TERCEIRIZADO.map(t => <option key={t}>{t}</option>)}
+                </select>
+                <input value={novoCustoObs} onChange={e => setNovoCustoObs(e.target.value)}
+                  placeholder="Fornecedor / obs (opcional)"
+                  style={{ flex:1, minWidth:120, padding:'7px 10px', border:'1px solid #FED7AA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                <input type="number" value={novoCustoValor} onChange={e => setNovoCustoValor(e.target.value)}
+                  placeholder="Valor"
+                  style={{ width:100, padding:'7px 10px', border:'1px solid #FED7AA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                <button onClick={() => {
+                  if (!novoCustoValor.trim()) return
+                  setCustosTerceirizados(prev => [...prev, { tipo: novoCustoTipo, valor: Number(novoCustoValor), obs: novoCustoObs.trim() }])
+                  setNovoCustoValor(''); setNovoCustoObs('')
+                }} style={{ padding:'7px 14px', background:'#C2410C', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  + Adicionar
+                </button>
+              </div>
+            </div>
+
+            <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:12, padding:14, marginBottom:16 }}>
+              <div style={{ fontSize:12, color:'#991B1B', fontWeight:700, marginBottom:10 }}>
+                🧳 Despesas de pessoal {despesasPessoal.length > 0 ? `— ${fmt(somaValores(despesasPessoal))}` : ''}
+              </div>
+              {despesasPessoal.length > 0 && (
+                <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:8 }}>
+                  {despesasPessoal.map((d, idx) => (
+                    <div key={idx} style={{ display:'flex', alignItems:'center', gap:6, background:'#fff', border:'1px solid #FECACA', borderRadius:8, padding:'5px 10px' }}>
+                      <span style={{ fontSize:12, color:'#991B1B', flex:1 }}>
+                        {d.data ? isoToBr(d.data) + ' — ' : ''}{d.categoria}{d.obs ? ` (${d.obs})` : ''}
+                      </span>
+                      <span style={{ fontSize:12, color:'#991B1B', fontWeight:700 }}>{fmt(d.valor)}</span>
+                      <span onClick={() => setDespesasPessoal(prev => prev.filter((_, i) => i !== idx))}
+                        style={{ fontSize:13, color:'#EF4444', cursor:'pointer', fontWeight:700, padding:'0 4px' }}>✕</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                <input type="date" value={novaDespesaData} onChange={e => setNovaDespesaData(e.target.value)}
+                  style={{ padding:'7px 8px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340' }} />
+                <select value={novaDespesaCategoria} onChange={e => setNovaDespesaCategoria(e.target.value)}
+                  style={{ padding:'7px 8px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                  {CATEGORIAS_DESPESA_PESSOAL.map(c => <option key={c}>{c}</option>)}
+                </select>
+                <input value={novaDespesaObs} onChange={e => setNovaDespesaObs(e.target.value)}
+                  placeholder="Obs (opcional)"
+                  style={{ flex:1, minWidth:100, padding:'7px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                <input type="number" value={novaDespesaValor} onChange={e => setNovaDespesaValor(e.target.value)}
+                  placeholder="Valor"
+                  style={{ width:100, padding:'7px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                <button onClick={() => {
+                  if (!novaDespesaValor.trim()) return
+                  setDespesasPessoal(prev => [...prev, { data: novaDespesaData || null, categoria: novaDespesaCategoria, valor: Number(novaDespesaValor), obs: novaDespesaObs.trim() }])
+                  setNovaDespesaData(''); setNovaDespesaValor(''); setNovaDespesaObs('')
+                }} style={{ padding:'7px 14px', background:'#B91C1C', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  + Adicionar
+                </button>
+              </div>
             </div>
 
             {TIPOS_ENTREGAVEIS.includes(modal.tipo) && (
