@@ -327,7 +327,8 @@ function listaPendenciasRH(c, perfisLogin) {
   if (!c.ferias_periodo_atual) pendencias.push('Sem período de férias de referência')
 
   mesesPendentes(c.ponto_assinado_meses, 2026).forEach(m => pendencias.push(`Ponto ${mesLabel(m)} não assinado`))
-  mesesPendentes(c.holerite_assinado_meses, 2026).forEach(m => pendencias.push(`Holerite ${mesLabel(m)} não assinado`))
+  mesesPendentes(c.holerite_adiantamento_meses, 2026).forEach(m => pendencias.push(`Holerite adiantamento ${mesLabel(m)} não assinado`))
+  mesesPendentes(c.holerite_pagamento_meses, 2026).forEach(m => pendencias.push(`Holerite pagamento ${mesLabel(m)} não assinado`))
 
   return pendencias
 }
@@ -720,7 +721,8 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
   const statusNr35 = interpretaStatusDoc(c.nr35, NR_VALIDADE_ANOS.nr35, precisa)
   const statusNr12 = interpretaStatusDoc(c.nr12, NR_VALIDADE_ANOS.nr12, precisa)
   const pontoPendentes = mesesPendentes(c.ponto_assinado_meses, 2026)
-  const holeritePendentes = mesesPendentes(c.holerite_assinado_meses, 2026)
+  const holeriteAdiantPendentes = mesesPendentes(c.holerite_adiantamento_meses, 2026)
+  const holeritePagtoPendentes = mesesPendentes(c.holerite_pagamento_meses, 2026)
 
   const listaPendencias = listaPendenciasRH(c, perfisLogin)
   const pendencias = listaPendencias.length
@@ -1004,19 +1006,42 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
             </div>
             <div>
               <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>
-                Holerite assinado — 2026 {holeritePendentes.length > 0 ? <span style={{ color:'#991B1B' }}>({holeritePendentes.length} mês(es) pendente(s))</span> : <span style={{ color:'#065F46' }}>(em dia)</span>}
-                {holeritePendentes.length > 0 && (
-                  <span onClick={() => onUpdate({ holerite_assinado_meses: mesesDoAnoAteAgora(2026) })}
+                Holerite adiantamento — 2026 {holeriteAdiantPendentes.length > 0 ? <span style={{ color:'#991B1B' }}>({holeriteAdiantPendentes.length} mês(es) pendente(s))</span> : <span style={{ color:'#065F46' }}>(em dia)</span>}
+                {holeriteAdiantPendentes.length > 0 && (
+                  <span onClick={() => onUpdate({ holerite_adiantamento_meses: mesesDoAnoAteAgora(2026) })}
                     style={{ marginLeft:8, color:'#2D3A8C', cursor:'pointer', textTransform:'none', fontWeight:700 }}>marcar todos até agora</span>
                 )}
               </label>
               <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
                 {mesesDoAnoAteAgora(2026).map(m => {
-                  const confirmado = Array.isArray(c.holerite_assinado_meses) && c.holerite_assinado_meses.includes(m)
+                  const confirmado = Array.isArray(c.holerite_adiantamento_meses) && c.holerite_adiantamento_meses.includes(m)
                   return (
                     <span key={m} onClick={() => {
-                      const lista = Array.isArray(c.holerite_assinado_meses) ? c.holerite_assinado_meses : []
-                      onUpdate({ holerite_assinado_meses: confirmado ? lista.filter(x => x !== m) : [...lista, m] })
+                      const lista = Array.isArray(c.holerite_adiantamento_meses) ? c.holerite_adiantamento_meses : []
+                      onUpdate({ holerite_adiantamento_meses: confirmado ? lista.filter(x => x !== m) : [...lista, m] })
+                    }} title={confirmado ? 'Clique para desmarcar' : 'Clique para marcar como assinado'}
+                      style={{ cursor:'pointer', fontSize:10.5, fontWeight:700, padding:'4px 8px', borderRadius:6, background: confirmado ? '#D1FAE5' : '#FEE2E2', color: confirmado ? '#065F46' : '#991B1B' }}>
+                      {mesLabel(m).split('/')[0]} {confirmado ? '✓' : '✕'}
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>
+                Holerite pagamento — 2026 {holeritePagtoPendentes.length > 0 ? <span style={{ color:'#991B1B' }}>({holeritePagtoPendentes.length} mês(es) pendente(s))</span> : <span style={{ color:'#065F46' }}>(em dia)</span>}
+                {holeritePagtoPendentes.length > 0 && (
+                  <span onClick={() => onUpdate({ holerite_pagamento_meses: mesesDoAnoAteAgora(2026) })}
+                    style={{ marginLeft:8, color:'#2D3A8C', cursor:'pointer', textTransform:'none', fontWeight:700 }}>marcar todos até agora</span>
+                )}
+              </label>
+              <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+                {mesesDoAnoAteAgora(2026).map(m => {
+                  const confirmado = Array.isArray(c.holerite_pagamento_meses) && c.holerite_pagamento_meses.includes(m)
+                  return (
+                    <span key={m} onClick={() => {
+                      const lista = Array.isArray(c.holerite_pagamento_meses) ? c.holerite_pagamento_meses : []
+                      onUpdate({ holerite_pagamento_meses: confirmado ? lista.filter(x => x !== m) : [...lista, m] })
                     }} title={confirmado ? 'Clique para desmarcar' : 'Clique para marcar como assinado'}
                       style={{ cursor:'pointer', fontSize:10.5, fontWeight:700, padding:'4px 8px', borderRadius:6, background: confirmado ? '#D1FAE5' : '#FEE2E2', color: confirmado ? '#065F46' : '#991B1B' }}>
                       {mesLabel(m).split('/')[0]} {confirmado ? '✓' : '✕'}
@@ -1838,7 +1863,8 @@ export default function App() {
               { label:'NR12', status:interpretaStatusDoc(meuRH.nr12, NR_VALIDADE_ANOS.nr12, true) },
             ]
             const pontoPendentes = mesesPendentes(meuRH.ponto_assinado_meses, 2026)
-            const holeritePendentes = mesesPendentes(meuRH.holerite_assinado_meses, 2026)
+            const holeriteAdiantPendentes = mesesPendentes(meuRH.holerite_adiantamento_meses, 2026)
+            const holeritePagtoPendentes = mesesPendentes(meuRH.holerite_pagamento_meses, 2026)
             const epis = Array.isArray(meuRH.epis) ? meuRH.epis : []
             return (
               <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
@@ -1875,9 +1901,15 @@ export default function App() {
                       </span>
                     </div>
                     <div>
-                      <div style={{ fontSize:10, color:'#888', textTransform:'uppercase' }}>Holerite assinado (2026)</div>
-                      <span style={{ fontSize:12, fontWeight:700, padding:'4px 8px', borderRadius:6, background: holeritePendentes.length === 0 ? '#D1FAE5' : '#FEE2E2', color: holeritePendentes.length === 0 ? '#065F46' : '#991B1B' }}>
-                        {holeritePendentes.length === 0 ? 'Em dia' : `${holeritePendentes.length} mês(es) pendente(s): ${holeritePendentes.map(mesLabel).join(', ')}`}
+                      <div style={{ fontSize:10, color:'#888', textTransform:'uppercase' }}>Holerite adiantamento (2026)</div>
+                      <span style={{ fontSize:12, fontWeight:700, padding:'4px 8px', borderRadius:6, background: holeriteAdiantPendentes.length === 0 ? '#D1FAE5' : '#FEE2E2', color: holeriteAdiantPendentes.length === 0 ? '#065F46' : '#991B1B' }}>
+                        {holeriteAdiantPendentes.length === 0 ? 'Em dia' : `${holeriteAdiantPendentes.length} mês(es) pendente(s): ${holeriteAdiantPendentes.map(mesLabel).join(', ')}`}
+                      </span>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10, color:'#888', textTransform:'uppercase' }}>Holerite pagamento (2026)</div>
+                      <span style={{ fontSize:12, fontWeight:700, padding:'4px 8px', borderRadius:6, background: holeritePagtoPendentes.length === 0 ? '#D1FAE5' : '#FEE2E2', color: holeritePagtoPendentes.length === 0 ? '#065F46' : '#991B1B' }}>
+                        {holeritePagtoPendentes.length === 0 ? 'Em dia' : `${holeritePagtoPendentes.length} mês(es) pendente(s): ${holeritePagtoPendentes.map(mesLabel).join(', ')}`}
                       </span>
                     </div>
                   </div>
