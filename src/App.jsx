@@ -242,9 +242,42 @@ function statusVencimento(iso) {
   const hoje = new Date().toISOString().slice(0, 10)
   const em30dias = new Date(); em30dias.setDate(em30dias.getDate() + 30)
   const em30isoStr = em30dias.toISOString().slice(0, 10)
-  if (iso < hoje) return { cor:'#991B1B', bg:'#FEE2E2', label:'Vencido' }
-  if (iso <= em30isoStr) return { cor:'#92400E', bg:'#FEF3C7', label:'Vence em breve' }
-  return { cor:'#065F46', bg:'#D1FAE5', label:'Em dia' }
+  if (iso < hoje) return { cor:'#991B1B', bg:'#FEE2E2', label:'Vencido', pendencia:true }
+  if (iso <= em30isoStr) return { cor:'#92400E', bg:'#FEF3C7', label:'Vence em breve', pendencia:false }
+  return { cor:'#065F46', bg:'#D1FAE5', label:'Em dia', pendencia:false }
+}
+
+function interpretaStatusDoc(valor) {
+  if (!valor) return { cor:'#64748B', bg:'#F1F5F9', label:'Não informado', pendencia:false }
+  const v = String(valor).trim().toUpperCase()
+  if (v === 'NÃO TEM' || v === 'NAO TEM') return { cor:'#991B1B', bg:'#FEE2E2', label:'Não tem', pendencia:true }
+  if (v === 'FAZENDO CURSO') return { cor:'#92400E', bg:'#FEF3C7', label:'Fazendo curso', pendencia:false }
+  if (v === 'SEM PRAZO' || v === 'NÃO FAZ' || v === 'NAO FAZ') return { cor:'#065F46', bg:'#D1FAE5', label: v === 'SEM PRAZO' ? 'Sem prazo' : 'Não faz', pendencia:false }
+  if (v === '****' || v === 'PENDENTE') return { cor:'#64748B', bg:'#F1F5F9', label:'Não informado', pendencia:false }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return statusVencimento(v)
+  return { cor:'#64748B', bg:'#F1F5F9', label:valor, pendencia:false }
+}
+
+function mesAtualIso() {
+  return new Date().toISOString().slice(0, 7)
+}
+
+function mesLabel(iso) {
+  if (!iso) return null
+  const [y, m] = iso.split('-')
+  const nomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+  return `${nomes[Number(m) - 1]}/${y}`
+}
+
+function contarPendenciasRH(c) {
+  const mesAtual = mesAtualIso()
+  const statusAso = statusVencimento(somaAnos(c.data_aso, 1))
+  const statusCnh = statusVencimento(c.data_vencimento_cnh)
+  const statusNrs = [c.nr6, c.nr10, c.nr33, c.nr35, c.nr12].map(interpretaStatusDoc)
+  const pontoEmDia = c.ponto_assinado_mes === mesAtual
+  const holeriteEmDia = c.holerite_assinado_mes === mesAtual
+  return [statusAso, statusCnh, ...statusNrs].filter(s => s && s.pendencia).length
+    + (pontoEmDia ? 0 : 1) + (holeriteEmDia ? 0 : 1)
 }
 
 const TIPOS_ADESIVO = ['PUXE','EMPURRE','DESLIZE','CADEIRANTE','FAIXA BOLINHA','FAIXA JATEADO']
@@ -624,6 +657,19 @@ function ColaboradorRHRow({ c, onUpdate, onRemove }) {
   const uniformes = Array.isArray(c.uniformes) ? c.uniformes : []
   const epis = Array.isArray(c.epis) ? c.epis : []
 
+  const mesAtual = mesAtualIso()
+  const statusNr6 = interpretaStatusDoc(c.nr6)
+  const statusNr10 = interpretaStatusDoc(c.nr10)
+  const statusNr33 = interpretaStatusDoc(c.nr33)
+  const statusNr35 = interpretaStatusDoc(c.nr35)
+  const statusNr12 = interpretaStatusDoc(c.nr12)
+  const pontoEmDia = c.ponto_assinado_mes === mesAtual
+  const holeriteEmDia = c.holerite_assinado_mes === mesAtual
+
+  const pendencias = [statusAso, statusCnh, statusNr6, statusNr10, statusNr33, statusNr35, statusNr12]
+    .filter(s => s && s.pendencia).length
+    + (pontoEmDia ? 0 : 1) + (holeriteEmDia ? 0 : 1)
+
   return (
     <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, marginBottom:8, padding:'10px 14px' }}>
       <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:8 }}>
@@ -649,6 +695,9 @@ function ColaboradorRHRow({ c, onUpdate, onRemove }) {
           <input type="checkbox" checked={c.ativo !== false} onChange={e => onUpdate({ ativo: e.target.checked })} />
           Ativo
         </label>
+        {pendencias > 0
+          ? <span style={{ fontSize:11, fontWeight:700, padding:'4px 9px', borderRadius:20, background:'#FEE2E2', color:'#991B1B' }}>⚠ {pendencias} pendência{pendencias>1?'s':''}</span>
+          : <span style={{ fontSize:11, fontWeight:700, padding:'4px 9px', borderRadius:20, background:'#D1FAE5', color:'#065F46' }}>✓ Em dia</span>}
         <button onClick={() => setExpandido(v => !v)}
           style={{ padding:'5px 10px', background: expandido ? '#EDE9FE' : '#F1F5F9', border:'1px solid #E0E8F0', borderRadius:6, fontSize:11, fontWeight:600, color:'#5B21B6', cursor:'pointer' }}>
           {expandido ? '▲ Menos detalhes' : '▼ Mais detalhes'}
@@ -681,6 +730,7 @@ function ColaboradorRHRow({ c, onUpdate, onRemove }) {
           {vencimentoAso
             ? <div style={{ fontSize:11, fontWeight:700, padding:'4px 8px', borderRadius:6, background:statusAso.bg, color:statusAso.cor, display:'inline-block' }}>{isoToBr(vencimentoAso)} · {statusAso.label}</div>
             : <div style={{ fontSize:12, color:'#888', padding:'6px 0' }}>—</div>}
+          {c.aso_vencimento_mes && <div style={{ fontSize:10, color:'#888', marginTop:2 }}>Ref. RH: {c.aso_vencimento_mes}</div>}
         </div>
         <div>
           <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Vencimento CNH</label>
@@ -817,6 +867,57 @@ function ColaboradorRHRow({ c, onUpdate, onRemove }) {
                 onUpdate({ epis: [...epis, { item: novoEpiItem.trim(), data: novoEpiData || null, validade: novoEpiValidade || null }] })
                 setNovoEpiItem(''); setNovoEpiData(''); setNovoEpiValidade('')
               }} style={{ padding:'6px 12px', background:'#B45309', color:'#fff', border:'none', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer' }}>+ Adicionar</button>
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>NRs (certificações de segurança)</label>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+              {[
+                { label:'NR6', campo:'nr6', status:statusNr6 },
+                { label:'NR10', campo:'nr10', status:statusNr10 },
+                { label:'NR33', campo:'nr33', status:statusNr33 },
+                { label:'NR35', campo:'nr35', status:statusNr35 },
+                { label:'NR12', campo:'nr12', status:statusNr12 },
+              ].map(nr => (
+                <div key={nr.campo} style={{ display:'flex', flexDirection:'column', gap:3 }}>
+                  <span style={{ fontSize:10, color:'#888', fontWeight:600 }}>{nr.label}</span>
+                  <input value={c[nr.campo] || ''} onBlur={e => e.target.value !== (c[nr.campo]||'') && onUpdate({ [nr.campo]: e.target.value || null })}
+                    placeholder="data ou status" style={{ width:110, padding:'5px 6px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:11, color:'#1A2340' }} />
+                  <span style={{ fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:5, background:nr.status.bg, color:nr.status.cor, textAlign:'center' }}>{nr.status.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
+            <div>
+              <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>Cartão de ponto assinado</label>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <span style={{ fontSize:11, fontWeight:700, padding:'4px 8px', borderRadius:6, background: pontoEmDia ? '#D1FAE5' : '#FEE2E2', color: pontoEmDia ? '#065F46' : '#991B1B' }}>
+                  {c.ponto_assinado_mes ? mesLabel(c.ponto_assinado_mes) : 'Nunca'} {pontoEmDia ? '· Em dia' : '· Pendente'}
+                </span>
+                {!pontoEmDia && (
+                  <button onClick={() => onUpdate({ ponto_assinado_mes: mesAtual })}
+                    style={{ padding:'4px 10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:6, fontSize:10, fontWeight:700, cursor:'pointer' }}>
+                    Marcar assinado ({mesLabel(mesAtual)})
+                  </button>
+                )}
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>Holerite assinado</label>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <span style={{ fontSize:11, fontWeight:700, padding:'4px 8px', borderRadius:6, background: holeriteEmDia ? '#D1FAE5' : '#FEE2E2', color: holeriteEmDia ? '#065F46' : '#991B1B' }}>
+                  {c.holerite_assinado_mes ? mesLabel(c.holerite_assinado_mes) : 'Nunca'} {holeriteEmDia ? '· Em dia' : '· Pendente'}
+                </span>
+                {!holeriteEmDia && (
+                  <button onClick={() => onUpdate({ holerite_assinado_mes: mesAtual })}
+                    style={{ padding:'4px 10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:6, fontSize:10, fontWeight:700, cursor:'pointer' }}>
+                    Marcar assinado ({mesLabel(mesAtual)})
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1538,10 +1639,16 @@ export default function App() {
       )}
 
       {/* ====== ABA: RH ====== */}
-      {aba === 'rh' && (papel === 'admin' || papel === 'rh') && (
+      {aba === 'rh' && (papel === 'admin' || papel === 'rh' || papel === 'financeiro') && (
         <div style={{ padding:12 }}>
-          <div style={{ fontSize:11, color:'#5B21B6', fontWeight:700, marginBottom:10, padding:'8px 12px', background:'#EDE9FE', borderRadius:8 }}>
-            {rhColaboradores.length} colaborador(es) cadastrado(s)
+          <div style={{ fontSize:11, color:'#5B21B6', fontWeight:700, marginBottom:10, padding:'8px 12px', background:'#EDE9FE', borderRadius:8, display:'flex', gap:16, flexWrap:'wrap', alignItems:'center' }}>
+            <span>{rhColaboradores.length} colaborador(es) cadastrado(s)</span>
+            {(() => {
+              const comPendencia = rhColaboradores.filter(c => contarPendenciasRH(c) > 0).length
+              return comPendencia > 0
+                ? <span style={{ color:'#991B1B' }}>⚠ {comPendencia} com documentação pendente</span>
+                : <span style={{ color:'#065F46' }}>✓ Todos em dia</span>
+            })()}
           </div>
 
           <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:12 }}>
