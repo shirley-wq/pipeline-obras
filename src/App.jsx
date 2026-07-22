@@ -247,14 +247,29 @@ function statusVencimento(iso) {
   return { cor:'#065F46', bg:'#D1FAE5', label:'Em dia', pendencia:false }
 }
 
-function interpretaStatusDoc(valor) {
+const NR_VALIDADE_ANOS = { nr6: null, nr10: 2, nr33: 1, nr35: 2, nr12: null }
+const NR_CAMPOS = [['NR6','nr6'],['NR10','nr10'],['NR33','nr33'],['NR35','nr35'],['NR12','nr12']]
+
+function precisaNR(email, perfisLogin) {
+  if (!email) return true
+  const p = (perfisLogin || []).find(x => x.email === email)
+  return !p || p.papel === 'operacional'
+}
+
+function interpretaStatusDoc(valor, anosValidade, precisa) {
+  if (precisa === false) return { cor:'#64748B', bg:'#F1F5F9', label:'Não se aplica', pendencia:false }
   if (!valor) return { cor:'#64748B', bg:'#F1F5F9', label:'Não informado', pendencia:true }
   const v = String(valor).trim().toUpperCase()
   if (v === 'NÃO TEM' || v === 'NAO TEM') return { cor:'#991B1B', bg:'#FEE2E2', label:'Não tem', pendencia:true }
   if (v === 'FAZENDO CURSO') return { cor:'#92400E', bg:'#FEF3C7', label:'Fazendo curso', pendencia:false }
   if (v === 'SEM PRAZO' || v === 'NÃO FAZ' || v === 'NAO FAZ') return { cor:'#065F46', bg:'#D1FAE5', label: v === 'SEM PRAZO' ? 'Sem prazo' : 'Não faz', pendencia:false }
   if (v === '****' || v === 'PENDENTE') return { cor:'#64748B', bg:'#F1F5F9', label:'Não informado', pendencia:true }
-  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return statusVencimento(v)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    if (anosValidade == null) return { cor:'#065F46', bg:'#D1FAE5', label:`Feito em ${isoToBr(v)} (sem validade)`, pendencia:false }
+    const venc = somaAnos(v, anosValidade)
+    const st = statusVencimento(venc)
+    return { ...st, label:`${isoToBr(venc)} · ${st.label}` }
+  }
   return { cor:'#64748B', bg:'#F1F5F9', label:valor, pendencia:false }
 }
 
@@ -269,8 +284,22 @@ function mesLabel(iso) {
   return `${nomes[Number(m) - 1]}/${y}`
 }
 
-function listaPendenciasRH(c) {
+function mesesDoAnoAteAgora(ano) {
   const mesAtual = mesAtualIso()
+  const meses = []
+  for (let m = 1; m <= 12; m++) {
+    const iso = `${ano}-${String(m).padStart(2,'0')}`
+    if (iso <= mesAtual) meses.push(iso)
+  }
+  return meses
+}
+
+function mesesPendentes(confirmados, ano) {
+  const lista = Array.isArray(confirmados) ? confirmados : []
+  return mesesDoAnoAteAgora(ano).filter(m => !lista.includes(m))
+}
+
+function listaPendenciasRH(c, perfisLogin) {
   const pendencias = []
 
   if (!c.data_aso) {
@@ -287,20 +316,24 @@ function listaPendenciasRH(c) {
     if (st.pendencia) pendencias.push(`CNH vencida (${isoToBr(c.data_vencimento_cnh)})`)
   }
 
-  ;[['NR6','nr6'],['NR10','nr10'],['NR33','nr33'],['NR35','nr35'],['NR12','nr12']].forEach(([label, campo]) => {
-    const st = interpretaStatusDoc(c[campo])
-    if (st.pendencia) pendencias.push(`${label}: ${st.label.toLowerCase()}`)
-  })
+  const precisa = precisaNR(c.email, perfisLogin)
+  if (precisa) {
+    NR_CAMPOS.forEach(([label, campo]) => {
+      const st = interpretaStatusDoc(c[campo], NR_VALIDADE_ANOS[campo], true)
+      if (st.pendencia) pendencias.push(`${label}: ${st.label.toLowerCase()}`)
+    })
+  }
 
   if (!c.ferias_periodo_atual) pendencias.push('Sem período de férias de referência')
-  if (c.ponto_assinado_mes !== mesAtual) pendencias.push('Ponto não assinado este mês')
-  if (c.holerite_assinado_mes !== mesAtual) pendencias.push('Holerite não assinado este mês')
+
+  mesesPendentes(c.ponto_assinado_meses, 2026).forEach(m => pendencias.push(`Ponto ${mesLabel(m)} não assinado`))
+  mesesPendentes(c.holerite_assinado_meses, 2026).forEach(m => pendencias.push(`Holerite ${mesLabel(m)} não assinado`))
 
   return pendencias
 }
 
-function contarPendenciasRH(c) {
-  return listaPendenciasRH(c).length
+function contarPendenciasRH(c, perfisLogin) {
+  return listaPendenciasRH(c, perfisLogin).length
 }
 
 const TIPOS_ADESIVO = ['PUXE','EMPURRE','DESLIZE','CADEIRANTE','FAIXA BOLINHA','FAIXA JATEADO']
@@ -662,7 +695,7 @@ function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizad
   )
 }
 
-function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin }) {
+function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
   const [expandido, setExpandido] = useState(false)
   const [novaIdadeFilho, setNovaIdadeFilho] = useState('')
   const [novoUniformeItem, setNovoUniformeItem] = useState('')
@@ -680,16 +713,16 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin }) {
   const uniformes = Array.isArray(c.uniformes) ? c.uniformes : []
   const epis = Array.isArray(c.epis) ? c.epis : []
 
-  const mesAtual = mesAtualIso()
-  const statusNr6 = interpretaStatusDoc(c.nr6)
-  const statusNr10 = interpretaStatusDoc(c.nr10)
-  const statusNr33 = interpretaStatusDoc(c.nr33)
-  const statusNr35 = interpretaStatusDoc(c.nr35)
-  const statusNr12 = interpretaStatusDoc(c.nr12)
-  const pontoEmDia = c.ponto_assinado_mes === mesAtual
-  const holeriteEmDia = c.holerite_assinado_mes === mesAtual
+  const precisa = precisaNR(c.email, perfisLogin)
+  const statusNr6 = interpretaStatusDoc(c.nr6, NR_VALIDADE_ANOS.nr6, precisa)
+  const statusNr10 = interpretaStatusDoc(c.nr10, NR_VALIDADE_ANOS.nr10, precisa)
+  const statusNr33 = interpretaStatusDoc(c.nr33, NR_VALIDADE_ANOS.nr33, precisa)
+  const statusNr35 = interpretaStatusDoc(c.nr35, NR_VALIDADE_ANOS.nr35, precisa)
+  const statusNr12 = interpretaStatusDoc(c.nr12, NR_VALIDADE_ANOS.nr12, precisa)
+  const pontoPendentes = mesesPendentes(c.ponto_assinado_meses, 2026)
+  const holeritePendentes = mesesPendentes(c.holerite_assinado_meses, 2026)
 
-  const listaPendencias = listaPendenciasRH(c)
+  const listaPendencias = listaPendenciasRH(c, perfisLogin)
   const pendencias = listaPendencias.length
 
   return (
@@ -925,33 +958,51 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin }) {
             </div>
           </div>
 
-          <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             <div>
-              <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>Cartão de ponto assinado</label>
-              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                <span style={{ fontSize:11, fontWeight:700, padding:'4px 8px', borderRadius:6, background: pontoEmDia ? '#D1FAE5' : '#FEE2E2', color: pontoEmDia ? '#065F46' : '#991B1B' }}>
-                  {c.ponto_assinado_mes ? mesLabel(c.ponto_assinado_mes) : 'Nunca'} {pontoEmDia ? '· Em dia' : '· Pendente'}
-                </span>
-                {!pontoEmDia && (
-                  <button onClick={() => onUpdate({ ponto_assinado_mes: mesAtual })}
-                    style={{ padding:'4px 10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:6, fontSize:10, fontWeight:700, cursor:'pointer' }}>
-                    Marcar assinado ({mesLabel(mesAtual)})
-                  </button>
+              <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>
+                Cartão de ponto assinado — 2026 {pontoPendentes.length > 0 ? <span style={{ color:'#991B1B' }}>({pontoPendentes.length} mês(es) pendente(s))</span> : <span style={{ color:'#065F46' }}>(em dia)</span>}
+                {pontoPendentes.length > 0 && (
+                  <span onClick={() => onUpdate({ ponto_assinado_meses: mesesDoAnoAteAgora(2026) })}
+                    style={{ marginLeft:8, color:'#2D3A8C', cursor:'pointer', textTransform:'none', fontWeight:700 }}>marcar todos até agora</span>
                 )}
+              </label>
+              <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+                {mesesDoAnoAteAgora(2026).map(m => {
+                  const confirmado = Array.isArray(c.ponto_assinado_meses) && c.ponto_assinado_meses.includes(m)
+                  return (
+                    <span key={m} onClick={() => {
+                      const lista = Array.isArray(c.ponto_assinado_meses) ? c.ponto_assinado_meses : []
+                      onUpdate({ ponto_assinado_meses: confirmado ? lista.filter(x => x !== m) : [...lista, m] })
+                    }} title={confirmado ? 'Clique para desmarcar' : 'Clique para marcar como assinado'}
+                      style={{ cursor:'pointer', fontSize:10.5, fontWeight:700, padding:'4px 8px', borderRadius:6, background: confirmado ? '#D1FAE5' : '#FEE2E2', color: confirmado ? '#065F46' : '#991B1B' }}>
+                      {mesLabel(m).split('/')[0]} {confirmado ? '✓' : '✕'}
+                    </span>
+                  )
+                })}
               </div>
             </div>
             <div>
-              <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>Holerite assinado</label>
-              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                <span style={{ fontSize:11, fontWeight:700, padding:'4px 8px', borderRadius:6, background: holeriteEmDia ? '#D1FAE5' : '#FEE2E2', color: holeriteEmDia ? '#065F46' : '#991B1B' }}>
-                  {c.holerite_assinado_mes ? mesLabel(c.holerite_assinado_mes) : 'Nunca'} {holeriteEmDia ? '· Em dia' : '· Pendente'}
-                </span>
-                {!holeriteEmDia && (
-                  <button onClick={() => onUpdate({ holerite_assinado_mes: mesAtual })}
-                    style={{ padding:'4px 10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:6, fontSize:10, fontWeight:700, cursor:'pointer' }}>
-                    Marcar assinado ({mesLabel(mesAtual)})
-                  </button>
+              <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>
+                Holerite assinado — 2026 {holeritePendentes.length > 0 ? <span style={{ color:'#991B1B' }}>({holeritePendentes.length} mês(es) pendente(s))</span> : <span style={{ color:'#065F46' }}>(em dia)</span>}
+                {holeritePendentes.length > 0 && (
+                  <span onClick={() => onUpdate({ holerite_assinado_meses: mesesDoAnoAteAgora(2026) })}
+                    style={{ marginLeft:8, color:'#2D3A8C', cursor:'pointer', textTransform:'none', fontWeight:700 }}>marcar todos até agora</span>
                 )}
+              </label>
+              <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+                {mesesDoAnoAteAgora(2026).map(m => {
+                  const confirmado = Array.isArray(c.holerite_assinado_meses) && c.holerite_assinado_meses.includes(m)
+                  return (
+                    <span key={m} onClick={() => {
+                      const lista = Array.isArray(c.holerite_assinado_meses) ? c.holerite_assinado_meses : []
+                      onUpdate({ holerite_assinado_meses: confirmado ? lista.filter(x => x !== m) : [...lista, m] })
+                    }} title={confirmado ? 'Clique para desmarcar' : 'Clique para marcar como assinado'}
+                      style={{ cursor:'pointer', fontSize:10.5, fontWeight:700, padding:'4px 8px', borderRadius:6, background: confirmado ? '#D1FAE5' : '#FEE2E2', color: confirmado ? '#065F46' : '#991B1B' }}>
+                      {mesLabel(m).split('/')[0]} {confirmado ? '✓' : '✕'}
+                    </span>
+                  )
+                })}
               </div>
             </div>
           </div>
@@ -1095,6 +1146,7 @@ export default function App() {
   const [filtroHistAte, setFiltroHistAte] = useState('')
   const [rhColaboradores, setRhColaboradores] = useState([])
   const [emailsLogin, setEmailsLogin] = useState([])
+  const [perfisLogin, setPerfisLogin] = useState([])
   const [meuRH, setMeuRH] = useState(null)
   const [carregandoMeuRH, setCarregandoMeuRH] = useState(false)
   const [novoRhNomeCompleto, setNovoRhNomeCompleto] = useState('')
@@ -1136,8 +1188,9 @@ export default function App() {
   }
 
   async function carregarEmailsLogin() {
-    const { data } = await supabase.from('perfis_usuarios').select('email').order('email')
+    const { data } = await supabase.from('perfis_usuarios').select('email, papel').order('email')
     setEmailsLogin((data || []).map(d => d.email))
+    setPerfisLogin(data || [])
   }
 
   async function carregarMeuRH() {
@@ -1706,7 +1759,7 @@ export default function App() {
           <div style={{ fontSize:11, color:'#5B21B6', fontWeight:700, marginBottom:10, padding:'8px 12px', background:'#EDE9FE', borderRadius:8, display:'flex', gap:16, flexWrap:'wrap', alignItems:'center' }}>
             <span>{rhColaboradores.length} colaborador(es) cadastrado(s)</span>
             {(() => {
-              const comPendencia = rhColaboradores.filter(c => contarPendenciasRH(c) > 0).length
+              const comPendencia = rhColaboradores.filter(c => contarPendenciasRH(c, perfisLogin) > 0).length
               return comPendencia > 0
                 ? <span style={{ color:'#991B1B' }}>⚠ {comPendencia} com documentação pendente</span>
                 : <span style={{ color:'#065F46' }}>✓ Todos em dia</span>
@@ -1736,7 +1789,7 @@ export default function App() {
           </div>
 
           {rhColaboradores.map(c => (
-            <ColaboradorRHRow key={c.id} c={c} emailsLogin={emailsLogin}
+            <ColaboradorRHRow key={c.id} c={c} emailsLogin={emailsLogin} perfisLogin={perfisLogin}
               onUpdate={campos => atualizarRH(c.id, campos)}
               onRemove={() => removerRH(c.id)} />
           ))}
@@ -1758,15 +1811,14 @@ export default function App() {
             const statusCnh = statusVencimento(meuRH.data_vencimento_cnh)
             const previsaoFerias = proximaFeriasEstimativa(meuRH.data_admissao)
             const nrs = [
-              { label:'NR6', status:interpretaStatusDoc(meuRH.nr6) },
-              { label:'NR10', status:interpretaStatusDoc(meuRH.nr10) },
-              { label:'NR33', status:interpretaStatusDoc(meuRH.nr33) },
-              { label:'NR35', status:interpretaStatusDoc(meuRH.nr35) },
-              { label:'NR12', status:interpretaStatusDoc(meuRH.nr12) },
+              { label:'NR6', status:interpretaStatusDoc(meuRH.nr6, NR_VALIDADE_ANOS.nr6, true) },
+              { label:'NR10', status:interpretaStatusDoc(meuRH.nr10, NR_VALIDADE_ANOS.nr10, true) },
+              { label:'NR33', status:interpretaStatusDoc(meuRH.nr33, NR_VALIDADE_ANOS.nr33, true) },
+              { label:'NR35', status:interpretaStatusDoc(meuRH.nr35, NR_VALIDADE_ANOS.nr35, true) },
+              { label:'NR12', status:interpretaStatusDoc(meuRH.nr12, NR_VALIDADE_ANOS.nr12, true) },
             ]
-            const mesAtual = mesAtualIso()
-            const pontoEmDia = meuRH.ponto_assinado_mes === mesAtual
-            const holeriteEmDia = meuRH.holerite_assinado_mes === mesAtual
+            const pontoPendentes = mesesPendentes(meuRH.ponto_assinado_meses, 2026)
+            const holeritePendentes = mesesPendentes(meuRH.holerite_assinado_meses, 2026)
             const epis = Array.isArray(meuRH.epis) ? meuRH.epis : []
             return (
               <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
@@ -1797,15 +1849,15 @@ export default function App() {
                       <span style={{ fontSize:12, fontWeight:600, color:'#1A2340' }}>{previsaoFerias ? isoToBr(previsaoFerias) : '—'}</span>
                     </div>
                     <div>
-                      <div style={{ fontSize:10, color:'#888', textTransform:'uppercase' }}>Ponto assinado</div>
-                      <span style={{ fontSize:12, fontWeight:700, padding:'4px 8px', borderRadius:6, background: pontoEmDia ? '#D1FAE5' : '#FEE2E2', color: pontoEmDia ? '#065F46' : '#991B1B' }}>
-                        {meuRH.ponto_assinado_mes ? mesLabel(meuRH.ponto_assinado_mes) : 'Nunca'} {pontoEmDia ? '· Em dia' : '· Pendente'}
+                      <div style={{ fontSize:10, color:'#888', textTransform:'uppercase' }}>Ponto assinado (2026)</div>
+                      <span style={{ fontSize:12, fontWeight:700, padding:'4px 8px', borderRadius:6, background: pontoPendentes.length === 0 ? '#D1FAE5' : '#FEE2E2', color: pontoPendentes.length === 0 ? '#065F46' : '#991B1B' }}>
+                        {pontoPendentes.length === 0 ? 'Em dia' : `${pontoPendentes.length} mês(es) pendente(s): ${pontoPendentes.map(mesLabel).join(', ')}`}
                       </span>
                     </div>
                     <div>
-                      <div style={{ fontSize:10, color:'#888', textTransform:'uppercase' }}>Holerite assinado</div>
-                      <span style={{ fontSize:12, fontWeight:700, padding:'4px 8px', borderRadius:6, background: holeriteEmDia ? '#D1FAE5' : '#FEE2E2', color: holeriteEmDia ? '#065F46' : '#991B1B' }}>
-                        {meuRH.holerite_assinado_mes ? mesLabel(meuRH.holerite_assinado_mes) : 'Nunca'} {holeriteEmDia ? '· Em dia' : '· Pendente'}
+                      <div style={{ fontSize:10, color:'#888', textTransform:'uppercase' }}>Holerite assinado (2026)</div>
+                      <span style={{ fontSize:12, fontWeight:700, padding:'4px 8px', borderRadius:6, background: holeritePendentes.length === 0 ? '#D1FAE5' : '#FEE2E2', color: holeritePendentes.length === 0 ? '#065F46' : '#991B1B' }}>
+                        {holeritePendentes.length === 0 ? 'Em dia' : `${holeritePendentes.length} mês(es) pendente(s): ${holeritePendentes.map(mesLabel).join(', ')}`}
                       </span>
                     </div>
                   </div>
