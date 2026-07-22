@@ -939,23 +939,43 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
           </div>
 
           <div>
-            <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>NRs (certificações de segurança)</label>
-            <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-              {[
-                { label:'NR6', campo:'nr6', status:statusNr6 },
-                { label:'NR10', campo:'nr10', status:statusNr10 },
-                { label:'NR33', campo:'nr33', status:statusNr33 },
-                { label:'NR35', campo:'nr35', status:statusNr35 },
-                { label:'NR12', campo:'nr12', status:statusNr12 },
-              ].map(nr => (
-                <div key={nr.campo} style={{ display:'flex', flexDirection:'column', gap:3 }}>
-                  <span style={{ fontSize:10, color:'#888', fontWeight:600 }}>{nr.label}</span>
-                  <input value={c[nr.campo] || ''} onBlur={e => e.target.value !== (c[nr.campo]||'') && onUpdate({ [nr.campo]: e.target.value || null })}
-                    placeholder="data ou status" style={{ width:110, padding:'5px 6px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:11, color:'#1A2340' }} />
-                  <span style={{ fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:5, background:nr.status.bg, color:nr.status.cor, textAlign:'center' }}>{nr.status.label}</span>
-                </div>
-              ))}
-            </div>
+            <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>
+              NRs (certificações de segurança) {!precisa && <span style={{ textTransform:'none', color:'#64748B' }}>— não se aplica (papel de login não é operacional)</span>}
+            </label>
+            {precisa && (
+              <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+                {[
+                  { label:'NR6', campo:'nr6', status:statusNr6 },
+                  { label:'NR10', campo:'nr10', status:statusNr10 },
+                  { label:'NR33', campo:'nr33', status:statusNr33 },
+                  { label:'NR35', campo:'nr35', status:statusNr35 },
+                  { label:'NR12', campo:'nr12', status:statusNr12 },
+                ].map(nr => {
+                  const valor = c[nr.campo]
+                  const ehData = valor && /^\d{4}-\d{2}-\d{2}$/.test(valor)
+                  return (
+                    <div key={nr.campo} style={{ display:'flex', flexDirection:'column', gap:3 }}>
+                      <span style={{ fontSize:10, color:'#888', fontWeight:600 }}>{nr.label}</span>
+                      <select value={!ehData ? (valor || '') : ''} disabled={ehData}
+                        onChange={e => onUpdate({ [nr.campo]: e.target.value || null })}
+                        style={{ width:118, padding:'4px 4px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:10.5, color:'#1A2340', background: ehData ? '#F1F5F9' : '#fff' }}>
+                        <option value="">— sem info —</option>
+                        <option value="NÃO TEM">Não tem</option>
+                        <option value="FAZENDO CURSO">Fazendo curso</option>
+                        <option value="SEM PRAZO">Sem prazo</option>
+                        <option value="NÃO FAZ">Não faz</option>
+                      </select>
+                      <div style={{ display:'flex', gap:3, alignItems:'center' }}>
+                        <input type="date" value={ehData ? valor : ''} onChange={e => onUpdate({ [nr.campo]: e.target.value || null })}
+                          style={{ width:98, padding:'4px 4px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:10.5, color:'#1A2340' }} />
+                        {ehData && <span onClick={() => onUpdate({ [nr.campo]: null })} style={{ fontSize:12, color:'#EF4444', cursor:'pointer', fontWeight:700 }}>✕</span>}
+                      </div>
+                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:5, background:nr.status.bg, color:nr.status.cor, textAlign:'center' }}>{nr.status.label}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
