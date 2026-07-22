@@ -248,12 +248,12 @@ function statusVencimento(iso) {
 }
 
 function interpretaStatusDoc(valor) {
-  if (!valor) return { cor:'#64748B', bg:'#F1F5F9', label:'Não informado', pendencia:false }
+  if (!valor) return { cor:'#64748B', bg:'#F1F5F9', label:'Não informado', pendencia:true }
   const v = String(valor).trim().toUpperCase()
   if (v === 'NÃO TEM' || v === 'NAO TEM') return { cor:'#991B1B', bg:'#FEE2E2', label:'Não tem', pendencia:true }
   if (v === 'FAZENDO CURSO') return { cor:'#92400E', bg:'#FEF3C7', label:'Fazendo curso', pendencia:false }
   if (v === 'SEM PRAZO' || v === 'NÃO FAZ' || v === 'NAO FAZ') return { cor:'#065F46', bg:'#D1FAE5', label: v === 'SEM PRAZO' ? 'Sem prazo' : 'Não faz', pendencia:false }
-  if (v === '****' || v === 'PENDENTE') return { cor:'#64748B', bg:'#F1F5F9', label:'Não informado', pendencia:false }
+  if (v === '****' || v === 'PENDENTE') return { cor:'#64748B', bg:'#F1F5F9', label:'Não informado', pendencia:true }
   if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return statusVencimento(v)
   return { cor:'#64748B', bg:'#F1F5F9', label:valor, pendencia:false }
 }
@@ -269,15 +269,38 @@ function mesLabel(iso) {
   return `${nomes[Number(m) - 1]}/${y}`
 }
 
-function contarPendenciasRH(c) {
+function listaPendenciasRH(c) {
   const mesAtual = mesAtualIso()
-  const statusAso = statusVencimento(somaAnos(c.data_aso, 1))
-  const statusCnh = statusVencimento(c.data_vencimento_cnh)
-  const statusNrs = [c.nr6, c.nr10, c.nr33, c.nr35, c.nr12].map(interpretaStatusDoc)
-  const pontoEmDia = c.ponto_assinado_mes === mesAtual
-  const holeriteEmDia = c.holerite_assinado_mes === mesAtual
-  return [statusAso, statusCnh, ...statusNrs].filter(s => s && s.pendencia).length
-    + (pontoEmDia ? 0 : 1) + (holeriteEmDia ? 0 : 1)
+  const pendencias = []
+
+  if (!c.data_aso) {
+    pendencias.push('ASO: sem exame registrado')
+  } else {
+    const st = statusVencimento(somaAnos(c.data_aso, 1))
+    if (st.pendencia) pendencias.push(`ASO vencido (${isoToBr(somaAnos(c.data_aso, 1))})`)
+  }
+
+  if (!c.data_vencimento_cnh) {
+    pendencias.push('CNH: sem registro')
+  } else {
+    const st = statusVencimento(c.data_vencimento_cnh)
+    if (st.pendencia) pendencias.push(`CNH vencida (${isoToBr(c.data_vencimento_cnh)})`)
+  }
+
+  ;[['NR6','nr6'],['NR10','nr10'],['NR33','nr33'],['NR35','nr35'],['NR12','nr12']].forEach(([label, campo]) => {
+    const st = interpretaStatusDoc(c[campo])
+    if (st.pendencia) pendencias.push(`${label}: ${st.label.toLowerCase()}`)
+  })
+
+  if (!c.ferias_periodo_atual) pendencias.push('Sem período de férias de referência')
+  if (c.ponto_assinado_mes !== mesAtual) pendencias.push('Ponto não assinado este mês')
+  if (c.holerite_assinado_mes !== mesAtual) pendencias.push('Holerite não assinado este mês')
+
+  return pendencias
+}
+
+function contarPendenciasRH(c) {
+  return listaPendenciasRH(c).length
 }
 
 const TIPOS_ADESIVO = ['PUXE','EMPURRE','DESLIZE','CADEIRANTE','FAIXA BOLINHA','FAIXA JATEADO']
@@ -666,9 +689,8 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin }) {
   const pontoEmDia = c.ponto_assinado_mes === mesAtual
   const holeriteEmDia = c.holerite_assinado_mes === mesAtual
 
-  const pendencias = [statusAso, statusCnh, statusNr6, statusNr10, statusNr33, statusNr35, statusNr12]
-    .filter(s => s && s.pendencia).length
-    + (pontoEmDia ? 0 : 1) + (holeriteEmDia ? 0 : 1)
+  const listaPendencias = listaPendenciasRH(c)
+  const pendencias = listaPendencias.length
 
   return (
     <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, marginBottom:8, padding:'10px 14px' }}>
@@ -701,7 +723,7 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin }) {
           Ativo
         </label>
         {pendencias > 0
-          ? <span style={{ fontSize:11, fontWeight:700, padding:'4px 9px', borderRadius:20, background:'#FEE2E2', color:'#991B1B' }}>⚠ {pendencias} pendência{pendencias>1?'s':''}</span>
+          ? <span title={listaPendencias.join(' · ')} style={{ fontSize:11, fontWeight:700, padding:'4px 9px', borderRadius:20, background:'#FEE2E2', color:'#991B1B', cursor:'help' }}>⚠ {pendencias} pendência{pendencias>1?'s':''}</span>
           : <span style={{ fontSize:11, fontWeight:700, padding:'4px 9px', borderRadius:20, background:'#D1FAE5', color:'#065F46' }}>✓ Em dia</span>}
         <button onClick={() => setExpandido(v => !v)}
           style={{ padding:'5px 10px', background: expandido ? '#EDE9FE' : '#F1F5F9', border:'1px solid #E0E8F0', borderRadius:6, fontSize:11, fontWeight:600, color:'#5B21B6', cursor:'pointer' }}>
@@ -709,6 +731,14 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin }) {
         </button>
         <span onClick={onRemove} style={{ fontSize:13, color:'#EF4444', cursor:'pointer', fontWeight:700, padding:'0 4px' }}>✕</span>
       </div>
+
+      {pendencias > 0 && (
+        <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:8 }}>
+          {listaPendencias.map((p, idx) => (
+            <span key={idx} style={{ fontSize:10.5, fontWeight:600, padding:'3px 8px', borderRadius:6, background:'#FEE2E2', color:'#991B1B' }}>{p}</span>
+          ))}
+        </div>
+      )}
 
       <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'flex-end', paddingTop:8, borderTop:'1px solid #F1F5F9' }}>
         <div>
