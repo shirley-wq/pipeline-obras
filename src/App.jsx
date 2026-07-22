@@ -226,6 +226,8 @@ const ITENS_ESPECIAIS_UN = ['BALCÃO DE ENVELOPE','GUARDA VOLUMES','ESCADA DO SE
 
 const TIPOS_CUSTO_TERCEIRIZADO = ['GESSO','PINTURA','VIDRO','OUTRO']
 const CATEGORIAS_DESPESA_PESSOAL = ['Hospedagem','Refeição','Deslocamento','Pedágio','Combustível','Desgaste de veículo']
+const CONSUMO_MEDIO_KM_L = 12
+const PRECO_MEDIO_LITRO = 4.00
 
 function somaValores(lista) {
   return (Array.isArray(lista) ? lista : []).reduce((soma, item) => soma + (Number(item.valor) || 0), 0)
@@ -688,6 +690,7 @@ export default function App() {
   const [novaDespesaCategoria, setNovaDespesaCategoria] = useState('Hospedagem')
   const [novaDespesaValor, setNovaDespesaValor] = useState('')
   const [novaDespesaObs, setNovaDespesaObs] = useState('')
+  const [novaDespesaKm, setNovaDespesaKm] = useState('')
   const [selecionadas, setSelecionadas] = useState(new Set())
   const [modalBulk, setModalBulk] = useState(false)
   const [statusBulk, setStatusBulk] = useState('')
@@ -882,6 +885,7 @@ export default function App() {
     setNovaDespesaCategoria('Hospedagem')
     setNovaDespesaValor('')
     setNovaDespesaObs('')
+    setNovaDespesaKm('')
   }
 
   async function marcarFaturado(id) {
@@ -1473,6 +1477,7 @@ export default function App() {
                         setNovaDespesaCategoria('Hospedagem')
                         setNovaDespesaValor('')
                         setNovaDespesaObs('')
+                        setNovaDespesaKm('')
                       }}
                         style={{ flex:1, padding:'10px', background:'#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                         Atualizar status
@@ -1934,7 +1939,7 @@ export default function App() {
                   {despesasPessoal.map((d, idx) => (
                     <div key={idx} style={{ display:'flex', alignItems:'center', gap:6, background:'#fff', border:'1px solid #FECACA', borderRadius:8, padding:'5px 10px' }}>
                       <span style={{ fontSize:12, color:'#991B1B', flex:1 }}>
-                        {d.data ? isoToBr(d.data) + ' — ' : ''}{d.categoria}{d.obs ? ` (${d.obs})` : ''}
+                        {d.data ? isoToBr(d.data) + ' — ' : ''}{d.categoria}{d.km ? ` (${d.km} km)` : ''}{d.obs ? ` — ${d.obs}` : ''}
                       </span>
                       <span style={{ fontSize:12, color:'#991B1B', fontWeight:700 }}>{fmt(d.valor)}</span>
                       <span onClick={() => setDespesasPessoal(prev => prev.filter((_, i) => i !== idx))}
@@ -1943,7 +1948,7 @@ export default function App() {
                   ))}
                 </div>
               )}
-              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
                 <input type="date" value={novaDespesaData} onChange={e => setNovaDespesaData(e.target.value)}
                   style={{ padding:'7px 8px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340' }} />
                 <select value={novaDespesaCategoria} onChange={e => setNovaDespesaCategoria(e.target.value)}
@@ -1953,16 +1958,35 @@ export default function App() {
                 <input value={novaDespesaObs} onChange={e => setNovaDespesaObs(e.target.value)}
                   placeholder="Obs (opcional)"
                   style={{ flex:1, minWidth:100, padding:'7px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-                <input type="number" value={novaDespesaValor} onChange={e => setNovaDespesaValor(e.target.value)}
-                  placeholder="Valor"
-                  style={{ width:100, padding:'7px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                {novaDespesaCategoria === 'Combustível' ? (
+                  <>
+                    <input type="number" value={novaDespesaKm} onChange={e => setNovaDespesaKm(e.target.value)}
+                      placeholder="Km ida e volta"
+                      style={{ width:110, padding:'7px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                    <span style={{ fontSize:11, color:'#991B1B', fontWeight:600, whiteSpace:'nowrap' }}>
+                      ≈ {fmt((Number(novaDespesaKm) || 0) / CONSUMO_MEDIO_KM_L * PRECO_MEDIO_LITRO)}
+                    </span>
+                  </>
+                ) : (
+                  <input type="number" value={novaDespesaValor} onChange={e => setNovaDespesaValor(e.target.value)}
+                    placeholder="Valor"
+                    style={{ width:100, padding:'7px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                )}
                 <button onClick={() => {
-                  if (!novaDespesaValor.trim()) return
-                  setDespesasPessoal(prev => [...prev, { data: novaDespesaData || null, categoria: novaDespesaCategoria, valor: Number(novaDespesaValor), obs: novaDespesaObs.trim() }])
-                  setNovaDespesaData(''); setNovaDespesaValor(''); setNovaDespesaObs('')
+                  const isCombustivel = novaDespesaCategoria === 'Combustível'
+                  if (isCombustivel && !novaDespesaKm.trim()) return
+                  if (!isCombustivel && !novaDespesaValor.trim()) return
+                  const valor = isCombustivel
+                    ? Math.round((Number(novaDespesaKm) / CONSUMO_MEDIO_KM_L * PRECO_MEDIO_LITRO) * 100) / 100
+                    : Number(novaDespesaValor)
+                  setDespesasPessoal(prev => [...prev, { data: novaDespesaData || null, categoria: novaDespesaCategoria, valor, km: isCombustivel ? Number(novaDespesaKm) : null, obs: novaDespesaObs.trim() }])
+                  setNovaDespesaData(''); setNovaDespesaValor(''); setNovaDespesaObs(''); setNovaDespesaKm('')
                 }} style={{ padding:'7px 14px', background:'#B91C1C', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
                   + Adicionar
                 </button>
+              </div>
+              <div style={{ fontSize:10, color:'#B45309', marginTop:6 }}>
+                Combustível é estimado com consumo médio de {CONSUMO_MEDIO_KM_L} km/L e preço médio de {fmt(PRECO_MEDIO_LITRO)}/L
               </div>
             </div>
 
