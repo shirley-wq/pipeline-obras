@@ -221,6 +221,32 @@ function brToIso(br) {
   return `${y}-${m}-${d}`
 }
 
+function somaAnos(iso, anos) {
+  if (!iso) return null
+  const d = new Date(iso + 'T12:00:00')
+  d.setFullYear(d.getFullYear() + anos)
+  return d.toISOString().slice(0, 10)
+}
+
+function proximaFeriasEstimativa(dataAdmissao) {
+  if (!dataAdmissao) return null
+  const hoje = new Date()
+  const d = new Date(dataAdmissao + 'T12:00:00')
+  d.setFullYear(hoje.getFullYear())
+  if (d < hoje) d.setFullYear(hoje.getFullYear() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
+function statusVencimento(iso) {
+  if (!iso) return null
+  const hoje = new Date().toISOString().slice(0, 10)
+  const em30dias = new Date(); em30dias.setDate(em30dias.getDate() + 30)
+  const em30isoStr = em30dias.toISOString().slice(0, 10)
+  if (iso < hoje) return { cor:'#991B1B', bg:'#FEE2E2', label:'Vencido' }
+  if (iso <= em30isoStr) return { cor:'#92400E', bg:'#FEF3C7', label:'Vence em breve' }
+  return { cor:'#065F46', bg:'#D1FAE5', label:'Em dia' }
+}
+
 const TIPOS_ADESIVO = ['PUXE','EMPURRE','DESLIZE','CADEIRANTE','FAIXA BOLINHA','FAIXA JATEADO']
 const ITENS_ESPECIAIS_UN = ['BALCÃO DE ENVELOPE','GUARDA VOLUMES','ESCADA DO SEGURANÇA']
 
@@ -1320,33 +1346,74 @@ export default function App() {
             </div>
           </div>
 
-          {rhColaboradores.map(c => (
-            <div key={c.id} style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, marginBottom:8, padding:'10px 14px', display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
-              <input defaultValue={`${c.nome}${c.sobrenome ? ' ' + c.sobrenome : ''}`} onBlur={e => {
-                const nomeCompleto = e.target.value.trim()
-                const atual = `${c.nome}${c.sobrenome ? ' ' + c.sobrenome : ''}`
-                if (nomeCompleto && nomeCompleto !== atual) {
-                  const partes = nomeCompleto.split(/\s+/)
-                  atualizarRH(c.id, { nome: partes[0], sobrenome: partes.slice(1).join(' ') || null })
-                }
-              }} style={{ flex:2, minWidth:180, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', fontWeight:600, boxSizing:'border-box' }} />
-              <select value={c.base_cadastrado || ''} onChange={e => atualizarRH(c.id, { base_cadastrado: e.target.value || null })}
-                style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', background:'#fff' }}>
-                <option value="">Base cadastrado —</option>
-                {BASES_GRUPOPG.map(b => <option key={b.nome} value={b.nome}>{b.label}</option>)}
-              </select>
-              <select value={c.base_atua || ''} onChange={e => atualizarRH(c.id, { base_atua: e.target.value || null })}
-                style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', background:'#fff' }}>
-                <option value="">Base onde atua —</option>
-                {BASES_GRUPOPG.map(b => <option key={b.nome} value={b.nome}>{b.label}</option>)}
-              </select>
-              <label style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'#64748B', cursor:'pointer' }}>
-                <input type="checkbox" checked={c.ativo !== false} onChange={e => atualizarRH(c.id, { ativo: e.target.checked })} />
-                Ativo
-              </label>
-              <span onClick={() => removerRH(c.id)} style={{ fontSize:13, color:'#EF4444', cursor:'pointer', fontWeight:700, padding:'0 4px' }}>✕</span>
+          {rhColaboradores.map(c => {
+            const vencimentoAso = somaAnos(c.data_aso, 1)
+            const statusAso = statusVencimento(vencimentoAso)
+            const statusCnh = statusVencimento(c.data_vencimento_cnh)
+            const previsaoFerias = proximaFeriasEstimativa(c.data_admissao)
+            return (
+            <div key={c.id} style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, marginBottom:8, padding:'10px 14px' }}>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:8 }}>
+                <input defaultValue={`${c.nome}${c.sobrenome ? ' ' + c.sobrenome : ''}`} onBlur={e => {
+                  const nomeCompleto = e.target.value.trim()
+                  const atual = `${c.nome}${c.sobrenome ? ' ' + c.sobrenome : ''}`
+                  if (nomeCompleto && nomeCompleto !== atual) {
+                    const partes = nomeCompleto.split(/\s+/)
+                    atualizarRH(c.id, { nome: partes[0], sobrenome: partes.slice(1).join(' ') || null })
+                  }
+                }} style={{ flex:2, minWidth:180, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', fontWeight:600, boxSizing:'border-box' }} />
+                <select value={c.base_cadastrado || ''} onChange={e => atualizarRH(c.id, { base_cadastrado: e.target.value || null })}
+                  style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                  <option value="">Base cadastrado —</option>
+                  {BASES_GRUPOPG.map(b => <option key={b.nome} value={b.nome}>{b.label}</option>)}
+                </select>
+                <select value={c.base_atua || ''} onChange={e => atualizarRH(c.id, { base_atua: e.target.value || null })}
+                  style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                  <option value="">Base onde atua —</option>
+                  {BASES_GRUPOPG.map(b => <option key={b.nome} value={b.nome}>{b.label}</option>)}
+                </select>
+                <label style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'#64748B', cursor:'pointer' }}>
+                  <input type="checkbox" checked={c.ativo !== false} onChange={e => atualizarRH(c.id, { ativo: e.target.checked })} />
+                  Ativo
+                </label>
+                <span onClick={() => removerRH(c.id)} style={{ fontSize:13, color:'#EF4444', cursor:'pointer', fontWeight:700, padding:'0 4px' }}>✕</span>
+              </div>
+              <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'flex-end', paddingTop:8, borderTop:'1px solid #F1F5F9' }}>
+                <div>
+                  <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Admissão</label>
+                  <input type="date" value={c.data_admissao || ''} onChange={e => atualizarRH(c.id, { data_admissao: e.target.value || null })}
+                    style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Próximas férias (estimativa)</label>
+                  <div style={{ fontSize:12, color:'#1A2340', fontWeight:600, padding:'6px 0' }}>{previsaoFerias ? isoToBr(previsaoFerias) : '—'}</div>
+                </div>
+                <div style={{ flex:1, minWidth:160 }}>
+                  <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Período de férias (planilha/ref.)</label>
+                  <input defaultValue={c.ferias_periodo_atual || ''} onBlur={e => e.target.value !== (c.ferias_periodo_atual||'') && atualizarRH(c.id, { ferias_periodo_atual: e.target.value || null })}
+                    style={{ width:'100%', padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Último ASO</label>
+                  <input type="date" value={c.data_aso || ''} onChange={e => atualizarRH(c.id, { data_aso: e.target.value || null })}
+                    style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Vencimento ASO (+1 ano)</label>
+                  {vencimentoAso
+                    ? <div style={{ fontSize:11, fontWeight:700, padding:'4px 8px', borderRadius:6, background:statusAso.bg, color:statusAso.cor, display:'inline-block' }}>{isoToBr(vencimentoAso)} · {statusAso.label}</div>
+                    : <div style={{ fontSize:12, color:'#888', padding:'6px 0' }}>—</div>}
+                </div>
+                <div>
+                  <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Vencimento CNH</label>
+                  <input type="date" value={c.data_vencimento_cnh || ''} onChange={e => atualizarRH(c.id, { data_vencimento_cnh: e.target.value || null })}
+                    style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+                  {statusCnh && <div style={{ fontSize:11, fontWeight:700, padding:'3px 8px', borderRadius:6, background:statusCnh.bg, color:statusCnh.cor, display:'inline-block', marginTop:4 }}>{statusCnh.label}</div>}
+                </div>
+              </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
