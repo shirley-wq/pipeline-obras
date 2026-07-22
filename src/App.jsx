@@ -711,6 +711,11 @@ export default function App() {
   const [filtroHistRegiao, setFiltroHistRegiao] = useState('')
   const [filtroHistDe, setFiltroHistDe] = useState('')
   const [filtroHistAte, setFiltroHistAte] = useState('')
+  const [rhColaboradores, setRhColaboradores] = useState([])
+  const [novoRhNome, setNovoRhNome] = useState('')
+  const [novoRhSobrenome, setNovoRhSobrenome] = useState('')
+  const [novoRhBaseCadastrado, setNovoRhBaseCadastrado] = useState('')
+  const [novoRhBaseAtua, setNovoRhBaseAtua] = useState('')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -729,6 +734,39 @@ export default function App() {
     supabase.from('perfis_usuarios').select('papel').eq('id', usuario.id).single()
       .then(({ data, error }) => setPapel(error ? 'operacional' : (data?.papel || 'operacional')))
   }, [usuario])
+
+  useEffect(() => { if (papel === 'admin' || papel === 'rh') carregarRH() }, [papel])
+
+  async function carregarRH() {
+    const { data } = await supabase.from('rh_colaboradores').select('*').order('nome')
+    setRhColaboradores(data || [])
+  }
+
+  async function atualizarRH(id, campos) {
+    setRhColaboradores(prev => prev.map(c => c.id === id ? { ...c, ...campos } : c))
+    await supabase.from('rh_colaboradores').update(campos).eq('id', id)
+  }
+
+  async function adicionarRH() {
+    if (!novoRhNome.trim()) return
+    const { data, error } = await supabase.from('rh_colaboradores').insert({
+      nome: novoRhNome.trim(),
+      sobrenome: novoRhSobrenome.trim() || null,
+      base_cadastrado: novoRhBaseCadastrado || null,
+      base_atua: novoRhBaseAtua || novoRhBaseCadastrado || null,
+      ativo: true,
+    }).select().single()
+    if (!error && data) {
+      setRhColaboradores(prev => [...prev, data].sort((a, b) => a.nome.localeCompare(b.nome)))
+      setNovoRhNome(''); setNovoRhSobrenome(''); setNovoRhBaseCadastrado(''); setNovoRhBaseAtua('')
+    }
+  }
+
+  async function removerRH(id) {
+    if (!confirm('Remover esse colaborador do RH?')) return
+    setRhColaboradores(prev => prev.filter(c => c.id !== id))
+    await supabase.from('rh_colaboradores').delete().eq('id', id)
+  }
 
   async function carregarObras() {
     const { data, error } = await supabase.from('pipeline_obras').select('*').order('tipo').order('nome')
@@ -1098,6 +1136,7 @@ export default function App() {
           { id:'pipeline', label:'Pipeline', count: obrasFiltradas.length },
           { id:'faturar', label:'Disponível para Faturar', count: obrasFaturar.length, cor:'#1A6B4A' },
           { id:'historico', label:'Histórico', count: obras.filter(o=>o.status==='NF EMITIDO').length },
+          ...((papel === 'admin' || papel === 'rh') ? [{ id:'rh', label:'RH', count: rhColaboradores.length, cor:'#7C3AED' }] : []),
         ].map(a => (
           <button key={a.id} onClick={() => setAba(a.id)}
             style={{ flex:1, padding:'12px 8px', border:'none', borderBottom: aba===a.id ? `3px solid ${a.cor||'#2D3A8C'}` : '3px solid transparent',
@@ -1240,6 +1279,63 @@ export default function App() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* ====== ABA: RH ====== */}
+      {aba === 'rh' && (papel === 'admin' || papel === 'rh') && (
+        <div style={{ padding:12 }}>
+          <div style={{ fontSize:11, color:'#5B21B6', fontWeight:700, marginBottom:10, padding:'8px 12px', background:'#EDE9FE', borderRadius:8 }}>
+            {rhColaboradores.length} colaborador(es) cadastrado(s)
+          </div>
+
+          <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:12 }}>
+            <div style={{ fontSize:12, color:'#5B21B6', fontWeight:700, marginBottom:10 }}>+ Novo colaborador</div>
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              <input value={novoRhNome} onChange={e => setNovoRhNome(e.target.value)}
+                placeholder="Nome" style={{ flex:1, minWidth:100, padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+              <input value={novoRhSobrenome} onChange={e => setNovoRhSobrenome(e.target.value)}
+                placeholder="Sobrenome" style={{ flex:1, minWidth:120, padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+              <select value={novoRhBaseCadastrado} onChange={e => setNovoRhBaseCadastrado(e.target.value)}
+                style={{ padding:'7px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                <option value="">Base cadastrado</option>
+                {BASES_GRUPOPG.map(b => <option key={b.nome} value={b.nome}>{b.label}</option>)}
+              </select>
+              <select value={novoRhBaseAtua} onChange={e => setNovoRhBaseAtua(e.target.value)}
+                style={{ padding:'7px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                <option value="">Base onde atua</option>
+                {BASES_GRUPOPG.map(b => <option key={b.nome} value={b.nome}>{b.label}</option>)}
+              </select>
+              <button onClick={adicionarRH}
+                style={{ padding:'7px 14px', background:'#5B21B6', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                + Adicionar
+              </button>
+            </div>
+          </div>
+
+          {rhColaboradores.map(c => (
+            <div key={c.id} style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, marginBottom:8, padding:'10px 14px', display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+              <input defaultValue={c.nome} onBlur={e => e.target.value !== c.nome && atualizarRH(c.id, { nome: e.target.value })}
+                style={{ flex:1, minWidth:90, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', fontWeight:600, boxSizing:'border-box' }} />
+              <input defaultValue={c.sobrenome || ''} onBlur={e => e.target.value !== (c.sobrenome||'') && atualizarRH(c.id, { sobrenome: e.target.value || null })}
+                style={{ flex:1, minWidth:120, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+              <select value={c.base_cadastrado || ''} onChange={e => atualizarRH(c.id, { base_cadastrado: e.target.value || null })}
+                style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                <option value="">Base cadastrado —</option>
+                {BASES_GRUPOPG.map(b => <option key={b.nome} value={b.nome}>{b.label}</option>)}
+              </select>
+              <select value={c.base_atua || ''} onChange={e => atualizarRH(c.id, { base_atua: e.target.value || null })}
+                style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                <option value="">Base onde atua —</option>
+                {BASES_GRUPOPG.map(b => <option key={b.nome} value={b.nome}>{b.label}</option>)}
+              </select>
+              <label style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'#64748B', cursor:'pointer' }}>
+                <input type="checkbox" checked={c.ativo !== false} onChange={e => atualizarRH(c.id, { ativo: e.target.checked })} />
+                Ativo
+              </label>
+              <span onClick={() => removerRH(c.id)} style={{ fontSize:13, color:'#EF4444', cursor:'pointer', fontWeight:700, padding:'0 4px' }}>✕</span>
+            </div>
+          ))}
         </div>
       )}
 
