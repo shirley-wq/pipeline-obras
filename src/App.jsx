@@ -639,7 +639,7 @@ function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizad
   )
 }
 
-function ColaboradorRHRow({ c, onUpdate, onRemove }) {
+function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin }) {
   const [expandido, setExpandido] = useState(false)
   const [novaIdadeFilho, setNovaIdadeFilho] = useState('')
   const [novoUniformeItem, setNovoUniformeItem] = useState('')
@@ -690,6 +690,11 @@ function ColaboradorRHRow({ c, onUpdate, onRemove }) {
           style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', background:'#fff' }}>
           <option value="">Base onde atua —</option>
           {BASES_GRUPOPG.map(b => <option key={b.nome} value={b.nome}>{b.label}</option>)}
+        </select>
+        <select value={c.email || ''} onChange={e => onUpdate({ email: e.target.value || null })}
+          style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color: c.email ? '#1A2340' : '#991B1B', background:'#fff' }}>
+          <option value="">E-mail de login —</option>
+          {emailsLogin.map(em => <option key={em} value={em}>{em}</option>)}
         </select>
         <label style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'#64748B', cursor:'pointer' }}>
           <input type="checkbox" checked={c.ativo !== false} onChange={e => onUpdate({ ativo: e.target.checked })} />
@@ -1059,6 +1064,9 @@ export default function App() {
   const [filtroHistDe, setFiltroHistDe] = useState('')
   const [filtroHistAte, setFiltroHistAte] = useState('')
   const [rhColaboradores, setRhColaboradores] = useState([])
+  const [emailsLogin, setEmailsLogin] = useState([])
+  const [meuRH, setMeuRH] = useState(null)
+  const [carregandoMeuRH, setCarregandoMeuRH] = useState(false)
   const [novoRhNomeCompleto, setNovoRhNomeCompleto] = useState('')
   const [novoRhBaseCadastrado, setNovoRhBaseCadastrado] = useState('')
   const [novoRhBaseAtua, setNovoRhBaseAtua] = useState('')
@@ -1081,11 +1089,32 @@ export default function App() {
       .then(({ data, error }) => setPapel(error ? 'operacional' : (data?.papel || 'operacional')))
   }, [usuario])
 
-  useEffect(() => { if (papel === 'admin' || papel === 'rh') carregarRH() }, [papel])
+  useEffect(() => {
+    if (papel === 'admin' || papel === 'rh' || papel === 'financeiro') {
+      carregarRH()
+      carregarEmailsLogin()
+    }
+  }, [papel])
+
+  useEffect(() => {
+    if (papel === 'operacional' && usuario) carregarMeuRH()
+  }, [papel, usuario])
 
   async function carregarRH() {
     const { data } = await supabase.from('rh_colaboradores').select('*').order('nome')
     setRhColaboradores(data || [])
+  }
+
+  async function carregarEmailsLogin() {
+    const { data } = await supabase.from('perfis_usuarios').select('email').order('email')
+    setEmailsLogin((data || []).map(d => d.email))
+  }
+
+  async function carregarMeuRH() {
+    setCarregandoMeuRH(true)
+    const { data } = await supabase.from('rh_colaboradores').select('*').eq('email', usuario.email).maybeSingle()
+    setMeuRH(data || null)
+    setCarregandoMeuRH(false)
   }
 
   async function atualizarRH(id, campos) {
@@ -1493,16 +1522,19 @@ export default function App() {
           ...(podeVerValores ? [{ id:'faturar', label:'Disponível para Faturar', count: obrasFaturar.length, cor:'#1A6B4A' }] : []),
           ...(podeVerValores ? [{ id:'historico', label:'Histórico', count: obras.filter(o=>o.status==='NF EMITIDO').length }] : []),
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'rh', label:'RH', count: rhColaboradores.length, cor:'#7C3AED' }] : []),
+          ...(papel === 'operacional' ? [{ id:'meusdados', label:'Meus Documentos', count:null, cor:'#7C3AED' }] : []),
         ].map(a => (
           <button key={a.id} onClick={() => setAba(a.id)}
             style={{ flex:1, padding:'12px 8px', border:'none', borderBottom: aba===a.id ? `3px solid ${a.cor||'#2D3A8C'}` : '3px solid transparent',
               background:'none', cursor:'pointer', fontSize:12, fontWeight: aba===a.id ? 700 : 500,
               color: aba===a.id ? (a.cor||'#2D3A8C') : '#64748B' }}>
             {a.label}
-            <span style={{ marginLeft:5, fontSize:10, background: aba===a.id ? (a.cor||'#2D3A8C') : '#E0E8F0',
-              color: aba===a.id ? '#fff' : '#64748B', borderRadius:10, padding:'1px 6px', fontWeight:700 }}>
-              {a.count}
-            </span>
+            {a.count != null && (
+              <span style={{ marginLeft:5, fontSize:10, background: aba===a.id ? (a.cor||'#2D3A8C') : '#E0E8F0',
+                color: aba===a.id ? '#fff' : '#64748B', borderRadius:10, padding:'1px 6px', fontWeight:700 }}>
+                {a.count}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -1674,10 +1706,114 @@ export default function App() {
           </div>
 
           {rhColaboradores.map(c => (
-            <ColaboradorRHRow key={c.id} c={c}
+            <ColaboradorRHRow key={c.id} c={c} emailsLogin={emailsLogin}
               onUpdate={campos => atualizarRH(c.id, campos)}
               onRemove={() => removerRH(c.id)} />
           ))}
+        </div>
+      )}
+
+      {/* ====== ABA: MEUS DOCUMENTOS (operacional) ====== */}
+      {aba === 'meusdados' && papel === 'operacional' && (
+        <div style={{ padding:12 }}>
+          {carregandoMeuRH ? (
+            <div style={{ textAlign:'center', color:'#888', marginTop:40, fontSize:14 }}>Carregando...</div>
+          ) : !meuRH ? (
+            <div style={{ background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:12, padding:16, fontSize:13, color:'#92400E' }}>
+              🔒 Seu cadastro ainda não foi vinculado ao seu e-mail de login. Peça pro RH vincular seu e-mail na aba de colaboradores.
+            </div>
+          ) : (() => {
+            const vencimentoAso = somaAnos(meuRH.data_aso, 1)
+            const statusAso = statusVencimento(vencimentoAso)
+            const statusCnh = statusVencimento(meuRH.data_vencimento_cnh)
+            const previsaoFerias = proximaFeriasEstimativa(meuRH.data_admissao)
+            const nrs = [
+              { label:'NR6', status:interpretaStatusDoc(meuRH.nr6) },
+              { label:'NR10', status:interpretaStatusDoc(meuRH.nr10) },
+              { label:'NR33', status:interpretaStatusDoc(meuRH.nr33) },
+              { label:'NR35', status:interpretaStatusDoc(meuRH.nr35) },
+              { label:'NR12', status:interpretaStatusDoc(meuRH.nr12) },
+            ]
+            const mesAtual = mesAtualIso()
+            const pontoEmDia = meuRH.ponto_assinado_mes === mesAtual
+            const holeriteEmDia = meuRH.holerite_assinado_mes === mesAtual
+            const epis = Array.isArray(meuRH.epis) ? meuRH.epis : []
+            return (
+              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                <div style={{ background:'#EDE9FE', borderRadius:12, padding:14 }}>
+                  <div style={{ fontSize:14, fontWeight:700, color:'#5B21B6' }}>{meuRH.nome} {meuRH.sobrenome}</div>
+                  <div style={{ fontSize:12, color:'#5B21B6', marginTop:2 }}>
+                    Base cadastrado: {meuRH.base_cadastrado || '—'} · Base onde atua: {meuRH.base_atua || '—'}
+                  </div>
+                </div>
+
+                <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14 }}>
+                  <div style={{ fontSize:12, color:'#1A2340', fontWeight:700, marginBottom:10 }}>Situação documental</div>
+                  <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
+                    <div>
+                      <div style={{ fontSize:10, color:'#888', textTransform:'uppercase' }}>ASO</div>
+                      {vencimentoAso
+                        ? <span style={{ fontSize:12, fontWeight:700, padding:'4px 8px', borderRadius:6, background:statusAso.bg, color:statusAso.cor }}>{isoToBr(vencimentoAso)} · {statusAso.label}</span>
+                        : <span style={{ fontSize:12, color:'#888' }}>—</span>}
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10, color:'#888', textTransform:'uppercase' }}>CNH</div>
+                      {statusCnh
+                        ? <span style={{ fontSize:12, fontWeight:700, padding:'4px 8px', borderRadius:6, background:statusCnh.bg, color:statusCnh.cor }}>{isoToBr(meuRH.data_vencimento_cnh)} · {statusCnh.label}</span>
+                        : <span style={{ fontSize:12, color:'#888' }}>—</span>}
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10, color:'#888', textTransform:'uppercase' }}>Próximas férias (estimativa)</div>
+                      <span style={{ fontSize:12, fontWeight:600, color:'#1A2340' }}>{previsaoFerias ? isoToBr(previsaoFerias) : '—'}</span>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10, color:'#888', textTransform:'uppercase' }}>Ponto assinado</div>
+                      <span style={{ fontSize:12, fontWeight:700, padding:'4px 8px', borderRadius:6, background: pontoEmDia ? '#D1FAE5' : '#FEE2E2', color: pontoEmDia ? '#065F46' : '#991B1B' }}>
+                        {meuRH.ponto_assinado_mes ? mesLabel(meuRH.ponto_assinado_mes) : 'Nunca'} {pontoEmDia ? '· Em dia' : '· Pendente'}
+                      </span>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10, color:'#888', textTransform:'uppercase' }}>Holerite assinado</div>
+                      <span style={{ fontSize:12, fontWeight:700, padding:'4px 8px', borderRadius:6, background: holeriteEmDia ? '#D1FAE5' : '#FEE2E2', color: holeriteEmDia ? '#065F46' : '#991B1B' }}>
+                        {meuRH.holerite_assinado_mes ? mesLabel(meuRH.holerite_assinado_mes) : 'Nunca'} {holeriteEmDia ? '· Em dia' : '· Pendente'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14 }}>
+                  <div style={{ fontSize:12, color:'#1A2340', fontWeight:700, marginBottom:10 }}>NRs (certificações de segurança)</div>
+                  <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+                    {nrs.map(nr => (
+                      <div key={nr.label} style={{ display:'flex', flexDirection:'column', gap:3, alignItems:'center' }}>
+                        <span style={{ fontSize:10, color:'#888', fontWeight:600 }}>{nr.label}</span>
+                        <span style={{ fontSize:11, fontWeight:700, padding:'3px 8px', borderRadius:6, background:nr.status.bg, color:nr.status.cor }}>{nr.status.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {epis.length > 0 && (
+                  <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14 }}>
+                    <div style={{ fontSize:12, color:'#1A2340', fontWeight:700, marginBottom:10 }}>EPIs entregues</div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                      {epis.map((ep, idx) => {
+                        const statusEp = statusVencimento(ep.validade)
+                        return (
+                          <div key={idx} style={{ display:'flex', alignItems:'center', gap:6, background:'#F0F4F8', borderRadius:6, padding:'5px 10px' }}>
+                            <span style={{ fontSize:12, color:'#1A2340', flex:1 }}>
+                              {ep.item}{ep.data ? ` — entregue ${isoToBr(ep.data)}` : ''}{ep.validade ? ` — validade ${isoToBr(ep.validade)}` : ''}
+                            </span>
+                            {statusEp && <span style={{ fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:5, background:statusEp.bg, color:statusEp.cor }}>{statusEp.label}</span>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </div>
       )}
 
