@@ -639,6 +639,7 @@ function Regua({ tipo, status, lembretes, onRemoverLembrete }) {
 
 export default function App() {
   const [usuario, setUsuario] = useState(null)
+  const [papel, setPapel] = useState(null)
   const [carregando, setCarregando] = useState(true)
   const [obras, setObras] = useState([])
   const [filtroTipo, setFiltroTipo] = useState('')
@@ -722,6 +723,12 @@ export default function App() {
   }, [])
 
   useEffect(() => { if (usuario) carregarObras() }, [usuario])
+
+  useEffect(() => {
+    if (!usuario) { setPapel(null); return }
+    supabase.from('perfis_usuarios').select('papel').eq('id', usuario.id).single()
+      .then(({ data, error }) => setPapel(error ? 'operacional' : (data?.papel || 'operacional')))
+  }, [usuario])
 
   async function carregarObras() {
     const { data, error } = await supabase.from('pipeline_obras').select('*').order('tipo').order('nome')
@@ -1065,6 +1072,7 @@ export default function App() {
             style={{ background:'#0E4D73', border:'none', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', padding:'6px 12px', borderRadius:8 }}>
             ↓ Excel
           </button>
+          {papel && <span style={{ fontSize:10, color:'rgba(255,255,255,.5)', textTransform:'uppercase' }}>{papel}</span>}
           <button onClick={() => supabase.auth.signOut()} style={{ background:'none', border:'none', color:'rgba(255,255,255,.6)', fontSize:12, cursor:'pointer' }}>Sair</button>
         </div>
       </div>
