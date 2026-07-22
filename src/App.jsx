@@ -606,6 +606,226 @@ function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizad
   )
 }
 
+function ColaboradorRHRow({ c, onUpdate, onRemove }) {
+  const [expandido, setExpandido] = useState(false)
+  const [novaIdadeFilho, setNovaIdadeFilho] = useState('')
+  const [novoUniformeItem, setNovoUniformeItem] = useState('')
+  const [novoUniformeQtd, setNovoUniformeQtd] = useState('1')
+  const [novoUniformeData, setNovoUniformeData] = useState('')
+  const [novoEpiItem, setNovoEpiItem] = useState('')
+  const [novoEpiData, setNovoEpiData] = useState('')
+  const [novoEpiValidade, setNovoEpiValidade] = useState('')
+
+  const vencimentoAso = somaAnos(c.data_aso, 1)
+  const statusAso = statusVencimento(vencimentoAso)
+  const statusCnh = statusVencimento(c.data_vencimento_cnh)
+  const previsaoFerias = proximaFeriasEstimativa(c.data_admissao)
+  const filhos = Array.isArray(c.filhos) ? c.filhos : []
+  const uniformes = Array.isArray(c.uniformes) ? c.uniformes : []
+  const epis = Array.isArray(c.epis) ? c.epis : []
+
+  return (
+    <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, marginBottom:8, padding:'10px 14px' }}>
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:8 }}>
+        <input defaultValue={`${c.nome}${c.sobrenome ? ' ' + c.sobrenome : ''}`} onBlur={e => {
+          const nomeCompleto = e.target.value.trim()
+          const atual = `${c.nome}${c.sobrenome ? ' ' + c.sobrenome : ''}`
+          if (nomeCompleto && nomeCompleto !== atual) {
+            const partes = nomeCompleto.split(/\s+/)
+            onUpdate({ nome: partes[0], sobrenome: partes.slice(1).join(' ') || null })
+          }
+        }} style={{ flex:2, minWidth:180, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', fontWeight:600, boxSizing:'border-box' }} />
+        <select value={c.base_cadastrado || ''} onChange={e => onUpdate({ base_cadastrado: e.target.value || null })}
+          style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', background:'#fff' }}>
+          <option value="">Base cadastrado —</option>
+          {BASES_GRUPOPG.map(b => <option key={b.nome} value={b.nome}>{b.label}</option>)}
+        </select>
+        <select value={c.base_atua || ''} onChange={e => onUpdate({ base_atua: e.target.value || null })}
+          style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', background:'#fff' }}>
+          <option value="">Base onde atua —</option>
+          {BASES_GRUPOPG.map(b => <option key={b.nome} value={b.nome}>{b.label}</option>)}
+        </select>
+        <label style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'#64748B', cursor:'pointer' }}>
+          <input type="checkbox" checked={c.ativo !== false} onChange={e => onUpdate({ ativo: e.target.checked })} />
+          Ativo
+        </label>
+        <button onClick={() => setExpandido(v => !v)}
+          style={{ padding:'5px 10px', background: expandido ? '#EDE9FE' : '#F1F5F9', border:'1px solid #E0E8F0', borderRadius:6, fontSize:11, fontWeight:600, color:'#5B21B6', cursor:'pointer' }}>
+          {expandido ? '▲ Menos detalhes' : '▼ Mais detalhes'}
+        </button>
+        <span onClick={onRemove} style={{ fontSize:13, color:'#EF4444', cursor:'pointer', fontWeight:700, padding:'0 4px' }}>✕</span>
+      </div>
+
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'flex-end', paddingTop:8, borderTop:'1px solid #F1F5F9' }}>
+        <div>
+          <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Admissão</label>
+          <input type="date" value={c.data_admissao || ''} onChange={e => onUpdate({ data_admissao: e.target.value || null })}
+            style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+        </div>
+        <div>
+          <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Próximas férias (estimativa)</label>
+          <div style={{ fontSize:12, color:'#1A2340', fontWeight:600, padding:'6px 0' }}>{previsaoFerias ? isoToBr(previsaoFerias) : '—'}</div>
+        </div>
+        <div style={{ flex:1, minWidth:160 }}>
+          <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Período de férias (planilha/ref.)</label>
+          <input defaultValue={c.ferias_periodo_atual || ''} onBlur={e => e.target.value !== (c.ferias_periodo_atual||'') && onUpdate({ ferias_periodo_atual: e.target.value || null })}
+            style={{ width:'100%', padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+        </div>
+        <div>
+          <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Último ASO</label>
+          <input type="date" value={c.data_aso || ''} onChange={e => onUpdate({ data_aso: e.target.value || null })}
+            style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+        </div>
+        <div>
+          <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Vencimento ASO (+1 ano)</label>
+          {vencimentoAso
+            ? <div style={{ fontSize:11, fontWeight:700, padding:'4px 8px', borderRadius:6, background:statusAso.bg, color:statusAso.cor, display:'inline-block' }}>{isoToBr(vencimentoAso)} · {statusAso.label}</div>
+            : <div style={{ fontSize:12, color:'#888', padding:'6px 0' }}>—</div>}
+        </div>
+        <div>
+          <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Vencimento CNH</label>
+          <input type="date" value={c.data_vencimento_cnh || ''} onChange={e => onUpdate({ data_vencimento_cnh: e.target.value || null })}
+            style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+          {statusCnh && <div style={{ fontSize:11, fontWeight:700, padding:'3px 8px', borderRadius:6, background:statusCnh.bg, color:statusCnh.cor, display:'inline-block', marginTop:4 }}>{statusCnh.label}</div>}
+        </div>
+      </div>
+
+      {expandido && (
+        <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid #F1F5F9', display:'flex', flexDirection:'column', gap:12 }}>
+
+          <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+            <div>
+              <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Data de nascimento</label>
+              <input type="date" value={c.data_nascimento || ''} onChange={e => onUpdate({ data_nascimento: e.target.value || null })}
+                style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+            </div>
+            <div>
+              <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Nº calçado</label>
+              <input value={c.numero_calcado || ''} onBlur={e => e.target.value !== (c.numero_calcado||'') && onUpdate({ numero_calcado: e.target.value || null })}
+                style={{ width:70, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+            </div>
+            <div>
+              <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Nº calça</label>
+              <input value={c.numero_calca || ''} onBlur={e => e.target.value !== (c.numero_calca||'') && onUpdate({ numero_calca: e.target.value || null })}
+                style={{ width:70, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+            </div>
+            <div>
+              <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Nº camisa</label>
+              <input value={c.numero_camisa || ''} onBlur={e => e.target.value !== (c.numero_camisa||'') && onUpdate({ numero_camisa: e.target.value || null })}
+                style={{ width:70, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>Filhos ({filhos.length})</label>
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:6 }}>
+              {filhos.map((idade, idx) => (
+                <div key={idx} style={{ display:'flex', alignItems:'center', gap:4, background:'#F0F4F8', borderRadius:6, padding:'4px 8px' }}>
+                  <span style={{ fontSize:12, color:'#1A2340' }}>{idade} anos</span>
+                  <span onClick={() => onUpdate({ filhos: filhos.filter((_, i) => i !== idx) })} style={{ fontSize:12, color:'#EF4444', cursor:'pointer', fontWeight:700 }}>✕</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display:'flex', gap:6 }}>
+              <input type="number" min="0" value={novaIdadeFilho} onChange={e => setNovaIdadeFilho(e.target.value)}
+                placeholder="Idade do filho" style={{ width:110, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+              <button onClick={() => {
+                if (novaIdadeFilho === '') return
+                onUpdate({ filhos: [...filhos, Number(novaIdadeFilho)] })
+                setNovaIdadeFilho('')
+              }} style={{ padding:'6px 12px', background:'#5B21B6', color:'#fff', border:'none', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer' }}>+ Adicionar</button>
+            </div>
+          </div>
+
+          <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
+            <label style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'#1A2340', cursor:'pointer' }}>
+              <input type="checkbox" checked={!!c.celular_empresa} onChange={e => onUpdate({ celular_empresa: e.target.checked })} />
+              Celular da empresa
+            </label>
+            {c.celular_empresa && (
+              <input type="date" value={c.data_celular_empresa || ''} onChange={e => onUpdate({ data_celular_empresa: e.target.value || null })}
+                style={{ padding:'5px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+            )}
+            <label style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'#1A2340', cursor:'pointer' }}>
+              <input type="checkbox" checked={!!c.computador_empresa} onChange={e => onUpdate({ computador_empresa: e.target.checked })} />
+              Computador da empresa
+            </label>
+            {c.computador_empresa && (
+              <input type="date" value={c.data_computador_empresa || ''} onChange={e => onUpdate({ data_computador_empresa: e.target.value || null })}
+                style={{ padding:'5px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+            )}
+            <label style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'#1A2340', cursor:'pointer' }}>
+              <input type="checkbox" checked={!!c.conta_telefone_empresa} onChange={e => onUpdate({ conta_telefone_empresa: e.target.checked })} />
+              Conta de telefone paga pela empresa
+            </label>
+          </div>
+
+          <div>
+            <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>Uniformes entregues ({uniformes.length})</label>
+            {uniformes.length > 0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:6 }}>
+                {uniformes.map((u, idx) => (
+                  <div key={idx} style={{ display:'flex', alignItems:'center', gap:6, background:'#F0F4F8', borderRadius:6, padding:'4px 8px' }}>
+                    <span style={{ fontSize:12, color:'#1A2340', flex:1 }}>{u.item} — qtd {u.quantidade}{u.data ? ` — ${isoToBr(u.data)}` : ''}</span>
+                    <span onClick={() => onUpdate({ uniformes: uniformes.filter((_, i) => i !== idx) })} style={{ fontSize:12, color:'#EF4444', cursor:'pointer', fontWeight:700 }}>✕</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              <input value={novoUniformeItem} onChange={e => setNovoUniformeItem(e.target.value)}
+                placeholder="Item (ex: Camisa)" style={{ flex:1, minWidth:120, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+              <input type="number" min="1" value={novoUniformeQtd} onChange={e => setNovoUniformeQtd(e.target.value)}
+                placeholder="Qtd" style={{ width:60, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+              <input type="date" value={novoUniformeData} onChange={e => setNovoUniformeData(e.target.value)}
+                style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+              <button onClick={() => {
+                if (!novoUniformeItem.trim()) return
+                onUpdate({ uniformes: [...uniformes, { item: novoUniformeItem.trim(), quantidade: Number(novoUniformeQtd) || 1, data: novoUniformeData || null }] })
+                setNovoUniformeItem(''); setNovoUniformeQtd('1'); setNovoUniformeData('')
+              }} style={{ padding:'6px 12px', background:'#1A6B4A', color:'#fff', border:'none', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer' }}>+ Adicionar</button>
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>EPIs entregues ({epis.length})</label>
+            {epis.length > 0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:6 }}>
+                {epis.map((ep, idx) => {
+                  const statusEp = statusVencimento(ep.validade)
+                  return (
+                    <div key={idx} style={{ display:'flex', alignItems:'center', gap:6, background:'#F0F4F8', borderRadius:6, padding:'4px 8px' }}>
+                      <span style={{ fontSize:12, color:'#1A2340', flex:1 }}>
+                        {ep.item}{ep.data ? ` — entregue ${isoToBr(ep.data)}` : ''}{ep.validade ? ` — validade ${isoToBr(ep.validade)}` : ''}
+                      </span>
+                      {statusEp && <span style={{ fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:5, background:statusEp.bg, color:statusEp.cor }}>{statusEp.label}</span>}
+                      <span onClick={() => onUpdate({ epis: epis.filter((_, i) => i !== idx) })} style={{ fontSize:12, color:'#EF4444', cursor:'pointer', fontWeight:700 }}>✕</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              <input value={novoEpiItem} onChange={e => setNovoEpiItem(e.target.value)}
+                placeholder="Item (ex: Capacete)" style={{ flex:1, minWidth:120, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+              <input type="date" value={novoEpiData} onChange={e => setNovoEpiData(e.target.value)}
+                placeholder="Entrega" style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+              <input type="date" value={novoEpiValidade} onChange={e => setNovoEpiValidade(e.target.value)}
+                placeholder="Validade" style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+              <button onClick={() => {
+                if (!novoEpiItem.trim()) return
+                onUpdate({ epis: [...epis, { item: novoEpiItem.trim(), data: novoEpiData || null, validade: novoEpiValidade || null }] })
+                setNovoEpiItem(''); setNovoEpiData(''); setNovoEpiValidade('')
+              }} style={{ padding:'6px 12px', background:'#B45309', color:'#fff', border:'none', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer' }}>+ Adicionar</button>
+            </div>
+          </div>
+
+        </div>
+      )}
+    </div>
+  )
+}
+
 function getGrupoObra(o) {
   const status = o.status || ''
   if (status === 'AGUARDANDO OS TECBAN') return 'pendencias'
@@ -1346,74 +1566,11 @@ export default function App() {
             </div>
           </div>
 
-          {rhColaboradores.map(c => {
-            const vencimentoAso = somaAnos(c.data_aso, 1)
-            const statusAso = statusVencimento(vencimentoAso)
-            const statusCnh = statusVencimento(c.data_vencimento_cnh)
-            const previsaoFerias = proximaFeriasEstimativa(c.data_admissao)
-            return (
-            <div key={c.id} style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, marginBottom:8, padding:'10px 14px' }}>
-              <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:8 }}>
-                <input defaultValue={`${c.nome}${c.sobrenome ? ' ' + c.sobrenome : ''}`} onBlur={e => {
-                  const nomeCompleto = e.target.value.trim()
-                  const atual = `${c.nome}${c.sobrenome ? ' ' + c.sobrenome : ''}`
-                  if (nomeCompleto && nomeCompleto !== atual) {
-                    const partes = nomeCompleto.split(/\s+/)
-                    atualizarRH(c.id, { nome: partes[0], sobrenome: partes.slice(1).join(' ') || null })
-                  }
-                }} style={{ flex:2, minWidth:180, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', fontWeight:600, boxSizing:'border-box' }} />
-                <select value={c.base_cadastrado || ''} onChange={e => atualizarRH(c.id, { base_cadastrado: e.target.value || null })}
-                  style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', background:'#fff' }}>
-                  <option value="">Base cadastrado —</option>
-                  {BASES_GRUPOPG.map(b => <option key={b.nome} value={b.nome}>{b.label}</option>)}
-                </select>
-                <select value={c.base_atua || ''} onChange={e => atualizarRH(c.id, { base_atua: e.target.value || null })}
-                  style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', background:'#fff' }}>
-                  <option value="">Base onde atua —</option>
-                  {BASES_GRUPOPG.map(b => <option key={b.nome} value={b.nome}>{b.label}</option>)}
-                </select>
-                <label style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'#64748B', cursor:'pointer' }}>
-                  <input type="checkbox" checked={c.ativo !== false} onChange={e => atualizarRH(c.id, { ativo: e.target.checked })} />
-                  Ativo
-                </label>
-                <span onClick={() => removerRH(c.id)} style={{ fontSize:13, color:'#EF4444', cursor:'pointer', fontWeight:700, padding:'0 4px' }}>✕</span>
-              </div>
-              <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'flex-end', paddingTop:8, borderTop:'1px solid #F1F5F9' }}>
-                <div>
-                  <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Admissão</label>
-                  <input type="date" value={c.data_admissao || ''} onChange={e => atualizarRH(c.id, { data_admissao: e.target.value || null })}
-                    style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Próximas férias (estimativa)</label>
-                  <div style={{ fontSize:12, color:'#1A2340', fontWeight:600, padding:'6px 0' }}>{previsaoFerias ? isoToBr(previsaoFerias) : '—'}</div>
-                </div>
-                <div style={{ flex:1, minWidth:160 }}>
-                  <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Período de férias (planilha/ref.)</label>
-                  <input defaultValue={c.ferias_periodo_atual || ''} onBlur={e => e.target.value !== (c.ferias_periodo_atual||'') && atualizarRH(c.id, { ferias_periodo_atual: e.target.value || null })}
-                    style={{ width:'100%', padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Último ASO</label>
-                  <input type="date" value={c.data_aso || ''} onChange={e => atualizarRH(c.id, { data_aso: e.target.value || null })}
-                    style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Vencimento ASO (+1 ano)</label>
-                  {vencimentoAso
-                    ? <div style={{ fontSize:11, fontWeight:700, padding:'4px 8px', borderRadius:6, background:statusAso.bg, color:statusAso.cor, display:'inline-block' }}>{isoToBr(vencimentoAso)} · {statusAso.label}</div>
-                    : <div style={{ fontSize:12, color:'#888', padding:'6px 0' }}>—</div>}
-                </div>
-                <div>
-                  <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Vencimento CNH</label>
-                  <input type="date" value={c.data_vencimento_cnh || ''} onChange={e => atualizarRH(c.id, { data_vencimento_cnh: e.target.value || null })}
-                    style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
-                  {statusCnh && <div style={{ fontSize:11, fontWeight:700, padding:'3px 8px', borderRadius:6, background:statusCnh.bg, color:statusCnh.cor, display:'inline-block', marginTop:4 }}>{statusCnh.label}</div>}
-                </div>
-              </div>
-            </div>
-            )
-          })}
+          {rhColaboradores.map(c => (
+            <ColaboradorRHRow key={c.id} c={c}
+              onUpdate={campos => atualizarRH(c.id, campos)}
+              onRemove={() => removerRH(c.id)} />
+          ))}
         </div>
       )}
 
