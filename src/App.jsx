@@ -768,12 +768,16 @@ export default function App() {
     await supabase.from('rh_colaboradores').delete().eq('id', id)
   }
 
+  function ordenaObras(lista) {
+    return [...lista].sort((a, b) => a.tipo.localeCompare(b.tipo) || a.nome.localeCompare(b.nome))
+  }
+
   async function carregarObras() {
-    const { data, error } = await supabase.from('pipeline_obras').select('*').order('tipo').order('nome')
+    const { data, error } = await supabase.rpc('pipeline_obras_seguro')
     if (error || !data || data.length === 0) {
       await importarDadosIniciais()
     } else {
-      setObras(data)
+      setObras(ordenaObras(data))
     }
   }
 
@@ -781,8 +785,8 @@ export default function App() {
     setImportando(true)
     const { error } = await supabase.from('pipeline_obras').insert(OBRAS_INICIAIS)
     if (!error) {
-      const { data } = await supabase.from('pipeline_obras').select('*').order('tipo').order('nome')
-      setObras(data || [])
+      const { data } = await supabase.rpc('pipeline_obras_seguro')
+      setObras(ordenaObras(data || []))
     }
     setImportando(false)
   }
@@ -1039,6 +1043,7 @@ export default function App() {
     return true
   })
 
+  const podeVerValores = papel === 'admin' || papel === 'administrativo' || papel === 'financeiro'
   const obrasAtivas = obras.filter(o => o.status !== 'NF EMITIDO')
   const totalValor = obrasAtivas.reduce((s,o) => s + Number(o.valor||0), 0)
   const emAndamento = obrasAtivas.filter(o => o.status === 'EM ANDAMENTO').length
@@ -1102,26 +1107,30 @@ export default function App() {
           <div style={{ fontSize:11, color:'rgba(255,255,255,.6)', marginTop:2 }}>Grupo PG — {obras.length} obras</div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <button onClick={() => setModalNovaObra(true)}
-            style={{ background:'#1A6B4A', border:'none', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', padding:'6px 12px', borderRadius:8 }}>
-            + Nova
-          </button>
-          <button onClick={exportarCSV}
-            style={{ background:'#0E4D73', border:'none', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', padding:'6px 12px', borderRadius:8 }}>
-            ↓ Excel
-          </button>
+          {podeVerValores && (
+            <button onClick={() => setModalNovaObra(true)}
+              style={{ background:'#1A6B4A', border:'none', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', padding:'6px 12px', borderRadius:8 }}>
+              + Nova
+            </button>
+          )}
+          {podeVerValores && (
+            <button onClick={exportarCSV}
+              style={{ background:'#0E4D73', border:'none', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', padding:'6px 12px', borderRadius:8 }}>
+              ↓ Excel
+            </button>
+          )}
           {papel && <span style={{ fontSize:10, color:'rgba(255,255,255,.5)', textTransform:'uppercase' }}>{papel}</span>}
           <button onClick={() => supabase.auth.signOut()} style={{ background:'none', border:'none', color:'rgba(255,255,255,.6)', fontSize:12, cursor:'pointer' }}>Sair</button>
         </div>
       </div>
 
       {/* Totalizadores */}
-      <div style={{ background:'#2D3A8C', padding:'12px 16px', display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
+      <div style={{ background:'#2D3A8C', padding:'12px 16px', display:'grid', gridTemplateColumns: podeVerValores ? 'repeat(4,1fr)' : 'repeat(2,1fr)', gap:8 }}>
         {[
-          { n: 'R$' + (totalValor/1000).toFixed(0) + 'k', l:'Em Andamento' },
+          ...(podeVerValores ? [{ n: 'R$' + (totalValor/1000).toFixed(0) + 'k', l:'Em Andamento' }] : []),
           { n: emAndamento, l:'Execução' },
           { n: pendencias, l:'Pendências', alert: pendencias > 0 },
-          { n: 'R$' + (totalFaturar/1000).toFixed(0) + 'k', l:'A Faturar', highlight: obrasFaturar.length > 0 },
+          ...(podeVerValores ? [{ n: 'R$' + (totalFaturar/1000).toFixed(0) + 'k', l:'A Faturar', highlight: obrasFaturar.length > 0 }] : []),
         ].map((t,i) => (
           <div key={i} style={{ background:'rgba(255,255,255,.1)', borderRadius:10, padding:'10px 8px', textAlign:'center' }}>
             <div style={{ fontSize:20, fontWeight:700, color: t.alert ? '#FCA5A5' : t.highlight ? '#FDE68A' : '#fff' }}>{t.n}</div>
@@ -1134,9 +1143,9 @@ export default function App() {
       <div style={{ background:'#fff', borderBottom:'2px solid #E0E8F0', display:'flex' }}>
         {[
           { id:'pipeline', label:'Pipeline', count: obrasFiltradas.length },
-          { id:'faturar', label:'Disponível para Faturar', count: obrasFaturar.length, cor:'#1A6B4A' },
-          { id:'historico', label:'Histórico', count: obras.filter(o=>o.status==='NF EMITIDO').length },
-          ...((papel === 'admin' || papel === 'rh') ? [{ id:'rh', label:'RH', count: rhColaboradores.length, cor:'#7C3AED' }] : []),
+          ...(podeVerValores ? [{ id:'faturar', label:'Disponível para Faturar', count: obrasFaturar.length, cor:'#1A6B4A' }] : []),
+          ...(podeVerValores ? [{ id:'historico', label:'Histórico', count: obras.filter(o=>o.status==='NF EMITIDO').length }] : []),
+          ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'rh', label:'RH', count: rhColaboradores.length, cor:'#7C3AED' }] : []),
         ].map(a => (
           <button key={a.id} onClick={() => setAba(a.id)}
             style={{ flex:1, padding:'12px 8px', border:'none', borderBottom: aba===a.id ? `3px solid ${a.cor||'#2D3A8C'}` : '3px solid transparent',
@@ -1411,7 +1420,7 @@ export default function App() {
                         </div>
                         <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', flex:1, lineHeight:1.4 }}>{obra.nome}</div>
                       </div>
-                      <div style={{ fontSize:13, fontWeight:700, color:'#2D3A8C', whiteSpace:'nowrap' }}>{fmt(obra.valor)}</div>
+                      {podeVerValores && <div style={{ fontSize:13, fontWeight:700, color:'#2D3A8C', whiteSpace:'nowrap' }}>{fmt(obra.valor)}</div>}
                     </div>
                     <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
                       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:tc.bg, color:tc.text }}>{obra.tipo}</span>
@@ -1729,12 +1738,14 @@ export default function App() {
                     style={{ width:'100%', padding:'8px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', textTransform:'uppercase' }} />
                 </div>
               </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr', gap:8 }}>
+              <div style={{ display:'grid', gridTemplateColumns: podeVerValores ? '1fr 1fr 1fr 1fr 1fr' : '1fr 1fr 1fr 1fr', gap:8 }}>
+                {podeVerValores && (
                 <div>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Valor (R$)</label>
                   <input type="number" value={editDados.valor} onChange={e => setEditDados(d => ({...d, valor:e.target.value}))}
                     style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                 </div>
+                )}
                 <div>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>SIGE</label>
                   <input value={editDados.sige} onChange={e => setEditDados(d => ({...d, sige:e.target.value}))}
@@ -1999,6 +2010,8 @@ export default function App() {
               <div style={{ fontSize:10, color:'#64748B', marginTop:5 }}>Quando esta demanda entrou no pipeline (usada para calcular dias parado)</div>
             </div>
 
+            {podeVerValores && (
+            <>
             <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:12, padding:14, marginBottom:16 }}>
               <div style={{ fontSize:12, color:'#9A3412', fontWeight:700, marginBottom:10 }}>
                 💰 Custos terceirizados {custosTerceirizados.length > 0 ? `— ${fmt(somaValores(custosTerceirizados))}` : ''}
@@ -2095,6 +2108,8 @@ export default function App() {
                 Combustível é estimado com consumo médio de {CONSUMO_MEDIO_KM_L} km/L e preço médio de {fmt(PRECO_MEDIO_LITRO)}/L
               </div>
             </div>
+            </>
+            )}
 
             {TIPOS_ENTREGAVEIS.includes(modal.tipo) && (
               <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:12, padding:14, marginBottom:16 }}>
