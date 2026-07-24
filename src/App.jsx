@@ -1374,12 +1374,9 @@ export default function App() {
       console.error('Erro ao carregar obras:', error)
       return
     }
-    if (!data || data.length === 0) {
-      // Só reimporta a base semente na primeiríssima vez (tabela genuinamente vazia, sem erro de permissão).
-      await importarDadosIniciais()
-    } else {
-      setObras(ordenaObras(data))
-    }
+    // RPC pode voltar vazia por permissão de papel (ex: rh), não só por a tabela estar realmente vazia.
+    // Por isso o reimport da base semente nunca é automático — só via botão manual (ver importarDadosIniciais).
+    setObras(ordenaObras(data || []))
   }
 
   async function importarDadosIniciais() {
@@ -2199,6 +2196,14 @@ export default function App() {
       {/* Lista */}
       <div style={{ padding:12 }}>
         {obrasFiltradas.length === 0 && <div style={{ textAlign:'center', color:'#4A7FC1', marginTop:40, fontSize:14 }}>Nenhuma obra encontrada</div>}
+        {obras.length === 0 && papel === 'admin' && (
+          <div style={{ textAlign:'center', marginTop:16 }}>
+            <button onClick={() => { if (confirm('Importar as 71 obras da base semente? Use só se a Pipeline estiver realmente vazia.')) importarDadosIniciais() }}
+              style={{ padding:'8px 14px', background:'#F1F5F9', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#2D3A8C', cursor:'pointer' }}>
+              Importar base semente (71 obras)
+            </button>
+          </div>
+        )}
         {grupos.map(g => (
           <div key={g.label}>
             <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:.8, color:'#64748B', margin:'16px 0 8px', paddingBottom:4, borderBottom:'1px solid #E0E8F0' }}>
