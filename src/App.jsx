@@ -248,6 +248,20 @@ function statusVencimento(iso) {
 }
 
 const NR_VALIDADE_ANOS = { nr6: null, nr10: 2, nr33: 1, nr35: 2, nr12: null }
+const RUBRICAS_DESCONTO = [
+  { motivo:'PENSAO', label:'Pensão', codigo:'900' },
+  { motivo:'VALE_TRANSPORTE', label:'Vale Transporte', codigo:'217' },
+  { motivo:'AUXILIO_VIAGEM', label:'Auxílio Viagem', codigo:'271' },
+  { motivo:'EMPRESTIMO', label:'Empréstimo', codigo:'268' },
+  { motivo:'ODONTO', label:'Odonto', codigo:'222' },
+  { motivo:'MULTA', label:'Multa', codigo:'259' },
+  { motivo:'VALE_PRESENTE', label:'Vale Presente', codigo:'290' },
+  { motivo:'OUTROS', label:'Outros Descontos', codigo:'258' },
+]
+function rubricaLabel(motivo) {
+  const r = RUBRICAS_DESCONTO.find(r => r.motivo === motivo)
+  return r ? `${r.label} (${r.codigo})` : motivo
+}
 const NR_CAMPOS = [['NR6','nr6'],['NR10','nr10'],['NR33','nr33'],['NR35','nr35'],['NR12','nr12']]
 
 function precisaNR(email, perfisLogin) {
@@ -705,6 +719,10 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
   const [novoEpiItem, setNovoEpiItem] = useState('')
   const [novoEpiData, setNovoEpiData] = useState('')
   const [novoEpiValidade, setNovoEpiValidade] = useState('')
+  const [novoDescontoMotivo, setNovoDescontoMotivo] = useState('MULTA')
+  const [novoDescontoMes, setNovoDescontoMes] = useState('')
+  const [novoDescontoValor, setNovoDescontoValor] = useState('')
+  const [novoDescontoObs, setNovoDescontoObs] = useState('')
 
   const vencimentoAso = somaAnos(c.data_aso, 1)
   const statusAso = statusVencimento(vencimentoAso)
@@ -713,6 +731,7 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
   const filhos = Array.isArray(c.filhos) ? c.filhos : []
   const uniformes = Array.isArray(c.uniformes) ? c.uniformes : []
   const epis = Array.isArray(c.epis) ? c.epis : []
+  const descontos = Array.isArray(c.descontos) ? c.descontos : []
 
   const precisa = precisaNR(c.email, perfisLogin)
   const statusNr6 = interpretaStatusDoc(c.nr6, NR_VALIDADE_ANOS.nr6, precisa)
@@ -937,6 +956,39 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
                 onUpdate({ epis: [...epis, { item: novoEpiItem.trim(), data: novoEpiData || null, validade: novoEpiValidade || null }] })
                 setNovoEpiItem(''); setNovoEpiData(''); setNovoEpiValidade('')
               }} style={{ padding:'6px 12px', background:'#B45309', color:'#fff', border:'none', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer' }}>+ Adicionar</button>
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>💰 Descontos/benefícios ({descontos.length})</label>
+            {descontos.length > 0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:6 }}>
+                {descontos.map((d, idx) => (
+                  <div key={idx} style={{ display:'flex', alignItems:'center', gap:6, background:'#F0F4F8', borderRadius:6, padding:'5px 10px' }}>
+                    <span style={{ fontSize:12, color:'#1A2340', flex:1 }}>
+                      {rubricaLabel(d.motivo)} — {mesLabel(d.mes)} — {d.valor}{d.observacao ? ` (${d.observacao})` : ''}
+                    </span>
+                    <span onClick={() => onUpdate({ descontos: descontos.filter((_, i) => i !== idx) })} style={{ fontSize:12, color:'#EF4444', cursor:'pointer', fontWeight:700 }}>✕</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              <select value={novoDescontoMotivo} onChange={e => setNovoDescontoMotivo(e.target.value)}
+                style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                {RUBRICAS_DESCONTO.map(r => <option key={r.motivo} value={r.motivo}>{r.label} ({r.codigo})</option>)}
+              </select>
+              <input type="month" value={novoDescontoMes} onChange={e => setNovoDescontoMes(e.target.value)}
+                style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+              <input value={novoDescontoValor} onChange={e => setNovoDescontoValor(e.target.value)}
+                placeholder="Valor (ex: 116,94 ou 27,8%)" style={{ width:150, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+              <input value={novoDescontoObs} onChange={e => setNovoDescontoObs(e.target.value)}
+                placeholder="Obs (opcional)" style={{ flex:1, minWidth:120, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+              <button onClick={() => {
+                if (!novoDescontoMes || !novoDescontoValor.trim()) return
+                onUpdate({ descontos: [...descontos, { motivo: novoDescontoMotivo, mes: novoDescontoMes, valor: novoDescontoValor.trim(), observacao: novoDescontoObs.trim() || null }] })
+                setNovoDescontoMes(''); setNovoDescontoValor(''); setNovoDescontoObs('')
+              }} style={{ padding:'6px 12px', background:'#9A3412', color:'#fff', border:'none', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer' }}>+ Adicionar</button>
             </div>
           </div>
 
@@ -1914,6 +1966,7 @@ export default function App() {
             const holeriteAdiantPendentes = mesesPendentes(meuRH.holerite_adiantamento_meses, 2026)
             const holeritePagtoPendentes = mesesPendentes(meuRH.holerite_pagamento_meses, 2026)
             const epis = Array.isArray(meuRH.epis) ? meuRH.epis : []
+            const descontos = Array.isArray(meuRH.descontos) ? meuRH.descontos : []
             return (
               <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
                 <div style={{ background:'#EDE9FE', borderRadius:12, padding:14 }}>
@@ -1990,6 +2043,21 @@ export default function App() {
                           </div>
                         )
                       })}
+                    </div>
+                  </div>
+                )}
+
+                {descontos.length > 0 && (
+                  <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14 }}>
+                    <div style={{ fontSize:12, color:'#1A2340', fontWeight:700, marginBottom:10 }}>💰 O que devo à empresa</div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                      {descontos.map((d, idx) => (
+                        <div key={idx} style={{ display:'flex', alignItems:'center', gap:6, background:'#F0F4F8', borderRadius:6, padding:'5px 10px' }}>
+                          <span style={{ fontSize:12, color:'#1A2340', flex:1 }}>
+                            {rubricaLabel(d.motivo)} — {mesLabel(d.mes)} — {d.valor}{d.observacao ? ` (${d.observacao})` : ''}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
