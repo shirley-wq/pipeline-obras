@@ -1279,7 +1279,12 @@ export default function App() {
 
   async function carregarObras() {
     const { data, error } = await supabase.rpc('pipeline_obras_seguro')
-    if (error || !data || data.length === 0) {
+    if (error) {
+      console.error('Erro ao carregar obras:', error)
+      return
+    }
+    if (!data || data.length === 0) {
+      // Só reimporta a base semente na primeiríssima vez (tabela genuinamente vazia, sem erro de permissão).
       await importarDadosIniciais()
     } else {
       setObras(ordenaObras(data))
