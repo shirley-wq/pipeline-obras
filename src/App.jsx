@@ -1195,6 +1195,11 @@ export default function App() {
   const [perfisLogin, setPerfisLogin] = useState([])
   const [meuRH, setMeuRH] = useState(null)
   const [carregandoMeuRH, setCarregandoMeuRH] = useState(false)
+  const [minhasJantas, setMinhasJantas] = useState([])
+  const [novaJantaData, setNovaJantaData] = useState('')
+  const [novaJantaTipo, setNovaJantaTipo] = useState('viagem_pernoite')
+  const [novaJantaMotivo, setNovaJantaMotivo] = useState('')
+  const [jantasTodas, setJantasTodas] = useState([])
   const [novoRhNomeCompleto, setNovoRhNomeCompleto] = useState('')
   const [novoRhBaseCadastrado, setNovoRhBaseCadastrado] = useState('')
   const [novoRhBaseAtua, setNovoRhBaseAtua] = useState('')
@@ -1221,11 +1226,12 @@ export default function App() {
     if (papel === 'admin' || papel === 'rh' || papel === 'financeiro') {
       carregarRH()
       carregarEmailsLogin()
+      carregarJantasTodas()
     }
   }, [papel])
 
   useEffect(() => {
-    if (papel === 'operacional' && usuario) carregarMeuRH()
+    if (papel === 'operacional' && usuario) { carregarMeuRH(); carregarMinhasJantas() }
   }, [papel, usuario])
 
   async function carregarRH() {
@@ -1244,6 +1250,39 @@ export default function App() {
     const { data } = await supabase.from('rh_colaboradores').select('*').eq('email', usuario.email).maybeSingle()
     setMeuRH(data || null)
     setCarregandoMeuRH(false)
+  }
+
+  async function carregarMinhasJantas() {
+    const { data } = await supabase.from('solicitacoes_janta').select('*').eq('colaborador_email', usuario.email).order('data', { ascending: false })
+    setMinhasJantas(data || [])
+  }
+
+  async function solicitarJanta() {
+    if (!novaJantaData || !novaJantaMotivo.trim()) return
+    const nomeCompleto = meuRH ? `${meuRH.nome} ${meuRH.sobrenome || ''}`.trim() : usuario.email
+    const { data, error } = await supabase.from('solicitacoes_janta').insert({
+      colaborador_email: usuario.email,
+      colaborador_nome: nomeCompleto,
+      data: novaJantaData,
+      motivo_tipo: novaJantaTipo,
+      motivo_texto: novaJantaMotivo.trim(),
+    }).select().single()
+    if (!error && data) {
+      setMinhasJantas(prev => [data, ...prev])
+      setNovaJantaData(''); setNovaJantaMotivo(''); setNovaJantaTipo('viagem_pernoite')
+    }
+  }
+
+  async function carregarJantasTodas() {
+    const { data } = await supabase.from('solicitacoes_janta').select('*').order('solicitado_em', { ascending: false })
+    setJantasTodas(data || [])
+  }
+
+  async function decidirJanta(id, status, valor) {
+    const campos = { status, decidido_por: usuario.email, decidido_em: new Date().toISOString() }
+    if (valor !== undefined) campos.valor = valor
+    setJantasTodas(prev => prev.map(j => j.id === id ? { ...j, ...campos } : j))
+    await supabase.from('solicitacoes_janta').update(campos).eq('id', id)
   }
 
   async function atualizarRH(id, campos) {
@@ -1658,6 +1697,7 @@ export default function App() {
           ...(podeVerValores ? [{ id:'historico', label:'Histórico', count: obras.filter(o=>o.status==='NF EMITIDO').length }] : []),
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'rh', label:'RH', count: rhColaboradores.length, cor:'#7C3AED' }] : []),
           ...(papel === 'operacional' ? [{ id:'meusdados', label:'Meus Documentos', count:null, cor:'#7C3AED' }] : []),
+          ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'jantas', label:'Jantas', count: jantasTodas.filter(j => j.status === 'pendente').length, cor:'#B45309' }] : []),
         ].map(a => (
           <button key={a.id} onClick={() => setAba(a.id)}
             style={{ flex:1, padding:'12px 8px', border:'none', borderBottom: aba===a.id ? `3px solid ${a.cor||'#2D3A8C'}` : '3px solid transparent',
@@ -1952,11 +1992,106 @@ export default function App() {
                     </div>
                   </div>
                 )}
+
+                <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14 }}>
+                  <div style={{ fontSize:12, color:'#1A2340', fontWeight:700, marginBottom:10 }}>🍽 Solicitar janta</div>
+                  <div style={{ fontSize:11, color:'#64748B', marginBottom:10 }}>
+                    Só se aplica se: (1) você está em viagem e vai dormir na cidade, ou (2) extrapolou 8h de trabalho e ficou até mais tarde. Fica pendente até o RH aprovar.
+                  </div>
+                  <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:10 }}>
+                    <input type="date" value={novaJantaData} onChange={e => setNovaJantaData(e.target.value)}
+                      style={{ padding:'7px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340' }} />
+                    <select value={novaJantaTipo} onChange={e => setNovaJantaTipo(e.target.value)}
+                      style={{ padding:'7px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                      <option value="viagem_pernoite">Viagem — vou dormir na cidade</option>
+                      <option value="extrapolou_8h">Extrapolei 8h de trabalho</option>
+                    </select>
+                    <input value={novaJantaMotivo} onChange={e => setNovaJantaMotivo(e.target.value)}
+                      placeholder="Descreva o motivo (ex: horário que começou/terminou)"
+                      style={{ flex:1, minWidth:200, padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                    <button onClick={solicitarJanta}
+                      style={{ padding:'7px 14px', background:'#B45309', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                      Solicitar
+                    </button>
+                  </div>
+                  {minhasJantas.length > 0 && (
+                    <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                      {minhasJantas.map(j => {
+                        const cor = j.status === 'aprovado' ? { bg:'#D1FAE5', cor:'#065F46' } : j.status === 'recusado' ? { bg:'#FEE2E2', cor:'#991B1B' } : { bg:'#FEF3C7', cor:'#92400E' }
+                        return (
+                          <div key={j.id} style={{ display:'flex', alignItems:'center', gap:6, background:'#F0F4F8', borderRadius:6, padding:'5px 10px' }}>
+                            <span style={{ fontSize:12, color:'#1A2340', flex:1 }}>
+                              {isoToBr(j.data)} — {j.motivo_tipo === 'viagem_pernoite' ? 'Viagem/pernoite' : 'Extrapolou 8h'} — {j.motivo_texto}
+                            </span>
+                            <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:6, background:cor.bg, color:cor.cor, textTransform:'uppercase' }}>{j.status}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             )
           })()}
         </div>
       )}
+
+      {/* ====== ABA: JANTAS ====== */}
+      {aba === 'jantas' && (papel === 'admin' || papel === 'rh' || papel === 'financeiro') && (() => {
+        const pendentes = jantasTodas.filter(j => j.status === 'pendente')
+        const decididas = jantasTodas.filter(j => j.status !== 'pendente')
+        return (
+        <div style={{ padding:12 }}>
+          <div style={{ fontSize:11, color:'#B45309', fontWeight:700, marginBottom:10, padding:'8px 12px', background:'#FFF7ED', borderRadius:8 }}>
+            {pendentes.length} solicitação(ões) pendente(s)
+          </div>
+
+          {pendentes.length === 0 ? (
+            <div style={{ textAlign:'center', color:'#888', marginTop:30, fontSize:13, marginBottom:20 }}>Nenhuma pendência 🎉</div>
+          ) : pendentes.map(j => (
+            <div key={j.id} style={{ background:'#fff', border:'1px solid #FED7AA', borderRadius:12, marginBottom:8, padding:'12px 14px' }}>
+              <div style={{ fontSize:13, fontWeight:700, color:'#1A2340', marginBottom:4 }}>{j.colaborador_nome}</div>
+              <div style={{ fontSize:12, color:'#475569', marginBottom:8 }}>
+                {isoToBr(j.data)} — {j.motivo_tipo === 'viagem_pernoite' ? 'Viagem/pernoite' : 'Extrapolou 8h'}
+              </div>
+              <div style={{ fontSize:12, color:'#1A2340', background:'#F8FAFC', borderRadius:6, padding:'6px 10px', marginBottom:10 }}>
+                "{j.motivo_texto}"
+              </div>
+              <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                <input type="number" placeholder="Valor R$" defaultValue={j.valor || ''} id={`valor-janta-${j.id}`}
+                  style={{ width:100, padding:'6px 8px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+                <button onClick={() => decidirJanta(j.id, 'aprovado', Number(document.getElementById(`valor-janta-${j.id}`).value) || null)}
+                  style={{ padding:'7px 14px', background:'#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  ✓ Aprovar
+                </button>
+                <button onClick={() => decidirJanta(j.id, 'recusado')}
+                  style={{ padding:'7px 14px', background:'#F1F5F9', color:'#991B1B', border:'1px solid #FCA5A5', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  ✕ Recusar
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {decididas.length > 0 && (
+            <>
+              <div style={{ fontSize:12, color:'#64748B', fontWeight:700, marginTop:20, marginBottom:8 }}>Histórico</div>
+              {decididas.map(j => {
+                const cor = j.status === 'aprovado' ? { bg:'#D1FAE5', cor:'#065F46' } : { bg:'#FEE2E2', cor:'#991B1B' }
+                return (
+                  <div key={j.id} style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:10, marginBottom:6, padding:'8px 12px', display:'flex', alignItems:'center', gap:8 }}>
+                    <span style={{ fontSize:12, color:'#1A2340', flex:1 }}>
+                      {j.colaborador_nome} — {isoToBr(j.data)} — {j.motivo_tipo === 'viagem_pernoite' ? 'Viagem/pernoite' : 'Extrapolou 8h'}
+                      {j.valor ? ` — ${fmt(j.valor)}` : ''}
+                    </span>
+                    <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:6, background:cor.bg, color:cor.cor, textTransform:'uppercase' }}>{j.status}</span>
+                  </div>
+                )
+              })}
+            </>
+          )}
+        </div>
+        )
+      })()}
 
       {/* ====== ABA: PIPELINE ====== */}
       {aba === 'pipeline' && <>
