@@ -1231,7 +1231,7 @@ export default function App() {
   }, [papel])
 
   useEffect(() => {
-    if (papel === 'operacional' && usuario) { carregarMeuRH(); carregarMinhasJantas() }
+    if (papel && usuario) { carregarMeuRH(); carregarMinhasJantas() }
   }, [papel, usuario])
 
   async function carregarRH() {
@@ -1696,7 +1696,7 @@ export default function App() {
           ...(podeVerValores ? [{ id:'faturar', label:'Disponível para Faturar', count: obrasFaturar.length, cor:'#1A6B4A' }] : []),
           ...(podeVerValores ? [{ id:'historico', label:'Histórico', count: obras.filter(o=>o.status==='NF EMITIDO').length }] : []),
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'rh', label:'RH', count: rhColaboradores.length, cor:'#7C3AED' }] : []),
-          ...(papel === 'operacional' ? [{ id:'meusdados', label:'Meus Documentos', count:null, cor:'#7C3AED' }] : []),
+          ...(papel ? [{ id:'meusdados', label:'Meus Documentos', count:null, cor:'#7C3AED' }] : []),
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'jantas', label:'Jantas', count: jantasTodas.filter(j => j.status === 'pendente').length, cor:'#B45309' }] : []),
         ].map(a => (
           <button key={a.id} onClick={() => setAba(a.id)}
@@ -1889,7 +1889,7 @@ export default function App() {
       )}
 
       {/* ====== ABA: MEUS DOCUMENTOS (operacional) ====== */}
-      {aba === 'meusdados' && papel === 'operacional' && (
+      {aba === 'meusdados' && papel && (
         <div style={{ padding:12 }}>
           {carregandoMeuRH ? (
             <div style={{ textAlign:'center', color:'#888', marginTop:40, fontSize:14 }}>Carregando...</div>
@@ -1902,12 +1902,13 @@ export default function App() {
             const statusAso = statusVencimento(vencimentoAso)
             const statusCnh = statusVencimento(meuRH.data_vencimento_cnh)
             const previsaoFerias = proximaFeriasEstimativa(meuRH.data_admissao)
+            const precisaNRSelf = papel === 'operacional'
             const nrs = [
-              { label:'NR6', status:interpretaStatusDoc(meuRH.nr6, NR_VALIDADE_ANOS.nr6, true) },
-              { label:'NR10', status:interpretaStatusDoc(meuRH.nr10, NR_VALIDADE_ANOS.nr10, true) },
-              { label:'NR33', status:interpretaStatusDoc(meuRH.nr33, NR_VALIDADE_ANOS.nr33, true) },
-              { label:'NR35', status:interpretaStatusDoc(meuRH.nr35, NR_VALIDADE_ANOS.nr35, true) },
-              { label:'NR12', status:interpretaStatusDoc(meuRH.nr12, NR_VALIDADE_ANOS.nr12, true) },
+              { label:'NR6', status:interpretaStatusDoc(meuRH.nr6, NR_VALIDADE_ANOS.nr6, precisaNRSelf) },
+              { label:'NR10', status:interpretaStatusDoc(meuRH.nr10, NR_VALIDADE_ANOS.nr10, precisaNRSelf) },
+              { label:'NR33', status:interpretaStatusDoc(meuRH.nr33, NR_VALIDADE_ANOS.nr33, precisaNRSelf) },
+              { label:'NR35', status:interpretaStatusDoc(meuRH.nr35, NR_VALIDADE_ANOS.nr35, precisaNRSelf) },
+              { label:'NR12', status:interpretaStatusDoc(meuRH.nr12, NR_VALIDADE_ANOS.nr12, precisaNRSelf) },
             ]
             const pontoPendentes = mesesPendentes(meuRH.ponto_assinado_meses, 2026)
             const holeriteAdiantPendentes = mesesPendentes(meuRH.holerite_adiantamento_meses, 2026)
