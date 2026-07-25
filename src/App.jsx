@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
+import * as XLSXStyle from 'xlsx-js-style'
 import { supabase } from './supabase'
 
 const OBRAS_INICIAIS = [
@@ -1522,24 +1523,42 @@ export default function App() {
   function exportarPontoExcel() {
     if (!pontoResultado) return
     const { periodo, colaboradores } = pontoResultado
-    const linhas = colaboradores.map(c => ({
-      'Colaborador': c.nome,
-      'Horas normais': minutosParaHoras(c.totais?.horasNormais || 0),
-      'HE1': minutosParaHoras(c.totais?.he1 || 0),
-      'HE2': minutosParaHoras(c.totais?.he2 || 0),
-      'Adicional noturno': minutosParaHoras(c.totais?.adicionalNoturno || 0),
-      'Crédito': minutosParaHoras(c.totais?.credito || 0),
-      'Débito': minutosParaHoras(c.totais?.debito || 0),
-      'Violações interjornada': c.violacoesInterjornada.length,
-      'Detalhe interjornada': c.violacoesInterjornada.map(v => `${v.de} → ${v.para} (${minutosParaHoras(v.gapMinutos)})`).join('; '),
-      'Violações intrajornada': c.violacoesIntrajornada.length,
-      'Detalhe intrajornada': c.violacoesIntrajornada.map(v => `${v.data} (${minutosParaHoras(v.intervalo)})`).join('; '),
-    }))
-    const ws = XLSX.utils.json_to_sheet(linhas)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Fechamento')
+    const cabecalho = ['Colaborador', 'Horas normais', 'HE1', 'HE2', 'Adicional noturno', 'Crédito', 'Débito', 'Violações interjornada', 'Detalhe interjornada', 'Violações intrajornada', 'Detalhe intrajornada']
+    const linhas = colaboradores.map(c => [
+      c.nome,
+      minutosParaHoras(c.totais?.horasNormais || 0),
+      minutosParaHoras(c.totais?.he1 || 0),
+      minutosParaHoras(c.totais?.he2 || 0),
+      minutosParaHoras(c.totais?.adicionalNoturno || 0),
+      minutosParaHoras(c.totais?.credito || 0),
+      minutosParaHoras(c.totais?.debito || 0),
+      c.violacoesInterjornada.length,
+      c.violacoesInterjornada.map(v => `${v.de} → ${v.para} (${minutosParaHoras(v.gapMinutos)})`).join('; '),
+      c.violacoesIntrajornada.length,
+      c.violacoesIntrajornada.map(v => `${v.data} (${minutosParaHoras(v.intervalo)})`).join('; '),
+    ])
+    const ws = XLSXStyle.utils.aoa_to_sheet([cabecalho, ...linhas])
+
+    const estiloHeader = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '2D3A8C' } }, alignment: { horizontal: 'center' } }
+    cabecalho.forEach((_, col) => {
+      const ref = XLSX.utils.encode_cell({ r: 0, c: col })
+      if (ws[ref]) ws[ref].s = estiloHeader
+    })
+    colaboradores.forEach((c, i) => {
+      const linha = i + 1
+      const refInter = XLSX.utils.encode_cell({ r: linha, c: 7 })
+      const refIntra = XLSX.utils.encode_cell({ r: linha, c: 9 })
+      const estiloViolado = { font: { bold: true, color: { rgb: '991B1B' } }, fill: { fgColor: { rgb: 'FEE2E2' } } }
+      const estiloOk = { font: { color: { rgb: '065F46' } }, fill: { fgColor: { rgb: 'D1FAE5' } } }
+      if (ws[refInter]) ws[refInter].s = c.violacoesInterjornada.length > 0 ? estiloViolado : estiloOk
+      if (ws[refIntra]) ws[refIntra].s = c.violacoesIntrajornada.length > 0 ? estiloViolado : estiloOk
+    })
+    ws['!cols'] = [{ wch: 32 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 45 }, { wch: 12 }, { wch: 45 }]
+
+    const wb = XLSXStyle.utils.book_new()
+    XLSXStyle.utils.book_append_sheet(wb, ws, 'Fechamento')
     const nomeArquivo = `Fechamento_Ponto_${pontoBase || 'base'}_${periodo.inicio || ''}_a_${periodo.fim || ''}.xlsx`
-    XLSX.writeFile(wb, nomeArquivo)
+    XLSXStyle.writeFile(wb, nomeArquivo)
   }
 
   async function decidirJanta(id, status, valor) {
