@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import * as XLSX from 'xlsx'
 import { supabase } from './supabase'
 
 const OBRAS_INICIAIS = [
@@ -349,6 +350,131 @@ function listaPendenciasRH(c, perfisLogin) {
 
 function contarPendenciasRH(c, perfisLogin) {
   return listaPendenciasRH(c, perfisLogin).length
+}
+
+// ====== Fechamento de ponto — parser do espelho bruto (xlsx) ======
+
+function horaParaMinutos(hhmm) {
+  if (!hhmm || typeof hhmm !== 'string' || !hhmm.includes(':')) return 0
+  const [h, m] = hhmm.split(':').map(Number)
+  return (h || 0) * 60 + (m || 0)
+}
+
+function extraiPrimeiroTempo(valor) {
+  // Linha TOTAIS vem tipo "27:34 Not.: 04:00" — só interessa o primeiro valor.
+  if (!valor) return 0
+  const m = String(valor).match(/^(\d+):(\d{2})/)
+  return m ? Number(m[1]) * 60 + Number(m[2]) : 0
+}
+
+function parseDataDia(dataStr) {
+  const m = String(dataStr || '').match(/(\d{2})\/(\d{2})\/(\d{4})/)
+  if (!m) return null
+  return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]))
+}
+
+function parsePontoEspelho(rows) {
+  const colaboradores = []
+  let i = 0
+  while (i < rows.length) {
+    if (rows[i][0] !== 'Colaborador') { i++; continue }
+    const nome = String(rows[i][1] || '').trim()
+    const header = (rows[i + 1] || []).map(h => String(h || '').trim())
+    const idx = {}
+    header.forEach((h, k) => { idx[h] = k })
+    const he1Chave = header.find(h => h.startsWith('Horas extras fator 1'))
+    const he2Chave = header.find(h => h.startsWith('Horas extras fator 2'))
+
+    const dias = []
+    let j = i + 2
+    while (j < rows.length && rows[j][0] !== 'TOTAIS' && rows[j][0] !== 'Colaborador') {
+      const r = rows[j]
+      dias.push({
+        data: r[idx['Data']] || '',
+        dataObj: parseDataDia(r[idx['Data']]),
+        entrada1: r[idx['1ª Entrada']] || '',
+        saida1: r[idx['1ª Saída']] || '',
+        saida2: r[idx['2ª Saída']] || '',
+        saida3: idx['3ª Saída'] != null ? (r[idx['3ª Saída']] || '') : '',
+        hIntervalo: r[idx['H. intervalo']] || '00:00',
+        horasNormais: r[idx['Horas normais']] || '00:00',
+        he1: r[idx[he1Chave]] || '00:00',
+        he2: r[idx[he2Chave]] || '00:00',
+        adicionalNoturno: r[idx['Adicional noturno']] || '00:00',
+        motivo: r[idx['Motivo/Observação']] || '',
+      })
+      j++
+    }
+    const totaisRow = rows[j] && rows[j][0] === 'TOTAIS' ? rows[j] : null
+    colaboradores.push({
+      nome,
+      dias,
+      totais: totaisRow ? {
+        credito: extraiPrimeiroTempo(totaisRow[idx['Crédito']]),
+        debito: extraiPrimeiroTempo(totaisRow[idx['Débito']]),
+        hIntervalo: extraiPrimeiroTempo(totaisRow[idx['H. intervalo']]),
+        horasNormais: extraiPrimeiroTempo(totaisRow[idx['Horas normais']]),
+        he1: extraiPrimeiroTempo(totaisRow[idx[he1Chave]]),
+        he2: extraiPrimeiroTempo(totaisRow[idx[he2Chave]]),
+        adicionalNoturno: extraiPrimeiroTempo(totaisRow[idx['Adicional noturno']]),
+      } : null,
+    })
+    i = j + 1
+  }
+  return colaboradores
+}
+
+function ultimaSaidaDoDia(dia) {
+  return dia.saida3 || dia.saida2 || dia.saida1 || ''
+}
+
+function calcularViolacoesInterjornada(dias) {
+  const violacoes = []
+  for (let k = 0; k < dias.length - 1; k++) {
+    const saidaHoje = ultimaSaidaDoDia(dias[k])
+    const entradaAmanha = dias[k + 1].entrada1
+    if (!saidaHoje || !entradaAmanha) continue
+    const gap = (24 * 60 - horaParaMinutos(saidaHoje)) + horaParaMinutos(entradaAmanha)
+    if (gap < 11 * 60) violacoes.push({ de: dias[k].data, para: dias[k + 1].data, gapMinutos: gap })
+  }
+  return violacoes
+}
+
+function ehFimDeSemanaOuFeriado(dia) {
+  if ((dia.motivo || '').toUpperCase().includes('FERIADO')) return true
+  if (dia.dataObj) { const d = dia.dataObj.getDay(); if (d === 0 || d === 6) return true }
+  return false
+}
+
+function calcularViolacoesIntrajornada(dias) {
+  const violacoes = []
+  dias.forEach(dia => {
+    if (ehFimDeSemanaOuFeriado(dia)) return
+    const trabalhado = horaParaMinutos(dia.horasNormais) + horaParaMinutos(dia.he1) + horaParaMinutos(dia.he2)
+    if (trabalhado <= 0) return
+    const minimoExigido = trabalhado > 6 * 60 ? 60 : (trabalhado > 4 * 60 ? 15 : 0)
+    if (minimoExigido === 0) return
+    const intervalo = horaParaMinutos(dia.hIntervalo)
+    if (intervalo < minimoExigido) violacoes.push({ data: dia.data, intervalo, minimoExigido })
+  })
+  return violacoes
+}
+
+function minutosParaHoras(min) {
+  const h = Math.floor(Math.abs(min) / 60), m = Math.abs(min) % 60
+  return `${min < 0 ? '-' : ''}${h}:${String(m).padStart(2, '0')}`
+}
+
+function processarEspelhoPonto(arrayBuffer) {
+  const wb = XLSX.read(arrayBuffer, { type: 'array' })
+  const ws = wb.Sheets[wb.SheetNames[0]]
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+  const colaboradores = parsePontoEspelho(rows)
+  return colaboradores.map(c => ({
+    ...c,
+    violacoesInterjornada: calcularViolacoesInterjornada(c.dias),
+    violacoesIntrajornada: calcularViolacoesIntrajornada(c.dias),
+  }))
 }
 
 const TIPOS_ADESIVO = ['PUXE','EMPURRE','DESLIZE','CADEIRANTE','FAIXA BOLINHA','FAIXA JATEADO']
@@ -1255,6 +1381,11 @@ export default function App() {
   const [novoRhNomeCompleto, setNovoRhNomeCompleto] = useState('')
   const [novoRhBaseCadastrado, setNovoRhBaseCadastrado] = useState('')
   const [novoRhBaseAtua, setNovoRhBaseAtua] = useState('')
+  const [pontoResultado, setPontoResultado] = useState(null)
+  const [pontoNomeArquivo, setPontoNomeArquivo] = useState('')
+  const [pontoProcessando, setPontoProcessando] = useState(false)
+  const [pontoErro, setPontoErro] = useState('')
+  const [pontoAbertoNome, setPontoAbertoNome] = useState(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -1340,6 +1471,27 @@ export default function App() {
   async function atualizarRH(id, campos) {
     setRhColaboradores(prev => prev.map(c => c.id === id ? { ...c, ...campos } : c))
     await supabase.from('rh_colaboradores').update(campos).eq('id', id)
+  }
+
+  function handlePontoUpload(e) {
+    const arquivo = e.target.files[0]
+    if (!arquivo) return
+    setPontoErro('')
+    setPontoProcessando(true)
+    setPontoNomeArquivo(arquivo.name)
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const colaboradores = processarEspelhoPonto(ev.target.result)
+        setPontoResultado(colaboradores)
+      } catch (err) {
+        console.error('Erro ao processar espelho de ponto:', err)
+        setPontoErro('Não consegui ler esse arquivo. Confere se é o espelho de ponto exportado do sistema.')
+        setPontoResultado(null)
+      }
+      setPontoProcessando(false)
+    }
+    reader.readAsArrayBuffer(arquivo)
   }
 
   async function adicionarRH() {
@@ -1747,6 +1899,7 @@ export default function App() {
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'rh', label:'RH', count: rhColaboradores.length, cor:'#7C3AED' }] : []),
           ...(papel ? [{ id:'meusdados', label:'Meus Documentos', count:null, cor:'#7C3AED' }] : []),
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'jantas', label:'Jantas', count: jantasTodas.filter(j => j.status === 'pendente').length, cor:'#B45309' }] : []),
+          ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'fechamento', label:'Fechamento de Ponto', count:null, cor:'#0F766E' }] : []),
         ].map(a => (
           <button key={a.id} onClick={() => setAba(a.id)}
             style={{ flex:1, padding:'12px 8px', border:'none', borderBottom: aba===a.id ? `3px solid ${a.cor||'#2D3A8C'}` : '3px solid transparent',
@@ -2158,6 +2311,89 @@ export default function App() {
         </div>
         )
       })()}
+
+      {/* ====== ABA: FECHAMENTO DE PONTO ====== */}
+      {aba === 'fechamento' && (papel === 'admin' || papel === 'rh' || papel === 'financeiro') && (
+        <div style={{ padding:12 }}>
+          <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:10, padding:'10px 14px', fontSize:12, color:'#92400E', marginBottom:14 }}>
+            ⚠ Fase 1 (em teste): sobe o espelho de ponto bruto (.xlsx) e o Pipeline calcula sozinho as violações de interjornada (mín. 11h entre turnos) e intrajornada (15min se 4-6h trabalhadas, 1h se mais de 6h, exceto fins de semana/feriado). Confere contra um mês que você já sabe que fechou certo antes de usar pra valer.
+          </div>
+
+          <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:14 }}>
+            <label style={{ fontSize:12, color:'#1A2340', fontWeight:700, display:'block', marginBottom:8 }}>Espelho de ponto (.xlsx)</label>
+            <input type="file" accept=".xlsx,.xls" onChange={handlePontoUpload}
+              style={{ fontSize:12, color:'#1A2340' }} />
+            {pontoProcessando && <div style={{ fontSize:12, color:'#64748B', marginTop:8 }}>Processando {pontoNomeArquivo}...</div>}
+            {pontoErro && <div style={{ fontSize:12, color:'#991B1B', marginTop:8 }}>{pontoErro}</div>}
+          </div>
+
+          {pontoResultado && (() => {
+            const totalInterjornada = pontoResultado.reduce((s,c) => s + c.violacoesInterjornada.length, 0)
+            const totalIntrajornada = pontoResultado.reduce((s,c) => s + c.violacoesIntrajornada.length, 0)
+            return (
+              <>
+                <div style={{ display:'flex', gap:8, marginBottom:14 }}>
+                  <div style={{ flex:1, background:'#fff', border:'1px solid #E0E8F0', borderRadius:10, padding:'10px 14px', textAlign:'center' }}>
+                    <div style={{ fontSize:20, fontWeight:700, color:'#1A2340' }}>{pontoResultado.length}</div>
+                    <div style={{ fontSize:10, color:'#64748B' }}>Colaboradores no arquivo</div>
+                  </div>
+                  <div style={{ flex:1, background: totalInterjornada > 0 ? '#FEE2E2' : '#D1FAE5', borderRadius:10, padding:'10px 14px', textAlign:'center' }}>
+                    <div style={{ fontSize:20, fontWeight:700, color: totalInterjornada > 0 ? '#991B1B' : '#065F46' }}>{totalInterjornada}</div>
+                    <div style={{ fontSize:10, color: totalInterjornada > 0 ? '#991B1B' : '#065F46' }}>Violações de interjornada</div>
+                  </div>
+                  <div style={{ flex:1, background: totalIntrajornada > 0 ? '#FEE2E2' : '#D1FAE5', borderRadius:10, padding:'10px 14px', textAlign:'center' }}>
+                    <div style={{ fontSize:20, fontWeight:700, color: totalIntrajornada > 0 ? '#991B1B' : '#065F46' }}>{totalIntrajornada}</div>
+                    <div style={{ fontSize:10, color: totalIntrajornada > 0 ? '#991B1B' : '#065F46' }}>Violações de intrajornada</div>
+                  </div>
+                </div>
+
+                {pontoResultado.map(c => {
+                  const temViolacao = c.violacoesInterjornada.length > 0 || c.violacoesIntrajornada.length > 0
+                  const aberto = pontoAbertoNome === c.nome
+                  return (
+                    <div key={c.nome} style={{ background:'#fff', border: temViolacao ? '1px solid #FCA5A5' : '1px solid #E0E8F0', borderRadius:12, marginBottom:8, overflow:'hidden' }}>
+                      <div onClick={() => setPontoAbertoNome(aberto ? null : c.nome)}
+                        style={{ padding:'12px 14px', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+                        <div style={{ fontSize:13, fontWeight:700, color:'#1A2340' }}>{c.nome}</div>
+                        <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
+                          {c.totais && <span style={{ fontSize:11, color:'#64748B' }}>Normais {minutosParaHoras(c.totais.horasNormais)} · HE1 {minutosParaHoras(c.totais.he1)} · HE2 {minutosParaHoras(c.totais.he2)} · Adic. not. {minutosParaHoras(c.totais.adicionalNoturno)}</span>}
+                          {c.violacoesInterjornada.length > 0 && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FEE2E2', color:'#991B1B' }}>⚠ {c.violacoesInterjornada.length} interjornada</span>}
+                          {c.violacoesIntrajornada.length > 0 && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FEE2E2', color:'#991B1B' }}>⚠ {c.violacoesIntrajornada.length} intrajornada</span>}
+                          {!temViolacao && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#D1FAE5', color:'#065F46' }}>✓ sem violações</span>}
+                        </div>
+                      </div>
+                      {aberto && (
+                        <div style={{ padding:'0 14px 14px', borderTop:'1px solid #E0E8F0' }}>
+                          {c.violacoesInterjornada.length > 0 && (
+                            <div style={{ marginTop:10 }}>
+                              <div style={{ fontSize:11, fontWeight:700, color:'#991B1B', marginBottom:4 }}>Interjornada violada</div>
+                              {c.violacoesInterjornada.map((v,i) => (
+                                <div key={i} style={{ fontSize:12, color:'#1A2340', padding:'4px 0' }}>
+                                  {v.de} → {v.para}: só {minutosParaHoras(v.gapMinutos)} de descanso (mínimo 11:00)
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {c.violacoesIntrajornada.length > 0 && (
+                            <div style={{ marginTop:10 }}>
+                              <div style={{ fontSize:11, fontWeight:700, color:'#991B1B', marginBottom:4 }}>Intrajornada violada</div>
+                              {c.violacoesIntrajornada.map((v,i) => (
+                                <div key={i} style={{ fontSize:12, color:'#1A2340', padding:'4px 0' }}>
+                                  {v.data}: intervalo de {minutosParaHoras(v.intervalo)} (mínimo {minutosParaHoras(v.minimoExigido)})
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </>
+            )
+          })()}
+        </div>
+      )}
 
       {/* ====== ABA: PIPELINE ====== */}
       {aba === 'pipeline' && <>
