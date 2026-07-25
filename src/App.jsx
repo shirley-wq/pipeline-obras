@@ -1396,6 +1396,8 @@ export default function App() {
   const [pontoBase, setPontoBase] = useState('')
   const [pontoSalvando, setPontoSalvando] = useState(false)
   const [pontoSalvo, setPontoSalvo] = useState(false)
+  const [pontoSalvos, setPontoSalvos] = useState([])
+  const [pontoCarregandoSalvo, setPontoCarregandoSalvo] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -1420,6 +1422,7 @@ export default function App() {
       carregarRH()
       carregarEmailsLogin()
       carregarJantasTodas()
+      carregarFechamentosSalvos()
     }
   }, [papel])
 
@@ -1469,6 +1472,51 @@ export default function App() {
   async function carregarJantasTodas() {
     const { data } = await supabase.from('solicitacoes_janta').select('*').order('solicitado_em', { ascending: false })
     setJantasTodas(data || [])
+  }
+
+  async function carregarFechamentosSalvos() {
+    const { data } = await supabase.from('fechamento_ponto').select('base, periodo_inicio, periodo_fim')
+      .order('periodo_inicio', { ascending: false })
+    const vistos = new Set()
+    const unicos = []
+    ;(data || []).forEach(r => {
+      const chave = `${r.base}|${r.periodo_inicio}|${r.periodo_fim}`
+      if (!vistos.has(chave)) { vistos.add(chave); unicos.push(r) }
+    })
+    setPontoSalvos(unicos)
+  }
+
+  async function abrirFechamentoSalvo(base, periodoInicio, periodoFim) {
+    setPontoCarregandoSalvo(true)
+    setPontoErro('')
+    const { data, error } = await supabase.from('fechamento_ponto').select('*')
+      .eq('base', base).eq('periodo_inicio', periodoInicio).eq('periodo_fim', periodoFim)
+      .order('colaborador_nome')
+    if (error || !data) {
+      setPontoErro('Não consegui abrir esse fechamento salvo.')
+      setPontoCarregandoSalvo(false)
+      return
+    }
+    setPontoBase(base)
+    setPontoNomeArquivo('')
+    setPontoResultado({
+      periodo: { inicio: periodoInicio, fim: periodoFim },
+      colaboradores: data.map(r => ({
+        nome: r.colaborador_nome,
+        totais: {
+          horasNormais: r.horas_normais_min,
+          he1: r.he1_min,
+          he2: r.he2_min,
+          adicionalNoturno: r.adicional_noturno_min,
+          credito: r.credito_min,
+          debito: r.debito_min,
+        },
+        violacoesInterjornada: r.violacoes_interjornada || [],
+        violacoesIntrajornada: r.violacoes_intrajornada || [],
+      })),
+    })
+    setPontoSalvo(true)
+    setPontoCarregandoSalvo(false)
   }
 
   async function decidirJanta(id, status, valor) {
@@ -1537,6 +1585,7 @@ export default function App() {
       setPontoErro('Não consegui salvar: ' + erroInsert.message)
     } else {
       setPontoSalvo(true)
+      carregarFechamentosSalvos()
     }
     setPontoSalvando(false)
   }
@@ -2365,6 +2414,23 @@ export default function App() {
           <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:10, padding:'10px 14px', fontSize:12, color:'#92400E', marginBottom:14 }}>
             ⚠ Fase 1 (em teste): sobe o espelho de ponto bruto (.xlsx) e o Pipeline calcula sozinho as violações de interjornada (mín. 11h entre turnos) e intrajornada (15min se 4-6h trabalhadas, 1h se mais de 6h, exceto fins de semana/feriado). Confere contra um mês que você já sabe que fechou certo antes de usar pra valer.
           </div>
+
+          {pontoSalvos.length > 0 && (
+            <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:14 }}>
+              <label style={{ fontSize:12, color:'#1A2340', fontWeight:700, display:'block', marginBottom:8 }}>Fechamentos já salvos</label>
+              <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                {pontoSalvos.map(p => (
+                  <div key={`${p.base}|${p.periodo_inicio}|${p.periodo_fim}`}
+                    onClick={() => abrirFechamentoSalvo(p.base, p.periodo_inicio, p.periodo_fim)}
+                    style={{ display:'flex', justifyContent:'space-between', alignItems:'center', background:'#F0F4F8', borderRadius:6, padding:'6px 10px', cursor:'pointer' }}>
+                    <span style={{ fontSize:12, color:'#1A2340' }}>{p.base} — {isoToBr(p.periodo_inicio)} até {isoToBr(p.periodo_fim)}</span>
+                    <span style={{ fontSize:11, color:'#0F766E', fontWeight:700 }}>Abrir →</span>
+                  </div>
+                ))}
+              </div>
+              {pontoCarregandoSalvo && <div style={{ fontSize:12, color:'#64748B', marginTop:8 }}>Carregando...</div>}
+            </div>
+          )}
 
           <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:14 }}>
             <label style={{ fontSize:12, color:'#1A2340', fontWeight:700, display:'block', marginBottom:8 }}>Base</label>
