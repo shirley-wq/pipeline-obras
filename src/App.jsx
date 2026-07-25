@@ -460,16 +460,28 @@ function minutosParaHoras(min) {
   return `${min < 0 ? '-' : ''}${h}:${String(m).padStart(2, '0')}`
 }
 
+function parsePeriodoEspelho(rows) {
+  for (let i = 0; i < Math.min(rows.length, 5); i++) {
+    const m = String(rows[i][0] || '').match(/(\d{2})\/(\d{2})\/(\d{4})\s*(?:a|até)\s*(\d{2})\/(\d{2})\/(\d{4})/i)
+    if (m) return { inicio: `${m[3]}-${m[2]}-${m[1]}`, fim: `${m[6]}-${m[5]}-${m[4]}` }
+  }
+  return { inicio: null, fim: null }
+}
+
 function processarEspelhoPonto(arrayBuffer) {
   const wb = XLSX.read(arrayBuffer, { type: 'array' })
   const ws = wb.Sheets[wb.SheetNames[0]]
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
   const colaboradores = parsePontoEspelho(rows)
-  return colaboradores.map(c => ({
-    ...c,
-    violacoesInterjornada: calcularViolacoesInterjornada(c.dias),
-    violacoesIntrajornada: calcularViolacoesIntrajornada(c.dias),
-  }))
+  const periodo = parsePeriodoEspelho(rows)
+  return {
+    periodo,
+    colaboradores: colaboradores.map(c => ({
+      ...c,
+      violacoesInterjornada: calcularViolacoesInterjornada(c.dias),
+      violacoesIntrajornada: calcularViolacoesIntrajornada(c.dias),
+    })),
+  }
 }
 
 const TIPOS_ADESIVO = ['PUXE','EMPURRE','DESLIZE','CADEIRANTE','FAIXA BOLINHA','FAIXA JATEADO']
@@ -1381,6 +1393,9 @@ export default function App() {
   const [pontoProcessando, setPontoProcessando] = useState(false)
   const [pontoErro, setPontoErro] = useState('')
   const [pontoAbertoNome, setPontoAbertoNome] = useState(null)
+  const [pontoBase, setPontoBase] = useState('')
+  const [pontoSalvando, setPontoSalvando] = useState(false)
+  const [pontoSalvo, setPontoSalvo] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -1472,13 +1487,14 @@ export default function App() {
     const arquivo = e.target.files[0]
     if (!arquivo) return
     setPontoErro('')
+    setPontoSalvo(false)
     setPontoProcessando(true)
     setPontoNomeArquivo(arquivo.name)
     const reader = new FileReader()
     reader.onload = (ev) => {
       try {
-        const colaboradores = processarEspelhoPonto(ev.target.result)
-        setPontoResultado(colaboradores)
+        const resultado = processarEspelhoPonto(ev.target.result)
+        setPontoResultado(resultado)
       } catch (err) {
         console.error('Erro ao processar espelho de ponto:', err)
         setPontoErro('Não consegui ler esse arquivo. Confere se é o espelho de ponto exportado do sistema.')
@@ -1487,6 +1503,42 @@ export default function App() {
       setPontoProcessando(false)
     }
     reader.readAsArrayBuffer(arquivo)
+  }
+
+  async function salvarFechamentoPonto() {
+    if (!pontoResultado || !pontoBase || !pontoResultado.periodo.inicio || !pontoResultado.periodo.fim) return
+    setPontoSalvando(true)
+    setPontoErro('')
+    const { periodo, colaboradores } = pontoResultado
+    const { error: erroDelete } = await supabase.from('fechamento_ponto').delete()
+      .eq('base', pontoBase).eq('periodo_inicio', periodo.inicio).eq('periodo_fim', periodo.fim)
+    if (erroDelete) {
+      setPontoErro('Não consegui limpar o período anterior: ' + erroDelete.message)
+      setPontoSalvando(false)
+      return
+    }
+    const linhas = colaboradores.map(c => ({
+      base: pontoBase,
+      periodo_inicio: periodo.inicio,
+      periodo_fim: periodo.fim,
+      colaborador_nome: c.nome,
+      horas_normais_min: c.totais?.horasNormais || 0,
+      he1_min: c.totais?.he1 || 0,
+      he2_min: c.totais?.he2 || 0,
+      adicional_noturno_min: c.totais?.adicionalNoturno || 0,
+      credito_min: c.totais?.credito || 0,
+      debito_min: c.totais?.debito || 0,
+      violacoes_interjornada: c.violacoesInterjornada,
+      violacoes_intrajornada: c.violacoesIntrajornada,
+      processado_por: usuario?.email || null,
+    }))
+    const { error: erroInsert } = await supabase.from('fechamento_ponto').insert(linhas)
+    if (erroInsert) {
+      setPontoErro('Não consegui salvar: ' + erroInsert.message)
+    } else {
+      setPontoSalvo(true)
+    }
+    setPontoSalvando(false)
   }
 
   async function adicionarRH() {
@@ -2315,6 +2367,14 @@ export default function App() {
           </div>
 
           <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:14 }}>
+            <label style={{ fontSize:12, color:'#1A2340', fontWeight:700, display:'block', marginBottom:8 }}>Base</label>
+            <select value={pontoBase} onChange={e => setPontoBase(e.target.value)}
+              style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff', marginBottom:12 }}>
+              <option value="">Selecione a base —</option>
+              <option value="RIO">RIO</option>
+              <option value="SAO">SAO</option>
+              <option value="BHZ">BHZ</option>
+            </select>
             <label style={{ fontSize:12, color:'#1A2340', fontWeight:700, display:'block', marginBottom:8 }}>Espelho de ponto (.xlsx)</label>
             <input type="file" accept=".xlsx,.xls" onChange={handlePontoUpload}
               style={{ fontSize:12, color:'#1A2340' }} />
@@ -2323,13 +2383,26 @@ export default function App() {
           </div>
 
           {pontoResultado && (() => {
-            const totalInterjornada = pontoResultado.reduce((s,c) => s + c.violacoesInterjornada.length, 0)
-            const totalIntrajornada = pontoResultado.reduce((s,c) => s + c.violacoesIntrajornada.length, 0)
+            const { periodo, colaboradores } = pontoResultado
+            const totalInterjornada = colaboradores.reduce((s,c) => s + c.violacoesInterjornada.length, 0)
+            const totalIntrajornada = colaboradores.reduce((s,c) => s + c.violacoesIntrajornada.length, 0)
             return (
               <>
+                <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:'10px 14px', marginBottom:14, display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:10 }}>
+                  <div style={{ fontSize:12, color:'#1A2340' }}>
+                    Período: {periodo.inicio ? isoToBr(periodo.inicio) : '?'} até {periodo.fim ? isoToBr(periodo.fim) : '?'}
+                    {!periodo.inicio && <span style={{ color:'#991B1B' }}> — não consegui identificar o período no arquivo, confere manualmente antes de salvar.</span>}
+                  </div>
+                  <button onClick={salvarFechamentoPonto} disabled={pontoSalvando || !pontoBase || !periodo.inicio}
+                    style={{ padding:'8px 16px', background: (!pontoBase || !periodo.inicio) ? '#CDD8E3' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor: (!pontoBase || !periodo.inicio) ? 'not-allowed' : 'pointer' }}>
+                    {pontoSalvando ? 'Salvando...' : pontoSalvo ? '✓ Salvo' : '💾 Salvar este processamento'}
+                  </button>
+                  {!pontoBase && <span style={{ fontSize:11, color:'#991B1B' }}>Selecione a base pra poder salvar</span>}
+                </div>
+
                 <div style={{ display:'flex', gap:8, marginBottom:14 }}>
                   <div style={{ flex:1, background:'#fff', border:'1px solid #E0E8F0', borderRadius:10, padding:'10px 14px', textAlign:'center' }}>
-                    <div style={{ fontSize:20, fontWeight:700, color:'#1A2340' }}>{pontoResultado.length}</div>
+                    <div style={{ fontSize:20, fontWeight:700, color:'#1A2340' }}>{colaboradores.length}</div>
                     <div style={{ fontSize:10, color:'#64748B' }}>Colaboradores no arquivo</div>
                   </div>
                   <div style={{ flex:1, background: totalInterjornada > 0 ? '#FEE2E2' : '#D1FAE5', borderRadius:10, padding:'10px 14px', textAlign:'center' }}>
@@ -2342,7 +2415,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {pontoResultado.map(c => {
+                {colaboradores.map(c => {
                   const temViolacao = c.violacoesInterjornada.length > 0 || c.violacoesIntrajornada.length > 0
                   const aberto = pontoAbertoNome === c.nome
                   return (
