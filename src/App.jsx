@@ -1519,6 +1519,29 @@ export default function App() {
     setPontoCarregandoSalvo(false)
   }
 
+  function exportarPontoExcel() {
+    if (!pontoResultado) return
+    const { periodo, colaboradores } = pontoResultado
+    const linhas = colaboradores.map(c => ({
+      'Colaborador': c.nome,
+      'Horas normais': minutosParaHoras(c.totais?.horasNormais || 0),
+      'HE1': minutosParaHoras(c.totais?.he1 || 0),
+      'HE2': minutosParaHoras(c.totais?.he2 || 0),
+      'Adicional noturno': minutosParaHoras(c.totais?.adicionalNoturno || 0),
+      'Crédito': minutosParaHoras(c.totais?.credito || 0),
+      'Débito': minutosParaHoras(c.totais?.debito || 0),
+      'Violações interjornada': c.violacoesInterjornada.length,
+      'Detalhe interjornada': c.violacoesInterjornada.map(v => `${v.de} → ${v.para} (${minutosParaHoras(v.gapMinutos)})`).join('; '),
+      'Violações intrajornada': c.violacoesIntrajornada.length,
+      'Detalhe intrajornada': c.violacoesIntrajornada.map(v => `${v.data} (${minutosParaHoras(v.intervalo)})`).join('; '),
+    }))
+    const ws = XLSX.utils.json_to_sheet(linhas)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Fechamento')
+    const nomeArquivo = `Fechamento_Ponto_${pontoBase || 'base'}_${periodo.inicio || ''}_a_${periodo.fim || ''}.xlsx`
+    XLSX.writeFile(wb, nomeArquivo)
+  }
+
   async function decidirJanta(id, status, valor) {
     const campos = { status, decidido_por: usuario.email, decidido_em: new Date().toISOString() }
     if (valor !== undefined) campos.valor = valor
@@ -2459,10 +2482,16 @@ export default function App() {
                     Período: {periodo.inicio ? isoToBr(periodo.inicio) : '?'} até {periodo.fim ? isoToBr(periodo.fim) : '?'}
                     {!periodo.inicio && <span style={{ color:'#991B1B' }}> — não consegui identificar o período no arquivo, confere manualmente antes de salvar.</span>}
                   </div>
-                  <button onClick={salvarFechamentoPonto} disabled={pontoSalvando || !pontoBase || !periodo.inicio}
-                    style={{ padding:'8px 16px', background: (!pontoBase || !periodo.inicio) ? '#CDD8E3' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor: (!pontoBase || !periodo.inicio) ? 'not-allowed' : 'pointer' }}>
-                    {pontoSalvando ? 'Salvando...' : pontoSalvo ? '✓ Salvo' : '💾 Salvar este processamento'}
-                  </button>
+                  <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                    <button onClick={exportarPontoExcel}
+                      style={{ padding:'8px 16px', background:'#fff', border:'1px solid #0F766E', color:'#0F766E', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                      📊 Exportar Excel
+                    </button>
+                    <button onClick={salvarFechamentoPonto} disabled={pontoSalvando || !pontoBase || !periodo.inicio}
+                      style={{ padding:'8px 16px', background: (!pontoBase || !periodo.inicio) ? '#CDD8E3' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor: (!pontoBase || !periodo.inicio) ? 'not-allowed' : 'pointer' }}>
+                      {pontoSalvando ? 'Salvando...' : pontoSalvo ? '✓ Salvo' : '💾 Salvar este processamento'}
+                    </button>
+                  </div>
                   {!pontoBase && <span style={{ fontSize:11, color:'#991B1B' }}>Selecione a base pra poder salvar</span>}
                 </div>
 
