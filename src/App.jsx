@@ -259,10 +259,12 @@ const RUBRICAS_DESCONTO = [
   { motivo:'MULTA', label:'Multa', codigo:'259' },
   { motivo:'VALE_PRESENTE', label:'Vale Presente', codigo:'290' },
   { motivo:'OUTROS', label:'Outros Descontos', codigo:'258' },
+  { motivo:'REEMBOLSO_TELEFONIA', label:'Reembolso Telefonia', codigo:null },
 ]
 function rubricaLabel(motivo) {
   const r = RUBRICAS_DESCONTO.find(r => r.motivo === motivo)
-  return r ? `${r.label} (${r.codigo})` : motivo
+  if (!r) return motivo
+  return r.codigo ? `${r.label} (${r.codigo})` : r.label
 }
 const NR_CAMPOS = [['NR6','nr6'],['NR10','nr10'],['NR33','nr33'],['NR35','nr35'],['NR12','nr12']]
 
@@ -482,6 +484,48 @@ function processarEspelhoPonto(arrayBuffer) {
       violacoesInterjornada: calcularViolacoesInterjornada(c.dias),
       violacoesIntrajornada: calcularViolacoesIntrajornada(c.dias),
     })),
+  }
+}
+
+const META_BASE_FOLHA = {
+  BHZ: { cidade: 'BELO HORIZONTE', he1Pct: '80%', he2Pct: '80%' },
+  RIO: { cidade: 'RIO DE JANEIRO', he1Pct: '50%', he2Pct: '100%' },
+  SAO: { cidade: 'SÃO PAULO', he1Pct: '60%', he2Pct: '100%' },
+}
+const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+
+function minutosParaHorasVirgula(min) {
+  return minutosParaHoras(min).replace(':', ',')
+}
+
+function normalizaNomeColaborador(nome) {
+  return String(nome || '').trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function montaLinhaFechamentoFolha(colaboradorPonto, rhColaboradores, mesReferencia) {
+  const nomeNormalizado = normalizaNomeColaborador(colaboradorPonto.nome)
+  const rh = rhColaboradores.find(c => normalizaNomeColaborador(`${c.nome} ${c.sobrenome || ''}`) === nomeNormalizado)
+  const descontosDoMes = rh && Array.isArray(rh.descontos) ? rh.descontos.filter(d => d.mes === mesReferencia) : []
+
+  const deficitInterjornada = colaboradorPonto.violacoesInterjornada.reduce((s, v) => s + (11 * 60 - v.gapMinutos), 0)
+  const deficitIntrajornada = colaboradorPonto.violacoesIntrajornada.reduce((s, v) => s + (v.minimoExigido - v.intervalo), 0)
+
+  const valoresRubrica = RUBRICAS_DESCONTO.map(r => {
+    const doMotivo = descontosDoMes.filter(d => d.motivo === r.motivo)
+    return doMotivo.map(d => d.valor).join(' + ')
+  })
+
+  return {
+    nome: colaboradorPonto.nome,
+    encontrouRH: !!rh,
+    linha: [
+      colaboradorPonto.totais ? minutosParaHorasVirgula(colaboradorPonto.totais.he1) : '',
+      colaboradorPonto.totais ? minutosParaHorasVirgula(colaboradorPonto.totais.he2) : '',
+      colaboradorPonto.totais ? minutosParaHorasVirgula(colaboradorPonto.totais.adicionalNoturno) : '',
+      deficitInterjornada > 0 ? minutosParaHorasVirgula(deficitInterjornada) : '',
+      deficitIntrajornada > 0 ? minutosParaHorasVirgula(deficitIntrajornada) : '',
+      ...valoresRubrica,
+    ],
   }
 }
 
@@ -1110,7 +1154,7 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
             <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
               <select value={novoDescontoMotivo} onChange={e => setNovoDescontoMotivo(e.target.value)}
                 style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', background:'#fff' }}>
-                {RUBRICAS_DESCONTO.map(r => <option key={r.motivo} value={r.motivo}>{r.label} ({r.codigo})</option>)}
+                {RUBRICAS_DESCONTO.map(r => <option key={r.motivo} value={r.motivo}>{r.codigo ? `${r.label} (${r.codigo})` : r.label}</option>)}
               </select>
               <input type="month" value={novoDescontoMes} onChange={e => setNovoDescontoMes(e.target.value)}
                 style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
@@ -1559,6 +1603,51 @@ export default function App() {
     XLSXStyle.utils.book_append_sheet(wb, ws, 'Fechamento')
     const nomeArquivo = `Fechamento_Ponto_${pontoBase || 'base'}_${periodo.inicio || ''}_a_${periodo.fim || ''}.xlsx`
     XLSXStyle.writeFile(wb, nomeArquivo)
+  }
+
+  function exportarFechamentoFolha() {
+    if (!pontoResultado || !pontoBase || !pontoResultado.periodo.fim) return
+    const { periodo, colaboradores } = pontoResultado
+    const meta = META_BASE_FOLHA[pontoBase]
+    const mesReferencia = periodo.fim.slice(0, 7)
+    const mesNome = MESES_PT[Number(periodo.fim.slice(5, 7)) - 1]
+    const ano = periodo.fim.slice(0, 4)
+
+    const cabecalho = [
+      '#', 'COLABORADOR', `HE F1 ${meta.he1Pct}`, `HE F2 ${meta.he2Pct}`, 'AD. NOTURNO',
+      'INTERJORNADA VIOLADA', 'INTRAJORNADA (déficit)',
+      ...RUBRICAS_DESCONTO.map(r => r.codigo ? `${r.label} (${r.codigo})` : r.label),
+    ]
+
+    const linhasMontadas = colaboradores.map(c => montaLinhaFechamentoFolha(c, rhColaboradores, mesReferencia))
+    const naoEncontrados = linhasMontadas.filter(l => !l.encontrouRH).map(l => l.nome)
+
+    const linhas = linhasMontadas.map((l, i) => [i + 1, l.nome, ...l.linha])
+    const tituloLinhas = [
+      [`FECHAMENTO DE FOLHA — ${meta.cidade}  |  ${mesNome} / ${ano}  |  Período: ${isoToBr(periodo.inicio)} a ${isoToBr(periodo.fim)}`],
+      [],
+      cabecalho,
+      ...linhas,
+    ]
+    const ws = XLSXStyle.utils.aoa_to_sheet(tituloLinhas)
+
+    const estiloTitulo = { font: { bold: true, sz: 13, color: { rgb: '1A2340' } } }
+    ws['A1'].s = estiloTitulo
+    const estiloHeader = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '2D3A8C' } }, alignment: { horizontal: 'center', wrapText: true } }
+    cabecalho.forEach((_, col) => {
+      const ref = XLSX.utils.encode_cell({ r: 2, c: col })
+      if (ws[ref]) ws[ref].s = estiloHeader
+    })
+    ws['!cols'] = [{ wch: 4 }, { wch: 32 }, ...Array(cabecalho.length - 2).fill({ wch: 13 })]
+
+    const wb = XLSXStyle.utils.book_new()
+    XLSXStyle.utils.book_append_sheet(wb, ws, pontoBase)
+    const nomeArquivo = `Fechamento_de_Folha_${pontoBase}_${periodo.inicio}_a_${periodo.fim}.xlsx`
+    XLSXStyle.writeFile(wb, nomeArquivo)
+
+    if (naoEncontrados.length > 0) {
+      alert(`Atenção: não encontrei cadastro no RH pra ${naoEncontrados.length} colaborador(es), então as colunas de desconto saíram em branco pra eles:\n\n${naoEncontrados.join('\n')}`)
+    }
   }
 
   async function decidirJanta(id, status, valor) {
@@ -2504,8 +2593,14 @@ export default function App() {
                   <div style={{ display:'flex', gap:8, alignItems:'center' }}>
                     <button onClick={exportarPontoExcel}
                       style={{ padding:'8px 16px', background:'#fff', border:'1px solid #0F766E', color:'#0F766E', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                      📊 Exportar Excel
+                      📊 Exportar Excel (ponto)
                     </button>
+                    {pontoBase && META_BASE_FOLHA[pontoBase] && (
+                      <button onClick={exportarFechamentoFolha}
+                        style={{ padding:'8px 16px', background:'#fff', border:'1px solid #7C3AED', color:'#7C3AED', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                        📄 Fechamento de Folha (com descontos)
+                      </button>
+                    )}
                     <button onClick={salvarFechamentoPonto} disabled={pontoSalvando || !pontoBase || !periodo.inicio}
                       style={{ padding:'8px 16px', background: (!pontoBase || !periodo.inicio) ? '#CDD8E3' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor: (!pontoBase || !periodo.inicio) ? 'not-allowed' : 'pointer' }}>
                       {pontoSalvando ? 'Salvando...' : pontoSalvo ? '✓ Salvo' : '💾 Salvar este processamento'}
