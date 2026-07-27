@@ -1650,6 +1650,59 @@ export default function App() {
     }
   }
 
+  function exportarRelatorioViolacoes() {
+    if (!pontoResultado) return
+    const { periodo, colaboradores } = pontoResultado
+    const cabecalho = ['#', 'Colaborador', 'Tipo', 'Data(s)', 'Detalhe', 'Déficit']
+    const linhas = []
+    colaboradores.forEach(c => {
+      c.violacoesInterjornada.forEach(v => linhas.push({
+        colaborador: c.nome, tipo: 'Interjornada', data: `${v.de} → ${v.para}`,
+        detalhe: `Descanso real: ${minutosParaHoras(v.gapMinutos)} (mínimo 11:00)`,
+        deficitMin: 11 * 60 - v.gapMinutos,
+      }))
+      c.violacoesIntrajornada.forEach(v => linhas.push({
+        colaborador: c.nome, tipo: 'Intrajornada', data: v.data,
+        detalhe: `Intervalo real: ${minutosParaHoras(v.intervalo)} (mínimo ${minutosParaHoras(v.minimoExigido)})`,
+        deficitMin: v.minimoExigido - v.intervalo,
+      }))
+    })
+    linhas.sort((a, b) => a.colaborador.localeCompare(b.colaborador) || a.tipo.localeCompare(b.tipo))
+
+    if (linhas.length === 0) {
+      alert('Nenhuma violação encontrada nesse período — sem nada pra exportar.')
+      return
+    }
+
+    const tituloLinhas = [
+      [`RELATÓRIO DE VIOLAÇÕES${pontoBase ? ` — ${pontoBase}` : ''}  |  Período: ${isoToBr(periodo.inicio)} a ${isoToBr(periodo.fim)}`],
+      [],
+      cabecalho,
+      ...linhas.map((l, i) => [i + 1, l.colaborador, l.tipo, l.data, l.detalhe, minutosParaHoras(l.deficitMin)]),
+    ]
+    const ws = XLSXStyle.utils.aoa_to_sheet(tituloLinhas)
+
+    ws['A1'].s = { font: { bold: true, sz: 13, color: { rgb: '1A2340' } } }
+    const estiloHeader = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '2D3A8C' } }, alignment: { horizontal: 'center' } }
+    cabecalho.forEach((_, col) => {
+      const ref = XLSX.utils.encode_cell({ r: 2, c: col })
+      if (ws[ref]) ws[ref].s = estiloHeader
+    })
+    linhas.forEach((l, i) => {
+      const ref = XLSX.utils.encode_cell({ r: i + 3, c: 2 })
+      if (ws[ref]) ws[ref].s = {
+        font: { bold: true, color: { rgb: l.tipo === 'Interjornada' ? '991B1B' : '92400E' } },
+        fill: { fgColor: { rgb: l.tipo === 'Interjornada' ? 'FEE2E2' : 'FEF3C7' } },
+      }
+    })
+    ws['!cols'] = [{ wch: 4 }, { wch: 32 }, { wch: 13 }, { wch: 24 }, { wch: 42 }, { wch: 10 }]
+
+    const wb = XLSXStyle.utils.book_new()
+    XLSXStyle.utils.book_append_sheet(wb, ws, 'Violações')
+    const nomeArquivo = `Relatorio_Violacoes_${pontoBase || 'base'}_${periodo.inicio || ''}_a_${periodo.fim || ''}.xlsx`
+    XLSXStyle.writeFile(wb, nomeArquivo)
+  }
+
   async function decidirJanta(id, status, valor) {
     const campos = { status, decidido_por: usuario.email, decidido_em: new Date().toISOString() }
     if (valor !== undefined) campos.valor = valor
@@ -2601,6 +2654,10 @@ export default function App() {
                         📄 Fechamento de Folha (com descontos)
                       </button>
                     )}
+                    <button onClick={exportarRelatorioViolacoes}
+                      style={{ padding:'8px 16px', background:'#fff', border:'1px solid #B45309', color:'#B45309', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                      ⚠ Relatório de Violações
+                    </button>
                     <button onClick={salvarFechamentoPonto} disabled={pontoSalvando || !pontoBase || !periodo.inicio}
                       style={{ padding:'8px 16px', background: (!pontoBase || !periodo.inicio) ? '#CDD8E3' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor: (!pontoBase || !periodo.inicio) ? 'not-allowed' : 'pointer' }}>
                       {pontoSalvando ? 'Salvando...' : pontoSalvo ? '✓ Salvo' : '💾 Salvar este processamento'}
