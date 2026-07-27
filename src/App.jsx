@@ -460,7 +460,7 @@ function calcularViolacoesIntrajornada(dias) {
 
 function minutosParaHoras(min) {
   const h = Math.floor(Math.abs(min) / 60), m = Math.abs(min) % 60
-  return `${min < 0 ? '-' : ''}${h}:${String(m).padStart(2, '0')}`
+  return `${min < 0 ? '-' : ''}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
 function parsePeriodoEspelho(rows) {
