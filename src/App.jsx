@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import * as XLSXStyle from 'xlsx-js-style'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 import { supabase } from './supabase'
 
 const OBRAS_INICIAIS = [
@@ -397,8 +399,12 @@ function parsePontoEspelho(rows) {
         dataObj: parseDataDia(r[idx['Data']]),
         entrada1: r[idx['1ª Entrada']] || '',
         saida1: r[idx['1ª Saída']] || '',
+        entrada2: r[idx['2ª Entrada']] || '',
         saida2: r[idx['2ª Saída']] || '',
+        entrada3: idx['3ª Entrada'] != null ? (r[idx['3ª Entrada']] || '') : '',
         saida3: idx['3ª Saída'] != null ? (r[idx['3ª Saída']] || '') : '',
+        credito: r[idx['Crédito']] || '00:00',
+        debito: r[idx['Débito']] || '00:00',
         hIntervalo: r[idx['H. intervalo']] || '00:00',
         horasNormais: r[idx['Horas normais']] || '00:00',
         he1: r[idx[he1Chave]] || '00:00',
@@ -1703,6 +1709,85 @@ export default function App() {
     XLSXStyle.writeFile(wb, nomeArquivo)
   }
 
+  function exportarCartaoPonto() {
+    if (!pontoResultado || !pontoBase) return
+    const { periodo, colaboradores } = pontoResultado
+    if (!colaboradores.every(c => Array.isArray(c.dias) && c.dias.length > 0)) {
+      alert('O cartão de ponto só pode ser gerado logo depois de subir o arquivo (precisa dos dados dia a dia, que não ficam guardados num fechamento reaberto). Sobe o espelho de novo pra gerar o PDF.')
+      return
+    }
+    const meta = META_BASE_FOLHA[pontoBase]
+    const mesNome = MESES_PT[Number(periodo.fim.slice(5, 7)) - 1]
+    const ano = periodo.fim.slice(0, 4)
+    const cabecalho = ['DATA', '1ª Entrada', '1ª Saída', '2ª Entrada', '2ª Saída', '3ª Entrada', '3ª Saída', 'CRÉDITO', 'DÉBITO', 'H. INTERV.', 'H. NORM.', `HE F1 ${meta.he1Pct}`, `HE F2 ${meta.he2Pct}`, 'AD. NOT.']
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+
+    colaboradores.forEach((c, ci) => {
+      if (ci > 0) doc.addPage()
+      doc.setFontSize(12)
+      doc.setFont(undefined, 'bold')
+      doc.text(`GRUPO PG — CARTÃO DE PONTO | ${pontoBase} | ${mesNome} / ${ano}`, 14, 14)
+      doc.setFontSize(10)
+      doc.setFont(undefined, 'normal')
+      doc.text(`Colaborador: ${c.nome}  |  Período: ${isoToBr(periodo.inicio)} a ${isoToBr(periodo.fim)}`, 14, 20)
+
+      const corpo = c.dias.map(d => [
+        d.data, d.entrada1, d.saida1, d.entrada2, d.saida2, d.entrada3, d.saida3,
+        d.credito, d.debito, d.hIntervalo, d.horasNormais, d.he1, d.he2, d.adicionalNoturno,
+      ])
+      const rodape = c.totais ? [[
+        'TOTAIS', '', '', '', '', '', '',
+        minutosParaHoras(c.totais.credito), minutosParaHoras(c.totais.debito), minutosParaHoras(c.totais.hIntervalo),
+        minutosParaHoras(c.totais.horasNormais), minutosParaHoras(c.totais.he1), minutosParaHoras(c.totais.he2), minutosParaHoras(c.totais.adicionalNoturno),
+      ]] : []
+
+      autoTable(doc, {
+        startY: 24,
+        head: [cabecalho],
+        body: corpo,
+        foot: rodape,
+        theme: 'grid',
+        styles: { fontSize: 6.5, cellPadding: 1, halign: 'center' },
+        headStyles: { fillColor: [45, 58, 140], textColor: 255, fontStyle: 'bold' },
+        footStyles: { fillColor: [226, 232, 240], textColor: [26, 35, 64], fontStyle: 'bold' },
+        columnStyles: { 0: { halign: 'left', cellWidth: 22 } },
+        didParseCell: (data) => {
+          if (data.section !== 'body') return
+          const dia = c.dias[data.row.index]
+          if (!dia) return
+          if (data.column.index === 8 && horaParaMinutos(dia.debito) > 0) {
+            data.cell.styles.fillColor = [254, 226, 226]
+          }
+          if (data.column.index === 9 && c.violacoesIntrajornada.some(v => v.data === dia.data)) {
+            data.cell.styles.fillColor = [254, 240, 138]
+          }
+          if (data.column.index === 0 && c.violacoesInterjornada.some(v => v.de === dia.data || v.para === dia.data)) {
+            data.cell.styles.fillColor = [253, 186, 116]
+          }
+        },
+      })
+
+      let y = doc.lastAutoTable.finalY + 5
+      doc.setFontSize(7)
+      doc.text('Vermelho = débito/horas faltantes (informativo)  |  Amarelo = intrajornada violada  |  Laranja = interjornada violada', 14, y)
+
+      y += 15
+      doc.line(14, y, 130, y)
+      doc.line(160, y, 276, y)
+      y += 5
+      doc.setFontSize(9)
+      doc.text(c.nome, 14, y)
+      doc.text('Shirley — GRUPO PG', 160, y)
+      y += 5
+      doc.setFontSize(7)
+      doc.text(`Período: ${isoToBr(periodo.inicio)} a ${isoToBr(periodo.fim)}`, 14, y)
+      doc.text(`Período: ${isoToBr(periodo.inicio)} a ${isoToBr(periodo.fim)}`, 160, y)
+    })
+
+    doc.save(`Cartao_Ponto_${pontoBase}_${periodo.inicio}_a_${periodo.fim}.pdf`)
+  }
+
   async function decidirJanta(id, status, valor) {
     const campos = { status, decidido_por: usuario.email, decidido_em: new Date().toISOString() }
     if (valor !== undefined) campos.valor = valor
@@ -2658,6 +2743,12 @@ export default function App() {
                       style={{ padding:'8px 16px', background:'#fff', border:'1px solid #B45309', color:'#B45309', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
                       ⚠ Relatório de Violações
                     </button>
+                    {pontoBase && META_BASE_FOLHA[pontoBase] && (
+                      <button onClick={exportarCartaoPonto}
+                        style={{ padding:'8px 16px', background:'#fff', border:'1px solid #1A2340', color:'#1A2340', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                        🖨 Cartão de Ponto (PDF)
+                      </button>
+                    )}
                     <button onClick={salvarFechamentoPonto} disabled={pontoSalvando || !pontoBase || !periodo.inicio}
                       style={{ padding:'8px 16px', background: (!pontoBase || !periodo.inicio) ? '#CDD8E3' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor: (!pontoBase || !periodo.inicio) ? 'not-allowed' : 'pointer' }}>
                       {pontoSalvando ? 'Salvando...' : pontoSalvo ? '✓ Salvo' : '💾 Salvar este processamento'}
