@@ -433,17 +433,31 @@ function parsePontoEspelho(rows) {
   return colaboradores
 }
 
-function ultimaSaidaDoDia(dia) {
-  return dia.saida3 || dia.saida2 || dia.saida1 || ''
+function ultimaSaidaComInfo(dia) {
+  // Turno que vira a noite (ex: entrada 13:34, saída 02:37) tem a saída já no dia seguinte,
+  // não no mesmo dia da linha da planilha - precisa marcar isso pra não computar descanso errado.
+  const pares = [[dia.entrada1, dia.saida1], [dia.entrada2, dia.saida2], [dia.entrada3, dia.saida3]]
+  let melhor = null
+  pares.forEach(([entrada, saida]) => {
+    if (!saida) return
+    const saidaMin = horaParaMinutos(saida)
+    const cruzouMeiaNoite = !!entrada && saidaMin < horaParaMinutos(entrada)
+    const ordem = cruzouMeiaNoite ? saidaMin + 24 * 60 : saidaMin
+    if (!melhor || ordem > melhor.ordem) melhor = { minutos: saidaMin, cruzouMeiaNoite, ordem }
+  })
+  return melhor
 }
 
 function calcularViolacoesInterjornada(dias) {
   const violacoes = []
   for (let k = 0; k < dias.length - 1; k++) {
-    const saidaHoje = ultimaSaidaDoDia(dias[k])
+    const saidaInfo = ultimaSaidaComInfo(dias[k])
     const entradaAmanha = dias[k + 1].entrada1
-    if (!saidaHoje || !entradaAmanha) continue
-    const gap = (24 * 60 - horaParaMinutos(saidaHoje)) + horaParaMinutos(entradaAmanha)
+    if (!saidaInfo || !entradaAmanha) continue
+    const gap = saidaInfo.cruzouMeiaNoite
+      ? horaParaMinutos(entradaAmanha) - saidaInfo.minutos
+      : (24 * 60 - saidaInfo.minutos) + horaParaMinutos(entradaAmanha)
+    if (gap < 0) continue
     if (gap < 11 * 60) violacoes.push({ de: dias[k].data, para: dias[k + 1].data, gapMinutos: gap })
   }
   return violacoes
