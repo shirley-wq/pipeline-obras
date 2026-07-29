@@ -501,9 +501,26 @@ function processarEspelhoPonto(arrayBuffer) {
     periodo,
     colaboradores: colaboradores.map(c => ({
       ...c,
+      totais: excluiPrimeiroDiaDosTotais(c.totais, c.dias[0]),
       violacoesInterjornada: calcularViolacoesInterjornada(c.dias),
       violacoesIntrajornada: calcularViolacoesIntrajornada(c.dias),
     })),
+  }
+}
+
+function excluiPrimeiroDiaDosTotais(totais, primeiroDia) {
+  // O espelho de ponto sempre repete, como 1a linha, o ultimo dia do periodo anterior
+  // (ja fechado e pago no mes passado) - por isso esse dia nao entra nos totais deste mes,
+  // so continua valendo pra conferencia de interjornada/intrajornada.
+  if (!totais || !primeiroDia) return totais
+  return {
+    credito: totais.credito - horaParaMinutos(primeiroDia.credito),
+    debito: totais.debito - horaParaMinutos(primeiroDia.debito),
+    hIntervalo: totais.hIntervalo - horaParaMinutos(primeiroDia.hIntervalo),
+    horasNormais: totais.horasNormais - horaParaMinutos(primeiroDia.horasNormais),
+    he1: totais.he1 - horaParaMinutos(primeiroDia.he1),
+    he2: totais.he2 - horaParaMinutos(primeiroDia.he2),
+    adicionalNoturno: totais.adicionalNoturno - horaParaMinutos(primeiroDia.adicionalNoturno),
   }
 }
 
