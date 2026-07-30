@@ -463,11 +463,18 @@ function calcularViolacoesInterjornada(dias) {
   return violacoes
 }
 
+function ehFimDeSemanaOuFeriado(dia) {
+  if ((dia.motivo || '').toUpperCase().includes('FERIADO')) return true
+  if (dia.dataObj) { const d = dia.dataObj.getDay(); if (d === 0 || d === 6) return true }
+  return false
+}
+
 function calcularViolacoesIntrajornada(dias) {
   const violacoes = []
   dias.forEach(dia => {
-    // Sem exceção de fim de semana/feriado: se trabalhou (ex: instalação excepcional), a regra vale igual.
-    // Dia de folga de verdade já cai fora sozinho, porque trabalhado fica 0.
+    // Em fim de semana/feriado o relogio de ponto nao separa a pausa (roda corrido),
+    // entao H.Intervalo=00:00 nesses dias nao e prova confiavel de intrajornada violada.
+    if (ehFimDeSemanaOuFeriado(dia)) return
     const trabalhado = horaParaMinutos(dia.horasNormais) + horaParaMinutos(dia.he1) + horaParaMinutos(dia.he2)
     if (trabalhado <= 0) return
     const minimoExigido = trabalhado > 6 * 60 ? 60 : (trabalhado > 4 * 60 ? 15 : 0)
