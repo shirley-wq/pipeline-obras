@@ -508,6 +508,15 @@ function processarEspelhoPonto(arrayBuffer) {
   }
 }
 
+function somaValoresDesconto(valores) {
+  if (valores.length === 0) return ''
+  if (valores.length === 1) return valores[0]
+  const temPercentual = valores.some(v => String(v).includes('%'))
+  if (temPercentual) return valores.join(' + ') // não dá pra somar número com percentual
+  const soma = valores.reduce((s, v) => s + (Number(String(v).replace(',', '.')) || 0), 0)
+  return soma.toFixed(2).replace('.', ',')
+}
+
 function excluiPrimeiroDiaDosTotais(totais, primeiroDia) {
   // O espelho de ponto sempre repete, como 1a linha, o ultimo dia do periodo anterior
   // (ja fechado e pago no mes passado) - por isso esse dia nao entra nos totais deste mes,
@@ -549,7 +558,7 @@ function montaLinhaFechamentoFolha(colaboradorPonto, rhColaboradores, mesReferen
 
   const valoresRubrica = RUBRICAS_DESCONTO.map(r => {
     const doMotivo = descontosDoMes.filter(d => d.motivo === r.motivo)
-    return doMotivo.map(d => d.valor).join(' + ')
+    return somaValoresDesconto(doMotivo.map(d => d.valor))
   })
 
   return {
