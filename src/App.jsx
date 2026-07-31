@@ -464,6 +464,12 @@ function calcularViolacoesInterjornada(dias) {
 }
 
 function ehFimDeSemanaOuFeriado(dia) {
+  // Sinal mais confiavel que o texto do motivo: em dia sem expediente normal escalado
+  // (fim de semana ou feriado, mesmo um feriado que nao tem a palavra "FERIADO" no texto,
+  // tipo "DATA MAGNA DO ESTADO DE SAO PAULO"), o sistema de ponto zera "Horas normais" e
+  // joga 100% do que foi trabalhado como hora extra.
+  const trabalhouSoComoExtra = horaParaMinutos(dia.horasNormais) === 0 && (horaParaMinutos(dia.he1) + horaParaMinutos(dia.he2)) > 0
+  if (trabalhouSoComoExtra) return true
   if ((dia.motivo || '').toUpperCase().includes('FERIADO')) return true
   if (dia.dataObj) { const d = dia.dataObj.getDay(); if (d === 0 || d === 6) return true }
   return false
