@@ -1454,6 +1454,10 @@ export default function App() {
   const [novaDespesaValor, setNovaDespesaValor] = useState('')
   const [novaDespesaObs, setNovaDespesaObs] = useState('')
   const [novaDespesaKm, setNovaDespesaKm] = useState('')
+  const [novaDespesaOrigem, setNovaDespesaOrigem] = useState('')
+  const [novaDespesaDestino, setNovaDespesaDestino] = useState('')
+  const [calculandoRota, setCalculandoRota] = useState(false)
+  const [erroRota, setErroRota] = useState('')
   const [selecionadas, setSelecionadas] = useState(new Set())
   const [modalBulk, setModalBulk] = useState(false)
   const [statusBulk, setStatusBulk] = useState('')
@@ -2137,6 +2141,36 @@ export default function App() {
     setModalBulk(false)
     setSelecionadas(new Set())
     setStatusBulk('')
+  }
+
+  async function geocodificar(endereco) {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${encodeURIComponent(endereco)}`
+    const resp = await fetch(url)
+    const dados = await resp.json()
+    if (!dados || dados.length === 0) return null
+    return { lat: Number(dados[0].lat), lon: Number(dados[0].lon), nomeEncontrado: dados[0].display_name }
+  }
+
+  async function calcularKmRota() {
+    if (!novaDespesaOrigem.trim() || !novaDespesaDestino.trim()) return
+    setErroRota('')
+    setCalculandoRota(true)
+    try {
+      const [origem, destino] = await Promise.all([geocodificar(novaDespesaOrigem), geocodificar(novaDespesaDestino)])
+      if (!origem) { setErroRota('Não achei o endereço de origem. Tenta ser mais específico (cidade/UF).'); return }
+      if (!destino) { setErroRota('Não achei o endereço de destino. Tenta ser mais específico (cidade/UF).'); return }
+      const url = `https://router.project-osrm.org/route/v1/driving/${origem.lon},${origem.lat};${destino.lon},${destino.lat}?overview=false`
+      const resp = await fetch(url)
+      const dados = await resp.json()
+      if (!dados.routes || dados.routes.length === 0) { setErroRota('Não consegui calcular uma rota entre esses dois pontos.'); return }
+      const kmIdaEVolta = Math.round((dados.routes[0].distance / 1000) * 2)
+      setNovaDespesaKm(String(kmIdaEVolta))
+    } catch (err) {
+      console.error('Erro ao calcular rota:', err)
+      setErroRota('Erro ao calcular a rota — tenta de novo ou digita o km manualmente.')
+    } finally {
+      setCalculandoRota(false)
+    }
   }
 
   const vistoriaCompleta = Boolean(dataVistoria) && (colabsVistoria.length > 0 || (terceirizadoVistoria && terceirizadoVistoriaTexto.trim() !== ''))
@@ -3596,6 +3630,21 @@ export default function App() {
                   ))}
                 </div>
               )}
+              {novaDespesaCategoria === 'Combustível' && (
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center', marginBottom:8 }}>
+                  <input value={novaDespesaOrigem} onChange={e => setNovaDespesaOrigem(e.target.value)}
+                    placeholder="Origem (cidade/endereço)"
+                    style={{ flex:1, minWidth:140, padding:'7px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                  <input value={novaDespesaDestino} onChange={e => setNovaDespesaDestino(e.target.value)}
+                    placeholder="Destino (cidade/endereço)"
+                    style={{ flex:1, minWidth:140, padding:'7px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                  <button onClick={calcularKmRota} disabled={calculandoRota || !novaDespesaOrigem.trim() || !novaDespesaDestino.trim()}
+                    style={{ padding:'7px 12px', background: calculandoRota ? '#FECACA' : '#B91C1C', color:'#fff', border:'none', borderRadius:8, fontSize:11, fontWeight:700, cursor: calculandoRota ? 'not-allowed' : 'pointer', whiteSpace:'nowrap' }}>
+                    {calculandoRota ? 'Calculando...' : '📍 Calcular km'}
+                  </button>
+                  {erroRota && <div style={{ fontSize:11, color:'#991B1B', width:'100%' }}>{erroRota}</div>}
+                </div>
+              )}
               <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
                 <input type="date" value={novaDespesaData} onChange={e => setNovaDespesaData(e.target.value)}
                   style={{ padding:'7px 8px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340' }} />
@@ -3629,6 +3678,7 @@ export default function App() {
                     : Number(novaDespesaValor)
                   setDespesasPessoal(prev => [...prev, { data: novaDespesaData || null, categoria: novaDespesaCategoria, valor, km: isCombustivel ? Number(novaDespesaKm) : null, obs: novaDespesaObs.trim() }])
                   setNovaDespesaData(''); setNovaDespesaValor(''); setNovaDespesaObs(''); setNovaDespesaKm('')
+                  setNovaDespesaOrigem(''); setNovaDespesaDestino(''); setErroRota('')
                 }} style={{ padding:'7px 14px', background:'#B91C1C', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
                   + Adicionar
                 </button>
