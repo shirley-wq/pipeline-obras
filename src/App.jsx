@@ -587,6 +587,15 @@ const ITENS_ESPECIAIS_UN = ['BALCÃO DE ENVELOPE','GUARDA VOLUMES','ESCADA DO SE
 
 const TIPOS_CUSTO_TERCEIRIZADO = ['GESSO','PINTURA','VIDRO','OUTRO']
 const CATEGORIAS_DESPESA_PESSOAL = ['Hospedagem','Refeição','Material de construção','Pedágio','Combustível','Desgaste de veículo']
+const CATEGORIA_DESPESA_COR = {
+  'Hospedagem': '#2563EB',
+  'Refeição': '#B45309',
+  'Material de construção': '#7C3AED',
+  'Pedágio': '#0F766E',
+  'Combustível': '#B91C1C',
+  'Desgaste de veículo': '#4B5563',
+}
+const MESES_FILTRO = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const CONSUMO_MEDIO_KM_L = 12
 const PRECO_MEDIO_LITRO = 6.00
 
@@ -1500,6 +1509,10 @@ export default function App() {
   const [pontoSalvo, setPontoSalvo] = useState(false)
   const [pontoSalvos, setPontoSalvos] = useState([])
   const [pontoCarregandoSalvo, setPontoCarregandoSalvo] = useState(false)
+  const [despesasModo, setDespesasModo] = useState('mes')
+  const [despesasMes, setDespesasMes] = useState(new Date().getMonth() + 1)
+  const [despesasAno, setDespesasAno] = useState(new Date().getFullYear())
+  const [despesaObraAberta, setDespesaObraAberta] = useState(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -2256,6 +2269,33 @@ export default function App() {
     { label:'📦 Outros', obras: obrasFiltradas.filter(o => getGrupoObra(o) === 'outros') },
   ].filter(g => g.obras.length > 0)
 
+  const todasDespesas = []
+  obras.forEach(o => {
+    (Array.isArray(o.despesas_pessoal) ? o.despesas_pessoal : []).forEach(d => {
+      todasDespesas.push({ ...d, obraId: o.id, obraNome: o.nome })
+    })
+  })
+  const despesasSemData = todasDespesas.filter(d => !d.data)
+  const despesasFiltradas = todasDespesas.filter(d => {
+    if (!d.data) return false
+    const ano = Number(d.data.slice(0, 4))
+    const mes = Number(d.data.slice(5, 7))
+    if (despesasModo === 'ano') return ano === despesasAno
+    return ano === despesasAno && mes === despesasMes
+  })
+  const totalDespesas = despesasFiltradas.reduce((s, d) => s + Number(d.valor || 0), 0)
+  const despesasPorCategoria = CATEGORIAS_DESPESA_PESSOAL.map(cat => ({
+    categoria: cat,
+    total: despesasFiltradas.filter(d => d.categoria === cat).reduce((s, d) => s + Number(d.valor || 0), 0),
+  })).filter(c => c.total > 0).sort((a, b) => b.total - a.total)
+  const despesasPorObraMap = {}
+  despesasFiltradas.forEach(d => {
+    if (!despesasPorObraMap[d.obraId]) despesasPorObraMap[d.obraId] = { obraId: d.obraId, obraNome: d.obraNome, total: 0, itens: [] }
+    despesasPorObraMap[d.obraId].total += Number(d.valor || 0)
+    despesasPorObraMap[d.obraId].itens.push(d)
+  })
+  const despesasPorObraLista = Object.values(despesasPorObraMap).sort((a, b) => b.total - a.total)
+
   function exportarCSV() {
     const cab = ['Tipo','Nome','Local','Status','Valor','SIGE','Pedido','NF','Início','Término','ART pronta','Em negociação','Observação','Post-its Régua','Data Entrada Pipeline','Dias no Pipeline','Vidros','Divisórias','Itens Especiais','Biombo de Fila','Atualizado por','Atualizado em']
     const esc = v => { const s = String(v ?? ''); return (s.includes(';') || s.includes('"') || s.includes('\n')) ? `"${s.replace(/"/g,'""')}"` : s }
@@ -2346,6 +2386,7 @@ export default function App() {
           ...(papel ? [{ id:'meusdados', label:'Meus Documentos', count:null, cor:'#7C3AED' }] : []),
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'jantas', label:'Jantas', count: jantasTodas.filter(j => j.status === 'pendente').length, cor:'#B45309' }] : []),
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'fechamento', label:'Fechamento de Ponto', count:null, cor:'#0F766E' }] : []),
+          ...(podeVerValores ? [{ id:'despesas', label:'Despesas', count:null, cor:'#B91C1C' }] : []),
         ].map(a => (
           <button key={a.id} onClick={() => setAba(a.id)}
             style={{ flex:1, padding:'12px 8px', border:'none', borderBottom: aba===a.id ? `3px solid ${a.cor||'#2D3A8C'}` : '3px solid transparent',
@@ -2900,6 +2941,102 @@ export default function App() {
           })()}
         </div>
       )}
+
+      {/* ====== ABA: DESPESAS ====== */}
+      {aba === 'despesas' && podeVerValores && (() => {
+        const anoAtual = new Date().getFullYear()
+        const anosDisponiveis = Array.from(new Set([anoAtual - 1, anoAtual, anoAtual + 1, despesasAno])).sort()
+        return (
+        <div style={{ padding:12 }}>
+          <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:'10px 14px', marginBottom:14, display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+            <div style={{ display:'flex', border:'1px solid #CDD8E3', borderRadius:8, overflow:'hidden' }}>
+              <button onClick={() => setDespesasModo('mes')}
+                style={{ padding:'7px 14px', border:'none', background: despesasModo==='mes' ? '#B91C1C' : '#fff', color: despesasModo==='mes' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>Mês</button>
+              <button onClick={() => setDespesasModo('ano')}
+                style={{ padding:'7px 14px', border:'none', background: despesasModo==='ano' ? '#B91C1C' : '#fff', color: despesasModo==='ano' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>Ano</button>
+            </div>
+            {despesasModo === 'mes' && (
+              <select value={despesasMes} onChange={e => setDespesasMes(Number(e.target.value))}
+                style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                {MESES_FILTRO.map((m,i) => <option key={m} value={i+1}>{m}</option>)}
+              </select>
+            )}
+            <select value={despesasAno} onChange={e => setDespesasAno(Number(e.target.value))}
+              style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+              {anosDisponiveis.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+
+          <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
+            <div style={{ flex:1, minWidth:160, background:'#B91C1C', borderRadius:12, padding:'16px 18px' }}>
+              <div style={{ fontSize:11, color:'rgba(255,255,255,.8)', fontWeight:600, textTransform:'uppercase' }}>Total no período</div>
+              <div style={{ fontSize:26, fontWeight:700, color:'#fff', marginTop:4 }}>{fmt(totalDespesas)}</div>
+            </div>
+            <div style={{ flex:1, minWidth:160, background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:'16px 18px' }}>
+              <div style={{ fontSize:11, color:'#64748B', fontWeight:600, textTransform:'uppercase' }}>Obras com despesa</div>
+              <div style={{ fontSize:26, fontWeight:700, color:'#1A2340', marginTop:4 }}>{despesasPorObraLista.length}</div>
+            </div>
+            <div style={{ flex:1, minWidth:160, background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:'16px 18px' }}>
+              <div style={{ fontSize:11, color:'#64748B', fontWeight:600, textTransform:'uppercase' }}>Maior categoria</div>
+              <div style={{ fontSize:16, fontWeight:700, color:'#1A2340', marginTop:4 }}>{despesasPorCategoria[0] ? despesasPorCategoria[0].categoria : '—'}</div>
+              <div style={{ fontSize:13, color:'#64748B' }}>{despesasPorCategoria[0] ? fmt(despesasPorCategoria[0].total) : ''}</div>
+            </div>
+          </div>
+
+          {despesasPorCategoria.length > 0 && (
+            <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:14 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:10 }}>Por categoria</div>
+              {despesasPorCategoria.map(c => {
+                const pct = totalDespesas > 0 ? (c.total / totalDespesas * 100) : 0
+                return (
+                  <div key={c.categoria} style={{ marginBottom:10 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'#1A2340', marginBottom:3 }}>
+                      <span style={{ fontWeight:600 }}>{c.categoria}</span>
+                      <span>{fmt(c.total)}</span>
+                    </div>
+                    <div style={{ background:'#F1F5F9', borderRadius:6, height:8, overflow:'hidden' }}>
+                      <div style={{ width:`${pct}%`, height:'100%', background: CATEGORIA_DESPESA_COR[c.categoria] || '#94A3B8', borderRadius:6 }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:10 }}>Por obra</div>
+            {despesasPorObraLista.length === 0 && <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'20px 0' }}>Nenhuma despesa lançada nesse período</div>}
+            {despesasPorObraLista.map(o => {
+              const aberto = despesaObraAberta === o.obraId
+              return (
+                <div key={o.obraId} style={{ borderBottom:'1px solid #F1F5F9', padding:'8px 0' }}>
+                  <div onClick={() => setDespesaObraAberta(aberto ? null : o.obraId)} style={{ display:'flex', justifyContent:'space-between', cursor:'pointer' }}>
+                    <span style={{ fontSize:13, fontWeight:600, color:'#1A2340' }}>{o.obraNome}</span>
+                    <span style={{ fontSize:13, fontWeight:700, color:'#B91C1C' }}>{fmt(o.total)}</span>
+                  </div>
+                  {aberto && (
+                    <div style={{ marginTop:6, display:'flex', flexDirection:'column', gap:4 }}>
+                      {o.itens.map((it,i) => (
+                        <div key={i} style={{ fontSize:11, color:'#64748B', display:'flex', justifyContent:'space-between', background:'#F8FAFC', borderRadius:6, padding:'4px 8px', gap:8 }}>
+                          <span>{it.data ? isoToBr(it.data) : '—'} · <span style={{ color: CATEGORIA_DESPESA_COR[it.categoria] || '#64748B', fontWeight:600 }}>{it.categoria}</span>{it.obs ? ` — ${it.obs}` : ''}{it.km ? ` (${it.km}km)` : ''}</span>
+                          <span style={{ fontWeight:600, whiteSpace:'nowrap' }}>{fmt(it.valor)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {despesasSemData.length > 0 && (
+            <div style={{ fontSize:11, color:'#92400E', marginTop:10 }}>
+              ⚠ {despesasSemData.length} lançamento(s) sem data preenchida — não entram no filtro por mês/ano.
+            </div>
+          )}
+        </div>
+        )
+      })()}
 
       {/* ====== ABA: PIPELINE ====== */}
       {aba === 'pipeline' && <>
