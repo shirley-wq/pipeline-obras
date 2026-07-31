@@ -586,9 +586,9 @@ const TIPOS_ADESIVO = ['PUXE','EMPURRE','DESLIZE','CADEIRANTE','FAIXA BOLINHA','
 const ITENS_ESPECIAIS_UN = ['BALCÃO DE ENVELOPE','GUARDA VOLUMES','ESCADA DO SEGURANÇA']
 
 const TIPOS_CUSTO_TERCEIRIZADO = ['GESSO','PINTURA','VIDRO','OUTRO']
-const CATEGORIAS_DESPESA_PESSOAL = ['Hospedagem','Refeição','Deslocamento','Pedágio','Combustível','Desgaste de veículo']
+const CATEGORIAS_DESPESA_PESSOAL = ['Hospedagem','Refeição','Material de construção','Pedágio','Combustível','Desgaste de veículo']
 const CONSUMO_MEDIO_KM_L = 12
-const PRECO_MEDIO_LITRO = 4.00
+const PRECO_MEDIO_LITRO = 6.00
 
 function somaValores(lista) {
   return (Array.isArray(lista) ? lista : []).reduce((soma, item) => soma + (Number(item.valor) || 0), 0)
