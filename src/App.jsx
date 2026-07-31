@@ -115,7 +115,7 @@ const STATUS_COR = {
   'CANCELADO':{ bg:'#F1F5F9',text:'#64748B' },
 }
 
-const TIPOS_ENTREGAVEIS = ['DESC. PAB', 'DESC. PA', 'ENCER. AG']
+const TIPOS_ENTREGAVEIS = ['DESC. PAB', 'DESC. PA', 'ENCER. AG', 'TRANSF UN', 'TRANSF EN']
 const ENTREGAVEIS_BOOK = [
   'Termo de Antena',
   'Termo de Ar Condicionado',
@@ -124,6 +124,14 @@ const ENTREGAVEIS_BOOK = [
   'ART Assinada',
   'QR Code Concluído',
 ]
+const ENTREGAVEIS_TRANSFORMACAO = [
+  'Termo de Transformação UN/EN',
+  'ART Assinada',
+  'Check-list Fácil Baixado',
+]
+function entregaveisObrigatorios(tipo) {
+  return (tipo === 'TRANSF UN' || tipo === 'TRANSF EN') ? ENTREGAVEIS_TRANSFORMACAO : ENTREGAVEIS_BOOK
+}
 const ENTREGAVEIS_VISTORIA = [
   'Book de Vistoria PPT',
   'Book Checklist Fácil',
@@ -3141,10 +3149,11 @@ export default function App() {
                     <Regua status={obra.status} lembretes={obra.lembretes} onRemoverLembrete={l => removerLembrete(obra.id, l)} />
                   </div>
                   {TIPOS_ENTREGAVEIS.includes(obra.tipo) && (() => {
+                    const listaObrigatorios = entregaveisObrigatorios(obra.tipo)
                     const lista = Array.isArray(obra.entregaveis) ? obra.entregaveis : []
                     const na = Array.isArray(obra.entregaveis_na) ? obra.entregaveis_na : []
                     const feitos = lista.length
-                    const total = ENTREGAVEIS_BOOK.length - na.length
+                    const total = listaObrigatorios.length - na.length
                     const tudo = total === 0 || feitos === total
                     return (
                       <div style={{ padding:'0 14px 8px' }}>
@@ -3152,7 +3161,7 @@ export default function App() {
                           📋 Entregáveis: {feitos}/{total}{tudo ? ' — Completo ✓' : ''}
                         </div>
                         <div style={{ display:'flex', flexWrap:'wrap', gap:3 }}>
-                          {ENTREGAVEIS_BOOK.map(item => {
+                          {listaObrigatorios.map(item => {
                             const feito = lista.includes(item)
                             const naoAplica = na.includes(item)
                             return (
@@ -3833,13 +3842,15 @@ export default function App() {
             </>
             )}
 
-            {TIPOS_ENTREGAVEIS.includes(modal.tipo) && (
+            {TIPOS_ENTREGAVEIS.includes(modal.tipo) && (() => {
+              const listaObrigatorios = entregaveisObrigatorios(modal.tipo)
+              return (
               <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:12, padding:14, marginBottom:16 }}>
                 <div style={{ fontSize:12, color:'#065F46', fontWeight:700, marginBottom:10 }}>
-                  📋 Entregáveis do Book ({entregaveis.length}/{ENTREGAVEIS_BOOK.length - entregaveisNA.length})
+                  📋 Entregáveis do Book ({entregaveis.length}/{listaObrigatorios.length - entregaveisNA.length})
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                  {ENTREGAVEIS_BOOK.map(item => {
+                  {listaObrigatorios.map(item => {
                     const na = entregaveisNA.includes(item)
                     const feito = entregaveis.includes(item)
                     return (
@@ -3863,7 +3874,8 @@ export default function App() {
                   })}
                 </div>
               </div>
-            )}
+              )
+            })()}
 
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, marginBottom:8 }}>Etapa da régua:</div>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:6, marginBottom:8 }}>
