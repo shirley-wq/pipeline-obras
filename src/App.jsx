@@ -1884,16 +1884,23 @@ export default function App() {
 
     colaboradores.forEach((c, ci) => {
       if (ci > 0) doc.addPage()
+
+      // dias[0] é o último dia do período anterior, repetido só como referência de cálculo
+      // (ver excluiPrimeiroDiaDosTotais / calcularViolacoesIntrajornada) - não aparece no cartão impresso.
+      // O texto do período do próprio espelho declara o início nesse dia de referência (ex: 25/06),
+      // mas o período de apuração real do Grupo PG começa no dia seguinte (ex: 26/06) - usamos a
+      // data do primeiro dia efetivamente exibido na tabela em vez de periodo.inicio.
+      const diasCartao = c.dias.slice(1)
+      const periodoInicioTexto = diasCartao[0]?.data || isoToBr(periodo.inicio)
+      const periodoFimTexto = isoToBr(periodo.fim)
+
       doc.setFontSize(12)
       doc.setFont(undefined, 'bold')
       doc.text(`GRUPO PG — CARTÃO DE PONTO | ${pontoBase} | ${mesNome} / ${ano}`, 14, 14)
       doc.setFontSize(10)
       doc.setFont(undefined, 'normal')
-      doc.text(`Colaborador: ${c.nome}  |  Período: ${isoToBr(periodo.inicio)} a ${isoToBr(periodo.fim)}`, 14, 20)
+      doc.text(`Colaborador: ${c.nome}  |  Período: ${periodoInicioTexto} a ${periodoFimTexto}`, 14, 20)
 
-      // dias[0] é o último dia do período anterior, repetido só como referência de cálculo
-      // (ver excluiPrimeiroDiaDosTotais / calcularViolacoesIntrajornada) - não aparece no cartão impresso.
-      const diasCartao = c.dias.slice(1)
       const corpo = diasCartao.map(d => [
         d.data, d.entrada1, d.saida1, d.entrada2, d.saida2, d.entrada3, d.saida3,
         d.credito, d.debito, d.hIntervalo, d.horasNormais, d.he1, d.he2, d.adicionalNoturno, d.motivo || '',
@@ -1958,8 +1965,8 @@ export default function App() {
       doc.text('PG Construtora LTDA', 115, y)
       y += 4
       doc.setFontSize(6.5)
-      doc.text(`Período: ${isoToBr(periodo.inicio)} a ${isoToBr(periodo.fim)}`, 14, y)
-      doc.text(`Período: ${isoToBr(periodo.inicio)} a ${isoToBr(periodo.fim)}`, 115, y)
+      doc.text(`Período: ${periodoInicioTexto} a ${periodoFimTexto}`, 14, y)
+      doc.text(`Período: ${periodoInicioTexto} a ${periodoFimTexto}`, 115, y)
     })
 
     doc.save(`Cartao_Ponto_${pontoBase}_${periodo.inicio}_a_${periodo.fim}.pdf`)
