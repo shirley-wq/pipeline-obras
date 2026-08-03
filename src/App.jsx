@@ -456,8 +456,12 @@ function ultimaSaidaComInfo(dia) {
   return melhor
 }
 
-function calcularViolacoesInterjornada(dias) {
+function calcularViolacoesInterjornada(dias, base) {
   const violacoes = []
+  // Regra dos 100% (déficit de interjornada que termina em sábado/domingo/feriado) só vale
+  // pra SAO e RIO. Na base BHZ (MG) a HE já é sempre 80% pra qualquer situação - não tem
+  // bucket de 100% separado (confirmado pela Shirley em 2026-08-03).
+  const aplica100 = base === 'SAO' || base === 'RIO'
   for (let k = 0; k < dias.length - 1; k++) {
     const saidaInfo = ultimaSaidaComInfo(dias[k])
     const entradaAmanha = dias[k + 1].entrada1
@@ -471,7 +475,7 @@ function calcularViolacoesInterjornada(dias) {
       // Se o retorno (fim da interjornada violada) cai em sábado/domingo/feriado, o déficit
       // vai pro bucket de 100% (mesma taxa que já vale pra hora trabalhada nesses dias);
       // caindo em dia de semana normal, segue a taxa de hora extra normal da base (HE1/HE2).
-      cai100: ehFimDeSemanaOuFeriado(dias[k + 1]),
+      cai100: aplica100 && ehFimDeSemanaOuFeriado(dias[k + 1]),
     })
   }
   return violacoes
@@ -530,7 +534,7 @@ function extraiDataSemDiaSemana(dataStr) {
   return m ? m[1] : dataStr
 }
 
-function processarEspelhoPonto(arrayBuffer) {
+function processarEspelhoPonto(arrayBuffer, base) {
   const wb = XLSX.read(arrayBuffer, { type: 'array' })
   const ws = wb.Sheets[wb.SheetNames[0]]
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
@@ -547,7 +551,7 @@ function processarEspelhoPonto(arrayBuffer) {
         ...c,
         temDiaReferencia,
         totais: temDiaReferencia ? excluiPrimeiroDiaDosTotais(c.totais, c.dias[0]) : c.totais,
-        violacoesInterjornada: calcularViolacoesInterjornada(c.dias),
+        violacoesInterjornada: calcularViolacoesInterjornada(c.dias, base),
         violacoesIntrajornada: calcularViolacoesIntrajornada(c.dias, temDiaReferencia),
       }
     }),
@@ -2058,7 +2062,7 @@ export default function App() {
     const reader = new FileReader()
     reader.onload = (ev) => {
       try {
-        const resultado = processarEspelhoPonto(ev.target.result)
+        const resultado = processarEspelhoPonto(ev.target.result, pontoBase)
         setPontoResultado(resultado)
       } catch (err) {
         console.error('Erro ao processar espelho de ponto:', err)
