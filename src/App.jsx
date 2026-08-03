@@ -489,13 +489,14 @@ function ehFimDeSemanaOuFeriado(dia) {
   return false
 }
 
-function calcularViolacoesIntrajornada(dias) {
+function calcularViolacoesIntrajornada(dias, temDiaReferencia) {
   const violacoes = []
   dias.forEach((dia, idx) => {
-    // dias[0] é sempre o último dia do período anterior, repetido no arquivo só pra
-    // servir de referência à interjornada (ver excluiPrimeiroDiaDosTotais) - a intrajornada
-    // desse dia já foi conferida/paga no fechamento passado, não conta de novo aqui.
-    if (idx === 0) return
+    // dias[0] só é o último dia do período anterior (repetido no arquivo como referência,
+    // ver excluiPrimeiroDiaDosTotais) pra quem já trabalhava no fechamento passado. Quem
+    // começou justo no 1º dia deste período (ex: admissão no dia 26) não tem essa linha
+    // repetida - dias[0] já é o primeiro dia real, e não pode ser descartado.
+    if (idx === 0 && temDiaReferencia) return
     // Em fim de semana/feriado o relogio de ponto nao separa a pausa (roda corrido),
     // entao H.Intervalo=00:00 nesses dias nao e prova confiavel de intrajornada violada.
     if (ehFimDeSemanaOuFeriado(dia)) return
@@ -528,14 +529,21 @@ function processarEspelhoPonto(arrayBuffer) {
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
   const colaboradores = parsePontoEspelho(rows)
   const periodo = parsePeriodoEspelho(rows)
+  const inicioReferenciaTexto = periodo.inicio ? isoToBr(periodo.inicio) : null
   return {
     periodo,
-    colaboradores: colaboradores.map(c => ({
-      ...c,
-      totais: excluiPrimeiroDiaDosTotais(c.totais, c.dias[0]),
-      violacoesInterjornada: calcularViolacoesInterjornada(c.dias),
-      violacoesIntrajornada: calcularViolacoesIntrajornada(c.dias),
-    })),
+    colaboradores: colaboradores.map(c => {
+      // Só existe linha repetida do dia anterior (referência) pra quem já trabalhava no
+      // fechamento passado. Quem começou no 1º dia deste período não tem essa linha extra.
+      const temDiaReferencia = !!inicioReferenciaTexto && c.dias[0]?.data === inicioReferenciaTexto
+      return {
+        ...c,
+        temDiaReferencia,
+        totais: temDiaReferencia ? excluiPrimeiroDiaDosTotais(c.totais, c.dias[0]) : c.totais,
+        violacoesInterjornada: calcularViolacoesInterjornada(c.dias),
+        violacoesIntrajornada: calcularViolacoesIntrajornada(c.dias, temDiaReferencia),
+      }
+    }),
   }
 }
 
@@ -1885,12 +1893,12 @@ export default function App() {
     colaboradores.forEach((c, ci) => {
       if (ci > 0) doc.addPage()
 
-      // dias[0] é o último dia do período anterior, repetido só como referência de cálculo
-      // (ver excluiPrimeiroDiaDosTotais / calcularViolacoesIntrajornada) - não aparece no cartão impresso.
-      // O texto do período do próprio espelho declara o início nesse dia de referência (ex: 25/06),
-      // mas o período de apuração real do Grupo PG começa no dia seguinte (ex: 26/06) - usamos a
-      // data do primeiro dia efetivamente exibido na tabela em vez de periodo.inicio.
-      const diasCartao = c.dias.slice(1)
+      // dias[0] só é o último dia do período anterior (repetido no arquivo como referência de
+      // cálculo, ver excluiPrimeiroDiaDosTotais/calcularViolacoesIntrajornada) pra quem já
+      // trabalhava no fechamento passado - por isso só cortamos quando ele existir de fato
+      // (c.temDiaReferencia). Quem começou no 1º dia deste período (ex: admissão dia 26) não
+      // tem essa linha repetida, e cortá-la incondicionalmente sumiria com o primeiro dia real.
+      const diasCartao = c.temDiaReferencia ? c.dias.slice(1) : c.dias
       const periodoInicioTexto = diasCartao[0]?.data || isoToBr(periodo.inicio)
       const periodoFimTexto = isoToBr(periodo.fim)
 
