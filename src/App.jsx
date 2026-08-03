@@ -523,6 +523,13 @@ function parsePeriodoEspelho(rows) {
   return { inicio: null, fim: null }
 }
 
+function extraiDataSemDiaSemana(dataStr) {
+  // dia.data vem tipo "Qui, 25/06/2026" (com o dia da semana embutido) - isoToBr não
+  // reproduz esse prefixo, então a comparação de datas precisa ignorá-lo dos dois lados.
+  const m = String(dataStr || '').match(/(\d{2}\/\d{2}\/\d{4})/)
+  return m ? m[1] : dataStr
+}
+
 function processarEspelhoPonto(arrayBuffer) {
   const wb = XLSX.read(arrayBuffer, { type: 'array' })
   const ws = wb.Sheets[wb.SheetNames[0]]
@@ -535,7 +542,7 @@ function processarEspelhoPonto(arrayBuffer) {
     colaboradores: colaboradores.map(c => {
       // Só existe linha repetida do dia anterior (referência) pra quem já trabalhava no
       // fechamento passado. Quem começou no 1º dia deste período não tem essa linha extra.
-      const temDiaReferencia = !!inicioReferenciaTexto && c.dias[0]?.data === inicioReferenciaTexto
+      const temDiaReferencia = !!inicioReferenciaTexto && extraiDataSemDiaSemana(c.dias[0]?.data) === inicioReferenciaTexto
       return {
         ...c,
         temDiaReferencia,
