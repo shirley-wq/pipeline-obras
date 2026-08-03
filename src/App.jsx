@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import * as XLSXStyle from 'xlsx-js-style'
 import jsPDF from 'jspdf'
@@ -466,7 +466,13 @@ function calcularViolacoesInterjornada(dias) {
       ? horaParaMinutos(entradaAmanha) - saidaInfo.minutos
       : (24 * 60 - saidaInfo.minutos) + horaParaMinutos(entradaAmanha)
     if (gap < 0) continue
-    if (gap < 11 * 60) violacoes.push({ de: dias[k].data, para: dias[k + 1].data, gapMinutos: gap })
+    if (gap < 11 * 60) violacoes.push({
+      de: dias[k].data, para: dias[k + 1].data, gapMinutos: gap,
+      // Se o retorno (fim da interjornada violada) cai em sábado/domingo/feriado, o déficit
+      // vai pro bucket de 100% (mesma taxa que já vale pra hora trabalhada nesses dias);
+      // caindo em dia de semana normal, segue a taxa de hora extra normal da base (HE1/HE2).
+      cai100: ehFimDeSemanaOuFeriado(dias[k + 1]),
+    })
   }
   return violacoes
 }
@@ -485,7 +491,11 @@ function ehFimDeSemanaOuFeriado(dia) {
 
 function calcularViolacoesIntrajornada(dias) {
   const violacoes = []
-  dias.forEach(dia => {
+  dias.forEach((dia, idx) => {
+    // dias[0] é sempre o último dia do período anterior, repetido no arquivo só pra
+    // servir de referência à interjornada (ver excluiPrimeiroDiaDosTotais) - a intrajornada
+    // desse dia já foi conferida/paga no fechamento passado, não conta de novo aqui.
+    if (idx === 0) return
     // Em fim de semana/feriado o relogio de ponto nao separa a pausa (roda corrido),
     // entao H.Intervalo=00:00 nesses dias nao e prova confiavel de intrajornada violada.
     if (ehFimDeSemanaOuFeriado(dia)) return
@@ -569,12 +579,66 @@ function normalizaNomeColaborador(nome) {
   return String(nome || '').trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
+// ====== Descontos — parser da planilha "DESCONTOS.xlsx" (abas por mês, ex. "JULHO_2026") ======
+
+function extraiAnoDaAbaDescontos(nomeAba) {
+  const m = String(nomeAba || '').match(/(\d{4})/)
+  return m ? Number(m[1]) : null
+}
+
+function parseDescontosPlanilha(rows, nomeAba) {
+  const ano = extraiAnoDaAbaDescontos(nomeAba)
+  if (!ano) return { lancamentos: [], erro: `Não consegui identificar o ano pelo nome da aba "${nomeAba}".` }
+  const header = (rows[0] || []).map(h => String(h || '').trim())
+  // Colunas 0/1/2 são FUNCIONÁRIOS/UNIDADE/MOTIVO; a partir da 3 vêm os meses, na sequência
+  // (podem virar o ano, ex. NOVEMBRO -> DEZEMBRO -> JANEIRO/ano seguinte).
+  const colunasMes = []
+  let anoAtual = ano
+  let mesAnterior = null
+  for (let col = 3; col < header.length; col++) {
+    const idxMes = MESES_PT.findIndex(m => m.toUpperCase() === header[col].toUpperCase())
+    if (idxMes === -1) continue
+    if (mesAnterior !== null && idxMes < mesAnterior) anoAtual++
+    mesAnterior = idxMes
+    colunasMes.push({ col, mes: `${anoAtual}-${String(idxMes + 1).padStart(2, '0')}` })
+  }
+  const lancamentos = []
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r]
+    const nomeBruto = String(row[0] || '').trim()
+    if (!nomeBruto) continue
+    const motivoBruto = String(row[2] || '').trim().toUpperCase().replace(/\s+/g, '_')
+    const motivo = RUBRICAS_DESCONTO.some(x => x.motivo === motivoBruto) ? motivoBruto : 'OUTROS'
+    colunasMes.forEach(cm => {
+      const bruto = row[cm.col]
+      if (bruto === '' || bruto === undefined || bruto === null) return
+      const numero = typeof bruto === 'number' ? bruto : Number(String(bruto).replace(',', '.'))
+      lancamentos.push({
+        nomeBruto, motivoBruto, motivo, mes: cm.mes,
+        valor: Number.isFinite(numero) ? numero : null,
+        textoOriginal: Number.isFinite(numero) ? null : String(bruto),
+      })
+    })
+  }
+  return { lancamentos, erro: null }
+}
+
+function classificaLancamentoDesconto(l, rhColaboradores) {
+  if (l.valor === null) return { ...l, status: 'invalido' }
+  const nomeNorm = normalizaNomeColaborador(l.nomeBruto)
+  const rh = rhColaboradores.find(c => normalizaNomeColaborador(`${c.nome} ${c.sobrenome || ''}`) === nomeNorm)
+  if (!rh) return { ...l, status: 'nao_encontrado' }
+  const jaExiste = Array.isArray(rh.descontos) && rh.descontos.some(d => d.motivo === l.motivo && d.mes === l.mes)
+  return { ...l, status: jaExiste ? 'duplicado' : 'novo', colaboradorId: rh.id, colaboradorNome: `${rh.nome} ${rh.sobrenome || ''}`.trim() }
+}
+
 function montaLinhaFechamentoFolha(colaboradorPonto, rhColaboradores, mesReferencia) {
   const nomeNormalizado = normalizaNomeColaborador(colaboradorPonto.nome)
   const rh = rhColaboradores.find(c => normalizaNomeColaborador(`${c.nome} ${c.sobrenome || ''}`) === nomeNormalizado)
   const descontosDoMes = rh && Array.isArray(rh.descontos) ? rh.descontos.filter(d => d.mes === mesReferencia) : []
 
-  const deficitInterjornada = colaboradorPonto.violacoesInterjornada.reduce((s, v) => s + (11 * 60 - v.gapMinutos), 0)
+  const deficitInterjornada100 = colaboradorPonto.violacoesInterjornada.filter(v => v.cai100).reduce((s, v) => s + (11 * 60 - v.gapMinutos), 0)
+  const deficitInterjornadaNormal = colaboradorPonto.violacoesInterjornada.filter(v => !v.cai100).reduce((s, v) => s + (11 * 60 - v.gapMinutos), 0)
   const deficitIntrajornada = colaboradorPonto.violacoesIntrajornada.reduce((s, v) => s + (v.minimoExigido - v.intervalo), 0)
 
   const valoresRubrica = RUBRICAS_DESCONTO.map(r => {
@@ -589,7 +653,8 @@ function montaLinhaFechamentoFolha(colaboradorPonto, rhColaboradores, mesReferen
       colaboradorPonto.totais ? minutosParaHorasVirgula(colaboradorPonto.totais.he1) : '',
       colaboradorPonto.totais ? minutosParaHorasVirgula(colaboradorPonto.totais.he2) : '',
       colaboradorPonto.totais ? minutosParaHorasVirgula(colaboradorPonto.totais.adicionalNoturno) : '',
-      deficitInterjornada > 0 ? minutosParaHorasVirgula(deficitInterjornada) : '',
+      deficitInterjornada100 > 0 ? minutosParaHorasVirgula(deficitInterjornada100) : '',
+      deficitInterjornadaNormal > 0 ? minutosParaHorasVirgula(deficitInterjornadaNormal) : '',
       deficitIntrajornada > 0 ? minutosParaHorasVirgula(deficitIntrajornada) : '',
       ...valoresRubrica,
     ],
@@ -1527,6 +1592,22 @@ export default function App() {
   const [despesasMes, setDespesasMes] = useState(new Date().getMonth() + 1)
   const [despesasAno, setDespesasAno] = useState(new Date().getFullYear())
   const [despesaObraAberta, setDespesaObraAberta] = useState(null)
+  const [descontosNomeArquivo, setDescontosNomeArquivo] = useState('')
+  const [descontosProcessando, setDescontosProcessando] = useState(false)
+  const [descontosErro, setDescontosErro] = useState('')
+  const [descontosPorAba, setDescontosPorAba] = useState(null)
+  const [descontosAbas, setDescontosAbas] = useState([])
+  const [descontosAbaEscolhida, setDescontosAbaEscolhida] = useState('')
+  const [descontosImportando, setDescontosImportando] = useState(false)
+  const [descontosResultado, setDescontosResultado] = useState(null)
+
+  const descontosPreviewInfo = useMemo(() => {
+    if (!descontosPorAba || !descontosAbaEscolhida) return { lancamentos: [], erro: null }
+    const rows = descontosPorAba[descontosAbaEscolhida] || []
+    const { lancamentos, erro } = parseDescontosPlanilha(rows, descontosAbaEscolhida)
+    if (erro) return { lancamentos: [], erro }
+    return { lancamentos: lancamentos.map(l => classificaLancamentoDesconto(l, rhColaboradores)), erro: null }
+  }, [descontosPorAba, descontosAbaEscolhida, rhColaboradores])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -1661,7 +1742,7 @@ export default function App() {
       minutosParaHoras(c.totais?.credito || 0),
       minutosParaHoras(c.totais?.debito || 0),
       c.violacoesInterjornada.length,
-      c.violacoesInterjornada.map(v => `${v.de} → ${v.para} (${minutosParaHoras(v.gapMinutos)})`).join('; '),
+      c.violacoesInterjornada.map(v => `${v.de} → ${v.para} (${minutosParaHoras(v.gapMinutos)})${v.cai100 ? ' [100%]' : ''}`).join('; '),
       c.violacoesIntrajornada.length,
       c.violacoesIntrajornada.map(v => `${v.data} (${minutosParaHoras(v.intervalo)})`).join('; '),
     ])
@@ -1699,7 +1780,7 @@ export default function App() {
 
     const cabecalho = [
       '#', 'COLABORADOR', `HE F1 ${meta.he1Pct}`, `HE F2 ${meta.he2Pct}`, 'AD. NOTURNO',
-      'INTERJORNADA VIOLADA', 'INTRAJORNADA (déficit)',
+      'INTERJORNADA VIOLADA (100%)', 'INTERJORNADA VIOLADA (dia útil)', 'INTRAJORNADA (déficit)',
       ...RUBRICAS_DESCONTO.map(r => r.codigo ? `${r.label} (${r.codigo})` : r.label),
     ]
 
@@ -1741,7 +1822,7 @@ export default function App() {
     const linhas = []
     colaboradores.forEach(c => {
       c.violacoesInterjornada.forEach(v => linhas.push({
-        colaborador: c.nome, tipo: 'Interjornada', data: `${v.de} → ${v.para}`,
+        colaborador: c.nome, tipo: v.cai100 ? 'Interjornada (100%)' : 'Interjornada', data: `${v.de} → ${v.para}`,
         detalhe: `Descanso real: ${minutosParaHoras(v.gapMinutos)} (mínimo 11:00)`,
         deficitMin: 11 * 60 - v.gapMinutos,
       }))
@@ -1797,9 +1878,9 @@ export default function App() {
     const meta = META_BASE_FOLHA[pontoBase]
     const mesNome = MESES_PT[Number(periodo.fim.slice(5, 7)) - 1]
     const ano = periodo.fim.slice(0, 4)
-    const cabecalho = ['DATA', '1ª Entrada', '1ª Saída', '2ª Entrada', '2ª Saída', '3ª Entrada', '3ª Saída', 'CRÉDITO', 'DÉBITO', 'H. INTERV.', 'H. NORM.', `HE F1 ${meta.he1Pct}`, `HE F2 ${meta.he2Pct}`, 'AD. NOT.']
+    const cabecalho = ['DATA', '1ª Entrada', '1ª Saída', '2ª Entrada', '2ª Saída', '3ª Entrada', '3ª Saída', 'CRÉDITO', 'DÉBITO', 'H. INTERV.', 'H. NORM.', `HE F1 ${meta.he1Pct}`, `HE F2 ${meta.he2Pct}`, 'AD. NOT.', 'JUSTIFICATIVA']
 
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
     colaboradores.forEach((c, ci) => {
       if (ci > 0) doc.addPage()
@@ -1810,14 +1891,17 @@ export default function App() {
       doc.setFont(undefined, 'normal')
       doc.text(`Colaborador: ${c.nome}  |  Período: ${isoToBr(periodo.inicio)} a ${isoToBr(periodo.fim)}`, 14, 20)
 
-      const corpo = c.dias.map(d => [
+      // dias[0] é o último dia do período anterior, repetido só como referência de cálculo
+      // (ver excluiPrimeiroDiaDosTotais / calcularViolacoesIntrajornada) - não aparece no cartão impresso.
+      const diasCartao = c.dias.slice(1)
+      const corpo = diasCartao.map(d => [
         d.data, d.entrada1, d.saida1, d.entrada2, d.saida2, d.entrada3, d.saida3,
-        d.credito, d.debito, d.hIntervalo, d.horasNormais, d.he1, d.he2, d.adicionalNoturno,
+        d.credito, d.debito, d.hIntervalo, d.horasNormais, d.he1, d.he2, d.adicionalNoturno, d.motivo || '',
       ])
       const rodape = c.totais ? [[
         'TOTAIS', '', '', '', '', '', '',
         minutosParaHoras(c.totais.credito), minutosParaHoras(c.totais.debito), minutosParaHoras(c.totais.hIntervalo),
-        minutosParaHoras(c.totais.horasNormais), minutosParaHoras(c.totais.he1), minutosParaHoras(c.totais.he2), minutosParaHoras(c.totais.adicionalNoturno),
+        minutosParaHoras(c.totais.horasNormais), minutosParaHoras(c.totais.he1), minutosParaHoras(c.totais.he2), minutosParaHoras(c.totais.adicionalNoturno), '',
       ]] : []
 
       autoTable(doc, {
@@ -1826,13 +1910,13 @@ export default function App() {
         body: corpo,
         foot: rodape,
         theme: 'grid',
-        styles: { fontSize: 6.5, cellPadding: 1, halign: 'center' },
+        styles: { fontSize: 5.5, cellPadding: 0.5, halign: 'center' },
         headStyles: { fillColor: [45, 58, 140], textColor: 255, fontStyle: 'bold' },
         footStyles: { fillColor: [226, 232, 240], textColor: [26, 35, 64], fontStyle: 'bold' },
-        columnStyles: { 0: { halign: 'left', cellWidth: 22 } },
+        columnStyles: { 0: { halign: 'left', cellWidth: 16 }, 14: { halign: 'left', cellWidth: 20 } },
         didParseCell: (data) => {
           if (data.section !== 'body') return
-          const dia = c.dias[data.row.index]
+          const dia = diasCartao[data.row.index]
           if (!dia) return
           if (data.column.index === 8 && horaParaMinutos(dia.debito) > 0) {
             data.cell.styles.fillColor = [254, 226, 226]
@@ -1846,21 +1930,36 @@ export default function App() {
         },
       })
 
-      let y = doc.lastAutoTable.finalY + 5
-      doc.setFontSize(7)
-      doc.text('Vermelho = débito/horas faltantes (informativo)  |  Amarelo = intrajornada violada  |  Laranja = interjornada violada', 14, y)
+      const deficitInterjornada100 = c.violacoesInterjornada.filter(v => v.cai100).reduce((s, v) => s + (11 * 60 - v.gapMinutos), 0)
+      const deficitInterjornadaNormal = c.violacoesInterjornada.filter(v => !v.cai100).reduce((s, v) => s + (11 * 60 - v.gapMinutos), 0)
+      const deficitIntrajornada = c.violacoesIntrajornada.reduce((s, v) => s + (v.minimoExigido - v.intervalo), 0)
 
-      y += 15
-      doc.line(14, y, 130, y)
-      doc.line(160, y, 276, y)
+      let y = doc.lastAutoTable.finalY + 4
+      doc.setFontSize(6)
+      doc.text('Vermelho = débito/horas faltantes  |  Amarelo = intrajornada violada  |  Laranja = interjornada violada', 14, y)
+
       y += 5
-      doc.setFontSize(9)
+      doc.setFontSize(7.5)
+      doc.setFont(undefined, 'bold')
+      doc.text('RESUMO DO PERÍODO', 14, y)
+      doc.setFont(undefined, 'normal')
+      doc.setFontSize(6.5)
+      y += 4
+      doc.text(`Horas faltantes (débito): ${minutosParaHoras(c.totais?.debito || 0)}   |   Déficit intrajornada: ${minutosParaHoras(deficitIntrajornada)}`, 14, y)
+      y += 3.5
+      doc.text(`Déficit interjornada (dia útil): ${minutosParaHoras(deficitInterjornadaNormal)}   |   Déficit interjornada (100% sáb/dom/feriado): ${minutosParaHoras(deficitInterjornada100)}`, 14, y)
+
+      y += 7
+      doc.line(14, y, 95, y)
+      doc.line(115, y, 196, y)
+      y += 4
+      doc.setFontSize(8)
       doc.text(c.nome, 14, y)
-      doc.text('Shirley — GRUPO PG', 160, y)
-      y += 5
-      doc.setFontSize(7)
+      doc.text('PG Construtora LTDA', 115, y)
+      y += 4
+      doc.setFontSize(6.5)
       doc.text(`Período: ${isoToBr(periodo.inicio)} a ${isoToBr(periodo.fim)}`, 14, y)
-      doc.text(`Período: ${isoToBr(periodo.inicio)} a ${isoToBr(periodo.fim)}`, 160, y)
+      doc.text(`Período: ${isoToBr(periodo.inicio)} a ${isoToBr(periodo.fim)}`, 115, y)
     })
 
     doc.save(`Cartao_Ponto_${pontoBase}_${periodo.inicio}_a_${periodo.fim}.pdf`)
@@ -1876,6 +1975,55 @@ export default function App() {
   async function atualizarRH(id, campos) {
     setRhColaboradores(prev => prev.map(c => c.id === id ? { ...c, ...campos } : c))
     await supabase.from('rh_colaboradores').update(campos).eq('id', id)
+  }
+
+  function handleDescontosUpload(e) {
+    const arquivo = e.target.files[0]
+    if (!arquivo) return
+    setDescontosErro('')
+    setDescontosResultado(null)
+    setDescontosProcessando(true)
+    setDescontosNomeArquivo(arquivo.name)
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type: 'array' })
+        const abas = wb.SheetNames.filter(n => n.trim().toUpperCase() !== 'FOLHA DE ROSTO')
+        const porAba = {}
+        abas.forEach(nome => {
+          porAba[nome] = XLSX.utils.sheet_to_json(wb.Sheets[nome], { header: 1, defval: '' })
+        })
+        setDescontosPorAba(porAba)
+        setDescontosAbas(abas)
+        setDescontosAbaEscolhida(abas[abas.length - 1] || '')
+      } catch (err) {
+        console.error('Erro ao processar planilha de descontos:', err)
+        setDescontosErro('Não consegui ler esse arquivo. Confere se é a planilha de descontos (abas por mês).')
+        setDescontosPorAba(null)
+        setDescontosAbas([])
+      }
+      setDescontosProcessando(false)
+    }
+    reader.readAsArrayBuffer(arquivo)
+  }
+
+  async function confirmarImportacaoDescontos() {
+    const novos = descontosPreviewInfo.lancamentos.filter(l => l.status === 'novo')
+    if (novos.length === 0) return
+    setDescontosImportando(true)
+    const porColaborador = {}
+    novos.forEach(l => {
+      if (!porColaborador[l.colaboradorId]) porColaborador[l.colaboradorId] = []
+      porColaborador[l.colaboradorId].push({ motivo: l.motivo, mes: l.mes, valor: String(l.valor), observacao: `Importado de ${descontosAbaEscolhida}` })
+    })
+    for (const [id, itens] of Object.entries(porColaborador)) {
+      const rh = rhColaboradores.find(c => String(c.id) === id)
+      if (!rh) continue
+      const descontosAtualizados = [...(Array.isArray(rh.descontos) ? rh.descontos : []), ...itens]
+      await atualizarRH(rh.id, { descontos: descontosAtualizados })
+    }
+    setDescontosResultado({ lancamentos: novos.length, colaboradores: Object.keys(porColaborador).length })
+    setDescontosImportando(false)
   }
 
   function handlePontoUpload(e) {
@@ -2562,6 +2710,93 @@ export default function App() {
           </div>
 
           <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:12 }}>
+            <div style={{ fontSize:12, color:'#5B21B6', fontWeight:700, marginBottom:10 }}>📥 Importar descontos (.xlsx)</div>
+            <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+              <input type="file" accept=".xlsx,.xls" onChange={handleDescontosUpload} style={{ fontSize:12 }} />
+              {descontosAbas.length > 0 && (
+                <select value={descontosAbaEscolhida} onChange={e => setDescontosAbaEscolhida(e.target.value)}
+                  style={{ padding:'6px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                  {descontosAbas.map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
+              )}
+            </div>
+            {descontosProcessando && <div style={{ fontSize:12, color:'#888', marginTop:8 }}>Lendo arquivo...</div>}
+            {descontosErro && <div style={{ fontSize:12, color:'#991B1B', marginTop:8 }}>{descontosErro}</div>}
+            {descontosNomeArquivo && !descontosProcessando && (
+              <div style={{ fontSize:11, color:'#888', marginTop:8 }}>Arquivo: {descontosNomeArquivo}</div>
+            )}
+
+            {(() => {
+              const { lancamentos, erro } = descontosPreviewInfo
+              if (erro) return <div style={{ fontSize:12, color:'#991B1B', marginTop:8 }}>{erro}</div>
+              if (!descontosAbaEscolhida || lancamentos.length === 0) return null
+              const novos = lancamentos.filter(l => l.status === 'novo')
+              const duplicados = lancamentos.filter(l => l.status === 'duplicado')
+              const naoEncontrados = lancamentos.filter(l => l.status === 'nao_encontrado')
+              const invalidos = lancamentos.filter(l => l.status === 'invalido')
+              return (
+                <div style={{ marginTop:10 }}>
+                  <div style={{ display:'flex', gap:12, flexWrap:'wrap', fontSize:11, marginBottom:8 }}>
+                    <span style={{ color:'#065F46' }}>✓ {novos.length} novo(s)</span>
+                    <span style={{ color:'#888' }}>= {duplicados.length} já importado(s)</span>
+                    {naoEncontrados.length > 0 && <span style={{ color:'#991B1B' }}>⚠ {naoEncontrados.length} nome não encontrado no RH</span>}
+                    {invalidos.length > 0 && <span style={{ color:'#92400E' }}>⚠ {invalidos.length} valor não numérico (confere manualmente)</span>}
+                  </div>
+
+                  {naoEncontrados.length > 0 && (
+                    <div style={{ fontSize:11, color:'#991B1B', marginBottom:8 }}>
+                      Não encontrados: {[...new Set(naoEncontrados.map(l => l.nomeBruto))].join(', ')}
+                    </div>
+                  )}
+                  {invalidos.length > 0 && (
+                    <div style={{ fontSize:11, color:'#92400E', marginBottom:8 }}>
+                      {invalidos.map((l, idx) => <div key={idx}>{l.nomeBruto} — {l.mes} — "{l.textoOriginal}"</div>)}
+                    </div>
+                  )}
+
+                  {(novos.length > 0 || duplicados.length > 0) && (
+                    <div style={{ maxHeight:220, overflowY:'auto', border:'1px solid #E0E8F0', borderRadius:8, marginBottom:10 }}>
+                      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
+                        <thead>
+                          <tr style={{ background:'#F8FAFC', textAlign:'left' }}>
+                            <th style={{ padding:6 }}>Colaborador</th>
+                            <th style={{ padding:6 }}>Motivo</th>
+                            <th style={{ padding:6 }}>Mês</th>
+                            <th style={{ padding:6 }}>Valor</th>
+                            <th style={{ padding:6 }}>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {novos.concat(duplicados).map((l, idx) => (
+                            <tr key={idx} style={{ borderTop:'1px solid #F1F5F9' }}>
+                              <td style={{ padding:6 }}>{l.colaboradorNome || l.nomeBruto}</td>
+                              <td style={{ padding:6 }}>{rubricaLabel(l.motivo)}</td>
+                              <td style={{ padding:6 }}>{l.mes}</td>
+                              <td style={{ padding:6 }}>R$ {l.valor.toFixed(2)}</td>
+                              <td style={{ padding:6, color: l.status === 'novo' ? '#065F46' : '#888' }}>{l.status === 'novo' ? 'Novo' : 'Já importado'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <button onClick={confirmarImportacaoDescontos} disabled={novos.length === 0 || descontosImportando}
+                    style={{ padding:'8px 16px', background: novos.length === 0 ? '#CBD5E1' : '#5B21B6', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor: novos.length === 0 ? 'default' : 'pointer' }}>
+                    {descontosImportando ? 'Importando...' : `Confirmar importação (${novos.length} lançamento(s))`}
+                  </button>
+                </div>
+              )
+            })()}
+
+            {descontosResultado && (
+              <div style={{ fontSize:12, color:'#065F46', marginTop:8 }}>
+                ✓ {descontosResultado.lancamentos} lançamento(s) importado(s) para {descontosResultado.colaboradores} colaborador(es).
+              </div>
+            )}
+          </div>
+
+          <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:12 }}>
             <div style={{ fontSize:12, color:'#5B21B6', fontWeight:700, marginBottom:10 }}>+ Novo colaborador</div>
             <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
               <input value={novoRhNomeCompleto} onChange={e => setNovoRhNomeCompleto(e.target.value)}
@@ -2931,6 +3166,7 @@ export default function App() {
                               {c.violacoesInterjornada.map((v,i) => (
                                 <div key={i} style={{ fontSize:12, color:'#1A2340', padding:'4px 0' }}>
                                   {v.de} → {v.para}: só {minutosParaHoras(v.gapMinutos)} de descanso (mínimo 11:00)
+                                  {v.cai100 && <span style={{ marginLeft:6, fontSize:10, fontWeight:700, color:'#7C2D12', background:'#FFEDD5', padding:'1px 6px', borderRadius:5 }}>100%</span>}
                                 </div>
                               ))}
                             </div>
