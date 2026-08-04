@@ -684,7 +684,7 @@ const TIPOS_ADESIVO = ['PUXE','EMPURRE','DESLIZE','CADEIRANTE','FAIXA BOLINHA','
 const ITENS_ESPECIAIS_UN = ['BALCÃO DE ENVELOPE','GUARDA VOLUMES','ESCADA DO SEGURANÇA']
 
 const TIPOS_CUSTO_TERCEIRIZADO = ['GESSO','PINTURA','VIDRO','OUTRO']
-const CATEGORIAS_DESPESA_PESSOAL = ['Hospedagem','Refeição','Material de construção','Pedágio','Combustível','Desgaste de veículo']
+const CATEGORIAS_DESPESA_PESSOAL = ['Hospedagem','Refeição','Material de construção','Pedágio','Combustível','Desgaste de veículo','ART','Estacionamento','Caçamba e Descarte']
 const CATEGORIA_DESPESA_COR = {
   'Hospedagem': '#2563EB',
   'Refeição': '#B45309',
@@ -692,9 +692,12 @@ const CATEGORIA_DESPESA_COR = {
   'Pedágio': '#0F766E',
   'Combustível': '#B91C1C',
   'Desgaste de veículo': '#4B5563',
+  'ART': '#0369A1',
+  'Estacionamento': '#A16207',
+  'Caçamba e Descarte': '#166534',
 }
 const MESES_FILTRO = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
-const CONSUMO_MEDIO_KM_L = 12
+const CONSUMO_MEDIO_KM_L = 8
 const PRECO_MEDIO_LITRO = 6.00
 
 function somaValores(lista) {
