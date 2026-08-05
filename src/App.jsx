@@ -3809,6 +3809,9 @@ export default function App() {
             {modal.tipo === 'TRANSF UN' && (
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
                 <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Datas de visita ao ponto</div>
+                <datalist id="lista-colaboradores-etapas">
+                  {COLABORADORES.map(nome => <option key={nome} value={nome} />)}
+                </datalist>
                 {ETAPAS_UN.map((etapa, i) => (
                   <div key={etapa.campo} style={{ marginBottom:12 }}>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>
@@ -3821,7 +3824,7 @@ export default function App() {
                         style={{ flex:1, padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                       <input value={resps[`resp_etapa${i+1}`]||''}
                         onChange={e => setResps(r => ({...r, [`resp_etapa${i+1}`]: e.target.value}))}
-                        placeholder="Responsável"
+                        placeholder="Responsável" list="lista-colaboradores-etapas"
                         style={{ flex:1, padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                     </div>
                     {i === 0 && (
