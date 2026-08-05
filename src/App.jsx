@@ -203,6 +203,19 @@ function uf(local) {
   return p.length > 1 ? p[p.length - 1].trim() : local.trim()
 }
 
+// CNPJs próprios do Grupo PG usados pra faturar a Tecban - SP fatura o próprio estado
+// e qualquer outro que não seja RJ/MG (é o "coringa"); RJ e MG só faturam o próprio estado.
+const CNPJS_GRUPOPG = {
+  SP: '19.786.849/0001-60',
+  RJ: '19.786.849/0002-41',
+  MG: '19.786.849/0003-22',
+}
+function cnpjEsperadoParaUF(ufSigla) {
+  if (ufSigla === 'RJ') return CNPJS_GRUPOPG.RJ
+  if (ufSigla === 'MG') return CNPJS_GRUPOPG.MG
+  return CNPJS_GRUPOPG.SP
+}
+
 function montaLocal(cidade, ufSigla) {
   const c = (cidade||'').trim(), u = (ufSigla||'').trim()
   if (c && u) return `${c}-${u}`
@@ -1536,7 +1549,7 @@ export default function App() {
   const [entregaveisVistoria, setEntregaveisVistoria] = useState([])
   const [novoLembreteEtapa, setNovoLembreteEtapa] = useState('')
   const [novoLembreteTexto, setNovoLembreteTexto] = useState('')
-  const [editDados, setEditDados] = useState({ nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', os_tecban:'' })
+  const [editDados, setEditDados] = useState({ nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'' })
   const [adesivos, setAdesivos] = useState([])
   const [vidros, setVidros] = useState([])
   const [novoVidro, setNovoVidro] = useState('')
@@ -2225,6 +2238,9 @@ export default function App() {
       pedido: editDados.pedido || null,
       nf: editDados.nf || null,
       os_tecban: editDados.os_tecban || null,
+      pedido_valor: editDados.pedido_valor !== '' ? parseFloat(String(editDados.pedido_valor).replace(',', '.')) || 0 : null,
+      pedido_os: editDados.pedido_os || null,
+      pedido_cnpj: editDados.pedido_cnpj || null,
     }
     if (modal.tipo === 'TRANSF UN') {
       campos.data_etapa1 = datas.data_etapa1 || null
@@ -2284,7 +2300,7 @@ export default function App() {
     setNovoLembreteEtapa('')
     setNovoLembreteTexto('')
     setAdesivos([])
-    setEditDados({ nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', os_tecban:'' })
+    setEditDados({ nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'' })
     setDataCadastroModal('')
     setDataVistoria('')
     setColabsVistoria([])
@@ -3548,7 +3564,7 @@ export default function App() {
                         setNovaDivM2('')
                         setItensEspeciais(Array.isArray(obra.itens_especiais) ? obra.itens_especiais : [])
                         setBiomboFila(obra.biombo_fila != null ? String(obra.biombo_fila) : '')
-                        setEditDados({ nome: obra.nome||'', endereco: obra.endereco||'', cidade: obra.cidade||'', uf: obra.uf||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', pedido: obra.pedido||'', nf: obra.nf||'', os_tecban: obra.os_tecban||'' })
+                        setEditDados({ nome: obra.nome||'', endereco: obra.endereco||'', cidade: obra.cidade||'', uf: obra.uf||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', pedido: obra.pedido||'', nf: obra.nf||'', os_tecban: obra.os_tecban||'', pedido_valor: obra.pedido_valor!=null ? String(obra.pedido_valor) : '', pedido_os: obra.pedido_os||'', pedido_cnpj: obra.pedido_cnpj||'' })
                         setDataCadastroModal(obra.data_cadastro || '')
                         setDataVistoria(obra.data_vistoria || '')
                         const listaVistoria = Array.isArray(obra.colaboradores_vistoria) ? obra.colaboradores_vistoria : []
@@ -3749,6 +3765,53 @@ export default function App() {
                 </div>
               </div>
             </div>
+
+            {podeVerValores && (
+              <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:12, padding:14, marginBottom:16 }}>
+                <div style={{ fontSize:12, color:'#9A3412', fontWeight:700, marginBottom:10 }}>📥 Conferência do pedido de faturamento</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:10 }}>
+                  <div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Valor no pedido (R$)</label>
+                    <input type="number" value={editDados.pedido_valor} onChange={e => setEditDados(d => ({...d, pedido_valor:e.target.value}))}
+                      style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>OS no pedido</label>
+                    <input value={editDados.pedido_os} onChange={e => setEditDados(d => ({...d, pedido_os:e.target.value}))}
+                      style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>CNPJ indicado no pedido</label>
+                    <select value={editDados.pedido_cnpj} onChange={e => setEditDados(d => ({...d, pedido_cnpj:e.target.value}))}
+                      style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
+                      <option value="">—</option>
+                      <option value={CNPJS_GRUPOPG.SP}>SP — {CNPJS_GRUPOPG.SP}</option>
+                      <option value={CNPJS_GRUPOPG.RJ}>RJ — {CNPJS_GRUPOPG.RJ}</option>
+                      <option value={CNPJS_GRUPOPG.MG}>MG — {CNPJS_GRUPOPG.MG}</option>
+                    </select>
+                  </div>
+                </div>
+                {(editDados.pedido_valor !== '' || editDados.pedido_os.trim() || editDados.pedido_cnpj) && (() => {
+                  const valorObra = parseFloat(String(editDados.valor).replace(',', '.')) || 0
+                  const valorPedido = parseFloat(String(editDados.pedido_valor).replace(',', '.')) || 0
+                  const valorBate = editDados.pedido_valor !== '' && Math.abs(valorPedido - valorObra) < 0.01
+                  const osBate = editDados.pedido_os.trim() !== '' && editDados.pedido_os.trim() === editDados.os_tecban.trim()
+                  const ufObra = editDados.uf.trim().toUpperCase()
+                  const cnpjEsperado = cnpjEsperadoParaUF(ufObra)
+                  const cnpjBate = !!editDados.pedido_cnpj && editDados.pedido_cnpj === cnpjEsperado
+                  const linha = (ok, label) => (
+                    <div style={{ fontSize:12, color: ok ? '#065F46' : '#991B1B', fontWeight:600 }}>{ok ? '✓' : '✗'} {label}</div>
+                  )
+                  return (
+                    <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                      {editDados.pedido_valor !== '' && linha(valorBate, valorBate ? `Valor bate (R$ ${valorObra.toFixed(2)})` : `Valor não bate — pedido R$ ${valorPedido.toFixed(2)} x obra R$ ${valorObra.toFixed(2)}`)}
+                      {editDados.pedido_os.trim() && linha(osBate, osBate ? 'OS bate' : `OS não bate — pedido "${editDados.pedido_os}" x cadastro "${editDados.os_tecban}"`)}
+                      {editDados.pedido_cnpj && linha(cnpjBate, cnpjBate ? `CNPJ bate (esperado pra ${ufObra || '—'})` : `CNPJ não bate — obra é ${ufObra || '?'}, esperado ${cnpjEsperado}`)}
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
 
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
               <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data da vistoria</label>
