@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import * as XLSXStyle from 'xlsx-js-style'
 import jsPDF from 'jspdf'
@@ -214,6 +214,24 @@ function cnpjEsperadoParaUF(ufSigla) {
   if (ufSigla === 'RJ') return CNPJS_GRUPOPG.RJ
   if (ufSigla === 'MG') return CNPJS_GRUPOPG.MG
   return CNPJS_GRUPOPG.SP
+}
+
+// Conferência do pedido a partir dos campos já salvos na obra (não dos campos do formulário
+// em edição) - usada pra decidir se uma obra "disponível pra faturar" está 100% conferida
+// ou se tem alguma divergência precisando de correção antes de faturar de verdade.
+function conferePedidoObra(obra) {
+  const temValor = obra.pedido_valor !== null && obra.pedido_valor !== undefined
+  const temOs = !!(obra.pedido_os && String(obra.pedido_os).trim())
+  const temCnpj = !!(obra.pedido_cnpj && String(obra.pedido_cnpj).trim())
+  const temConferencia = temValor || temOs || temCnpj
+  const valorBate = temValor && Math.abs(Number(obra.pedido_valor) - Number(obra.valor || 0)) < 0.01
+  const osBate = temOs && String(obra.pedido_os).trim() === String(obra.os_tecban || '').trim()
+  const ufObra = uf(obra.local).toUpperCase()
+  const cnpjEsperado = cnpjEsperadoParaUF(ufObra)
+  const cnpjBate = temCnpj && obra.pedido_cnpj === cnpjEsperado
+  const completo = temValor && temOs && temCnpj && valorBate && osBate && cnpjBate
+  const precisaCorrecao = temConferencia && ((temValor && !valorBate) || (temOs && !osBate) || (temCnpj && !cnpjBate))
+  return { temValor, temOs, temCnpj, temConferencia, valorBate, osBate, cnpjBate, completo, precisaCorrecao }
 }
 
 function montaLocal(cidade, ufSigla) {
@@ -2223,8 +2241,15 @@ export default function App() {
   async function salvarStatus() {
     if (!novoStatus) return
     setSalvando(true)
+    let statusFinal = novoStatus === 'RM ENVIADA' ? 'EMITIR NF' : novoStatus
+    // Se o pedido da Tecban chegou (campo Pedido preenchido) numa obra que já estava em etapa
+    // avançada (elaborando/enviando RM), considera pronta pra faturar - pula direto pra EMITIR NF.
+    const pedidoPreenchido = !!(editDados.pedido && editDados.pedido.trim())
+    if (['ELABORAR RM', 'ENVIAR RM', 'RM ENVIADA'].includes(novoStatus) && pedidoPreenchido) {
+      statusFinal = 'EMITIR NF'
+    }
     const campos = {
-      status: novoStatus === 'RM ENVIADA' ? 'EMITIR NF' : novoStatus,
+      status: statusFinal,
       obs: novaObs || modal.obs || null,
       atualizado_em: new Date().toISOString(),
       atualizado_por: usuario.email,
@@ -2626,11 +2651,27 @@ export default function App() {
               <div style={{ fontSize:11, color:'#1A6B4A', fontWeight:700, marginBottom:10, padding:'8px 12px', background:'#D1FAE5', borderRadius:8 }}>
                 {obrasFaturar.length} obra(s) · Total: R$ {totalFaturar.toLocaleString('pt-BR',{minimumFractionDigits:2})}
               </div>
-              {obrasFaturar.map(o => {
+              {(() => {
+                const ordenadas = [...obrasFaturar].sort((a, b) => {
+                  const ra = conferePedidoObra(a).precisaCorrecao ? 1 : 0
+                  const rb = conferePedidoObra(b).precisaCorrecao ? 1 : 0
+                  return ra - rb
+                })
+                const totalRevisao = ordenadas.filter(o => conferePedidoObra(o).precisaCorrecao).length
+                return ordenadas.map((o, i) => {
+                const conf = conferePedidoObra(o)
+                const precisaCorrecao = conf.precisaCorrecao
+                const inicioSecaoRevisao = precisaCorrecao && (i === 0 || !conferePedidoObra(ordenadas[i - 1]).precisaCorrecao)
                 const tc = TIPO_COR[o.tipo] || { bg:'#F1F5F9', text:'#475569' }
                 const sc = STATUS_COR[o.status] || { bg:'#F1F5F9', text:'#475569' }
                 return (
-                  <div key={o.id} style={{ background:'#fff', border:'1px solid #D1FAE5', borderRadius:12, marginBottom:10, padding:'12px 14px' }}>
+                  <React.Fragment key={o.id}>
+                  {inicioSecaoRevisao && (
+                    <div style={{ fontSize:11, color:'#9A3412', fontWeight:700, marginTop:16, marginBottom:10, padding:'8px 12px', background:'#FFF7ED', borderRadius:8, border:'1px solid #FED7AA' }}>
+                      ⚠ Precisa de correção antes de faturar ({totalRevisao})
+                    </div>
+                  )}
+                  <div style={{ background:'#fff', border: precisaCorrecao ? '1px solid #FED7AA' : '1px solid #D1FAE5', borderRadius:12, marginBottom:10, padding:'12px 14px' }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8, marginBottom:6 }}>
                       <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', flex:1, lineHeight:1.4 }}>{o.nome}</div>
                       <div style={{ fontSize:14, fontWeight:700, color:'#1A6B4A', whiteSpace:'nowrap' }}>{fmt(o.valor)}</div>
@@ -2646,6 +2687,11 @@ export default function App() {
                       {o.nf && <span>NF: <b>{o.nf}</b></span>}
                     </div>
                     {o.obs && <div style={{ fontSize:11, background:'#FFF9E6', borderLeft:'3px solid #F5A623', padding:'5px 8px', borderRadius:4, color:'#7A5A00', marginBottom:10 }}>📌 {o.obs}</div>}
+                    {precisaCorrecao && (
+                      <div style={{ fontSize:11, background:'#FFF7ED', borderLeft:'3px solid #EA580C', padding:'5px 8px', borderRadius:4, color:'#9A3412', marginBottom:10 }}>
+                        ⚠ Divergência no pedido:{conf.temValor && !conf.valorBate && ' valor'}{conf.temOs && !conf.osBate && ' · OS'}{conf.temCnpj && !conf.cnpjBate && ' · CNPJ'}
+                      </div>
+                    )}
                     <div style={{ background:'#F0F4F8', borderRadius:10, padding:10, marginBottom:10 }}>
                       <div style={{ fontSize:11, color:'#2D3A8C', fontWeight:700, marginBottom:8 }}>Dados para faturamento</div>
                       <div style={{ marginBottom:8 }}>
@@ -2686,8 +2732,10 @@ export default function App() {
                       </button>
                     </div>
                   </div>
+                  </React.Fragment>
                 )
-              })}
+              })
+            })()}
             </>
           )}
         </div>
