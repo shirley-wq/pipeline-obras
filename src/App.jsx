@@ -2437,7 +2437,12 @@ export default function App() {
     if (filtroTipo && o.tipo !== filtroTipo) return false
     if (filtroStatus && o.status !== filtroStatus) return false
     if (filtroResponsavel && o.responsavel_escritorio !== filtroResponsavel && o.auxiliar_escritorio !== filtroResponsavel) return false
-    if (busca && !o.nome.toLowerCase().includes(busca.toLowerCase()) && !(o.local||'').toLowerCase().includes(busca.toLowerCase())) return false
+    if (busca) {
+      const b = busca.toLowerCase()
+      const bate = o.nome.toLowerCase().includes(b) || (o.local||'').toLowerCase().includes(b)
+        || (o.os_tecban||'').toLowerCase().includes(b) || (o.pedido||'').toLowerCase().includes(b)
+      if (!bate) return false
+    }
     if (filtroDe || filtroAte) {
       if (!o.inicio) return false
       const d = brToIso(o.inicio)
@@ -3423,6 +3428,7 @@ export default function App() {
                       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text }}>{obra.status}</span>
                       {obra.em_negociacao && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FEF3C7', color:'#92400E' }}>Em negociação</span>}
                       {alerta && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:alerta.bg, color:alerta.cor }}>⚠ {alerta.label}</span>}
+                      {obra.tipo === 'INSTALAÇÃO ATM' && !obra.pedido && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FFF7ED', color:'#9A3412' }}>⚠ Sem pedido</span>}
                       {obra.local ? <span style={{ fontSize:11, color:'#888' }}>{obra.local}</span> : null}
                     </div>
                   </div>
