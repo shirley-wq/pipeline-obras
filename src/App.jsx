@@ -2019,11 +2019,7 @@ export default function App() {
       y += 4
       doc.text(`Horas faltantes (débito): ${minutosParaHoras(c.totais?.debito || 0)}   |   Déficit intrajornada: ${minutosParaHoras(deficitIntrajornada)}`, 14, y)
       y += 3.5
-      doc.text(
-        pontoBase === 'SAO' || pontoBase === 'RIO'
-          ? `Déficit interjornada (dia útil): ${minutosParaHoras(deficitInterjornadaNormal)}   |   Déficit interjornada (100% sáb/dom/feriado): ${minutosParaHoras(deficitInterjornada100)}`
-          : `Déficit interjornada (${meta.he1Pct}): ${minutosParaHoras(deficitInterjornadaNormal)}`,
-        14, y)
+      doc.text(`Déficit interjornada (dia útil): ${minutosParaHoras(deficitInterjornadaNormal)}   |   Déficit interjornada (100% sáb/dom/feriado): ${minutosParaHoras(deficitInterjornada100)}`, 14, y)
 
       y += 7
       doc.line(14, y, 95, y)
