@@ -682,7 +682,7 @@ function classificaLancamentoDesconto(l, rhColaboradores) {
   return { ...l, status: jaExiste ? 'duplicado' : 'novo', colaboradorId: rh.id, colaboradorNome: `${rh.nome} ${rh.sobrenome || ''}`.trim() }
 }
 
-function montaLinhaFechamentoFolha(colaboradorPonto, rhColaboradores, mesReferencia) {
+function montaLinhaFechamentoFolha(colaboradorPonto, rhColaboradores, mesReferencia, base) {
   const nomeNormalizado = normalizaNomeColaborador(colaboradorPonto.nome)
   const rh = rhColaboradores.find(c => normalizaNomeColaborador(`${c.nome} ${c.sobrenome || ''}`) === nomeNormalizado)
   const descontosDoMes = rh && Array.isArray(rh.descontos) ? rh.descontos.filter(d => d.mes === mesReferencia) : []
@@ -696,6 +696,15 @@ function montaLinhaFechamentoFolha(colaboradorPonto, rhColaboradores, mesReferen
     return somaValoresDesconto(doMotivo.map(d => d.valor))
   })
 
+  // BHZ não tem bucket de 100% (HE lá é sempre 80%, sem variar por dia da semana) - a
+  // interjornada violada some pra uma coluna só em vez de separar 100%/dia útil.
+  const colunasInterjornada = (base === 'SAO' || base === 'RIO')
+    ? [
+        deficitInterjornada100 > 0 ? minutosParaHorasVirgula(deficitInterjornada100) : '',
+        deficitInterjornadaNormal > 0 ? minutosParaHorasVirgula(deficitInterjornadaNormal) : '',
+      ]
+    : [deficitInterjornadaNormal > 0 ? minutosParaHorasVirgula(deficitInterjornadaNormal) : '']
+
   return {
     nome: colaboradorPonto.nome,
     encontrouRH: !!rh,
@@ -703,8 +712,7 @@ function montaLinhaFechamentoFolha(colaboradorPonto, rhColaboradores, mesReferen
       colaboradorPonto.totais ? minutosParaHorasVirgula(colaboradorPonto.totais.he1) : '',
       colaboradorPonto.totais ? minutosParaHorasVirgula(colaboradorPonto.totais.he2) : '',
       colaboradorPonto.totais ? minutosParaHorasVirgula(colaboradorPonto.totais.adicionalNoturno) : '',
-      deficitInterjornada100 > 0 ? minutosParaHorasVirgula(deficitInterjornada100) : '',
-      deficitInterjornadaNormal > 0 ? minutosParaHorasVirgula(deficitInterjornadaNormal) : '',
+      ...colunasInterjornada,
       deficitIntrajornada > 0 ? minutosParaHorasVirgula(deficitIntrajornada) : '',
       ...valoresRubrica,
     ],
@@ -1834,11 +1842,14 @@ export default function App() {
 
     const cabecalho = [
       '#', 'COLABORADOR', `HE F1 ${meta.he1Pct}`, `HE F2 ${meta.he2Pct}`, 'AD. NOTURNO',
-      'INTERJORNADA VIOLADA (100%)', 'INTERJORNADA VIOLADA (dia útil)', 'INTRAJORNADA (déficit)',
+      ...(pontoBase === 'SAO' || pontoBase === 'RIO'
+        ? ['INTERJORNADA VIOLADA (100%)', 'INTERJORNADA VIOLADA (dia útil)']
+        : [`INTERJORNADA VIOLADA (${meta.he1Pct})`]),
+      'INTRAJORNADA (déficit)',
       ...RUBRICAS_DESCONTO.map(r => r.codigo ? `${r.label} (${r.codigo})` : r.label),
     ]
 
-    const linhasMontadas = colaboradores.map(c => montaLinhaFechamentoFolha(c, rhColaboradores, mesReferencia))
+    const linhasMontadas = colaboradores.map(c => montaLinhaFechamentoFolha(c, rhColaboradores, mesReferencia, pontoBase))
     const naoEncontrados = linhasMontadas.filter(l => !l.encontrouRH).map(l => l.nome)
 
     const linhas = linhasMontadas.map((l, i) => [i + 1, l.nome, ...l.linha])
@@ -2008,7 +2019,11 @@ export default function App() {
       y += 4
       doc.text(`Horas faltantes (débito): ${minutosParaHoras(c.totais?.debito || 0)}   |   Déficit intrajornada: ${minutosParaHoras(deficitIntrajornada)}`, 14, y)
       y += 3.5
-      doc.text(`Déficit interjornada (dia útil): ${minutosParaHoras(deficitInterjornadaNormal)}   |   Déficit interjornada (100% sáb/dom/feriado): ${minutosParaHoras(deficitInterjornada100)}`, 14, y)
+      doc.text(
+        pontoBase === 'SAO' || pontoBase === 'RIO'
+          ? `Déficit interjornada (dia útil): ${minutosParaHoras(deficitInterjornadaNormal)}   |   Déficit interjornada (100% sáb/dom/feriado): ${minutosParaHoras(deficitInterjornada100)}`
+          : `Déficit interjornada (${meta.he1Pct}): ${minutosParaHoras(deficitInterjornadaNormal)}`,
+        14, y)
 
       y += 7
       doc.line(14, y, 95, y)
