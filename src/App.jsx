@@ -2017,9 +2017,15 @@ export default function App() {
       doc.setFont(undefined, 'normal')
       doc.setFontSize(6.5)
       y += 4
-      doc.text(`Horas faltantes (débito): ${minutosParaHoras(c.totais?.debito || 0)}   |   Déficit intrajornada: ${minutosParaHoras(deficitIntrajornada)}`, 14, y)
-      y += 3.5
-      doc.text(`Déficit interjornada (dia útil): ${minutosParaHoras(deficitInterjornadaNormal)}   |   Déficit interjornada (100% sáb/dom/feriado): ${minutosParaHoras(deficitInterjornada100)}`, 14, y)
+      if (pontoBase === 'BHZ') {
+        doc.text(`Horas faltantes (débito): ${minutosParaHoras(c.totais?.debito || 0)}   |   Déficit intrajornada (${meta.he1Pct}): ${minutosParaHoras(deficitIntrajornada)}`, 14, y)
+        y += 3.5
+        doc.text(`Déficit interjornada (${meta.he1Pct}): ${minutosParaHoras(deficitInterjornadaNormal)}`, 14, y)
+      } else {
+        doc.text(`Horas faltantes (débito): ${minutosParaHoras(c.totais?.debito || 0)}   |   Déficit intrajornada: ${minutosParaHoras(deficitIntrajornada)}`, 14, y)
+        y += 3.5
+        doc.text(`Déficit interjornada (dia útil): ${minutosParaHoras(deficitInterjornadaNormal)}   |   Déficit interjornada (100% sáb/dom/feriado): ${minutosParaHoras(deficitInterjornada100)}`, 14, y)
+      }
 
       y += 7
       doc.line(14, y, 95, y)
