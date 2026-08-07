@@ -1845,7 +1845,7 @@ export default function App() {
       ...(pontoBase === 'SAO' || pontoBase === 'RIO'
         ? ['INTERJORNADA VIOLADA (100%)', 'INTERJORNADA VIOLADA (dia útil)']
         : [`INTERJORNADA VIOLADA (${meta.he1Pct})`]),
-      'INTRAJORNADA (déficit)',
+      pontoBase === 'BHZ' ? `INTRAJORNADA (déficit) (${meta.he1Pct})` : 'INTRAJORNADA (déficit)',
       ...RUBRICAS_DESCONTO.map(r => r.codigo ? `${r.label} (${r.codigo})` : r.label),
     ]
 
