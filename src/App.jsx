@@ -951,6 +951,9 @@ const ETAPAS_DESC = [
 ]
 const ETAPAS_EN = ETAPAS_DESC
 const ETAPAS_OUTRAS = ['Início','Em andamento','Conclusão','EMITIR NF','Faturamento']
+// Processo de instalação/manutenção de ATM da rede Banco24Horas (alinhado com a Shirley em 2026-08-07)
+// - bem mais simples que a régua de TRANSF UN/DESC PA (sem orçamento/ART/DCM - é só ir ao ponto e instalar).
+const ETAPAS_ATM_B24H = ['OS ABERTA', 'AGENDAMENTO', 'OPERAÇÃO EM CAMPO', 'BOOK FOTOGRÁFICO', 'ELABORAR RM', 'RM ENVIADA', 'AGUARDANDO OS TECBAN', 'EMITIR NF', 'NF EMITIDO']
 
 const STATUS_ETAPA1_DONE = ['EM ANDAMENTO','VISTORIA REALIZADA ELABORAR BOOK E ORÇAMENTO','BOOK E ORÇAMENTOS ENVIADOS','ORÇAMENTO APROVADO/REPROVADO','OBRA EMITIR ART','DCM E TERMOS ENTREGUES AO CAMPO','TERMOS E DCMS ASSINADOS','BDNS, MOBILIÁRIOS E EQUIPAMENTO REMOVIDOS','FOTOS DO AMBIENTE VAZIO','ELABORAR QRCODE OU BOOK DE CONCLUSÃO','ELABORAR BOOK','BOOK PENDENTE','BOOK DE CONCLUSÃO','QR CODE','AGUARDANDO OS TECBAN','ELABORAR RM','RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM','EMITIR NF','NF EMITIDO','Em andamento','Conclusão','Faturamento']
 const STATUS_ETAPA2_DONE = ['AGUARDANDO OS TECBAN','ELABORAR RM','RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM','EMITIR NF','NF EMITIDO','Conclusão','Faturamento']
@@ -996,15 +999,17 @@ function ReguaStatus({ status, lembretes, onRemoverLembrete }) {
   )
 }
 
-function getEtapas() {
+function getEtapas(rede) {
+  if (rede === 'BANCO24HORAS') return ETAPAS_ATM_B24H
   return ETAPAS_DESC
 }
 
-function getEtapaAtual(status) {
-  const etapas = getEtapas()
+function getEtapaAtual(status, rede) {
+  const etapas = getEtapas(rede)
   const n = etapas.length
   const idx = etapas.findIndex(e => e.toLowerCase() === (status||'').toLowerCase())
   if (idx !== -1) return idx + 1
+  if (rede === 'BANCO24HORAS') return 1
   // Compatibilidade com status antigos ainda no banco
   const s = (status||'').toUpperCase()
   if (s.includes('NF EMITIDO') || s.includes('EMITIR NF') || s.includes('FATURAMENTO') || s.includes('CONCLUS')) return n + 1
@@ -1501,9 +1506,9 @@ function getGrupoObra(o) {
   return 'em_andamento'
 }
 
-function Regua({ tipo, status, lembretes, onRemoverLembrete }) {
-  const etapas = getEtapas()
-  const atual = getEtapaAtual(status)
+function Regua({ tipo, rede, status, lembretes, onRemoverLembrete }) {
+  const etapas = getEtapas(rede)
+  const atual = getEtapaAtual(status, rede)
   const lista = Array.isArray(lembretes) ? lembretes : []
   return (
     <div style={{ display:'flex', alignItems:'flex-start', padding:'10px 0 6px', overflowX:'auto', gap:0 }}>
@@ -3506,7 +3511,7 @@ export default function App() {
                   </div>
 
                   <div style={{ padding:'0 14px 8px' }}>
-                    <Regua status={obra.status} lembretes={obra.lembretes} onRemoverLembrete={l => removerLembrete(obra.id, l)} />
+                    <Regua status={obra.status} rede={obra.rede} lembretes={obra.lembretes} onRemoverLembrete={l => removerLembrete(obra.id, l)} />
                   </div>
                   {TIPOS_ENTREGAVEIS.includes(obra.tipo) && (() => {
                     const listaObrigatorios = entregaveisObrigatorios(obra.tipo)
@@ -4289,7 +4294,7 @@ export default function App() {
 
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, marginBottom:8 }}>Etapa da régua:</div>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:6, marginBottom:8 }}>
-              {getEtapas().map((op, i) => {
+              {getEtapas(modal.rede).map((op, i) => {
                 const ativo = novoStatus === op
                 const bloqueado = op === 'RM ENVIADA' && !editDados.os_tecban.trim()
                 return (
@@ -4303,7 +4308,7 @@ export default function App() {
                 )
               })}
             </div>
-            {getEtapas().includes('RM ENVIADA') && !editDados.os_tecban.trim() && (
+            {getEtapas(modal.rede).includes('RM ENVIADA') && !editDados.os_tecban.trim() && (
               <div style={{ fontSize:11, color:'#92400E', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'6px 10px', marginBottom:8 }}>
                 🔒 "RM Enviada" fica bloqueada até preencher a <b>OS Tecban</b> em Dados da obra.
               </div>
@@ -4334,7 +4339,7 @@ export default function App() {
                 <select value={novoLembreteEtapa} onChange={e => setNovoLembreteEtapa(e.target.value)}
                   style={{ padding:'8px 6px', border:'1px solid #FECACA', borderRadius:8, fontSize:11, color:'#1A2340', background:'#fff', width:52, flexShrink:0 }}>
                   <option value="">Etapa</option>
-                  {getEtapas().map((_, i) => (
+                  {getEtapas(modal.rede).map((_, i) => (
                     <option key={i} value={i+1}>{i+1}</option>
                   ))}
                 </select>
