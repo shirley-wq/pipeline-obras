@@ -2484,6 +2484,7 @@ export default function App() {
     if (busca) {
       const b = busca.toLowerCase()
       const bate = o.nome.toLowerCase().includes(b) || (o.local||'').toLowerCase().includes(b)
+        || (o.cidade||'').toLowerCase().includes(b) || (o.uf||'').toLowerCase().includes(b)
         || (o.os_tecban||'').toLowerCase().includes(b) || (o.pedido||'').toLowerCase().includes(b)
       if (!bate) return false
     }
