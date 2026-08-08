@@ -1554,6 +1554,7 @@ export default function App() {
   const [carregando, setCarregando] = useState(true)
   const [obras, setObras] = useState([])
   const [filtroTipo, setFiltroTipo] = useState('')
+  const [filtroRede, setFiltroRede] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
   const [busca, setBusca] = useState('')
   const [filtroDe, setFiltroDe] = useState('')
@@ -2477,6 +2478,7 @@ export default function App() {
   const obrasFiltradas = obras.filter(o => {
     if (o.status === 'NF EMITIDO') return false
     if (filtroTipo && o.tipo !== filtroTipo) return false
+    if (filtroRede && o.rede !== filtroRede) return false
     if (filtroStatus && o.status !== filtroStatus) return false
     if (filtroResponsavel && o.responsavel_escritorio !== filtroResponsavel && o.auxiliar_escritorio !== filtroResponsavel) return false
     if (busca) {
@@ -3412,6 +3414,10 @@ export default function App() {
         <select value={filtroTipo} onChange={e=>setFiltroTipo(e.target.value)} style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff', flex:1, minWidth:100 }}>
           <option value="">Todos tipos</option>
           {[...new Set(obras.map(o=>o.tipo))].sort().map(t => <option key={t}>{t}</option>)}
+        </select>
+        <select value={filtroRede} onChange={e=>setFiltroRede(e.target.value)} style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff', flex:1, minWidth:100 }}>
+          <option value="">Todos bancos</option>
+          {[...new Set(obras.map(o=>o.rede))].filter(Boolean).sort().map(r => <option key={r}>{r}</option>)}
         </select>
         <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)} style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff', flex:1, minWidth:100 }}>
           <option value="">Todos status</option>
