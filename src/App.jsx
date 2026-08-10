@@ -3969,7 +3969,7 @@ export default function App() {
                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data de início da obra</label>
                 <input type="date" value={dataObraInicio} disabled={!vistoriaCompleta} onChange={e => setDataObraInicio(e.target.value)}
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8, background: vistoriaCompleta ? '#fff' : '#F1F5F9', cursor: vistoriaCompleta ? 'text' : 'not-allowed' }} />
-                <SeletorEquipe titulo="Início da obra" selecionados={colabsObra} onChangeSelecionados={setColabsObra}
+                <SeletorEquipe titulo="Equipe" selecionados={colabsObra} onChangeSelecionados={setColabsObra}
                   terceirizado={terceirizadoObra} onChangeTerceirizado={setTerceirizadoObra}
                   terceirizadoTexto={terceirizadoObraTexto} onChangeTerceirizadoTexto={setTerceirizadoObraTexto}
                   bloqueado={!vistoriaCompleta} mensagemBloqueio='Preencha a data da vistoria e quem foi antes de liberar esta etapa' />
