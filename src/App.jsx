@@ -1635,7 +1635,7 @@ export default function App() {
   const [salvandoBulk, setSalvandoBulk] = useState(false)
   const [modalNovaObra, setModalNovaObra] = useState(false)
   const [menuAberto, setMenuAberto] = useState(null)
-  const [novaObra, setNovaObra] = useState({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0] })
+  const [novaObra, setNovaObra] = useState({ tipo:'', rede:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0] })
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [erroLogin, setErroLogin] = useState('')
@@ -2243,8 +2243,10 @@ export default function App() {
   async function salvarNovaObra() {
     if (!novaObra.tipo || !novaObra.nome) return
     setSalvando(true)
+    const ehBDN = TIPOS_BDN.includes(novaObra.tipo)
     const { data, error } = await supabase.from('pipeline_obras').insert({
       tipo: novaObra.tipo,
+      rede: ehBDN ? novaObra.rede : null,
       nome: novaObra.nome,
       local: montaLocal(novaObra.cidade, novaObra.uf),
       endereco: novaObra.endereco || null,
@@ -2255,7 +2257,7 @@ export default function App() {
       pedido: novaObra.pedido || null,
       nf: novaObra.nf || null,
       obs: novaObra.obs || null,
-      status: 'VISTORIA',
+      status: ehBDN ? getEtapas(novaObra.rede, novaObra.tipo)[0] : 'VISTORIA',
       data_cadastro: novaObra.data_cadastro || new Date().toISOString().split('T')[0],
       criado_por: usuario.email,
       atualizado_por: usuario.email,
@@ -2266,7 +2268,7 @@ export default function App() {
     }
     setSalvando(false)
     setModalNovaObra(false)
-    setNovaObra({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0] })
+    setNovaObra({ tipo:'', rede:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0] })
   }
 
   async function excluirObra(id) {
@@ -3728,7 +3730,16 @@ export default function App() {
                   <select value={novaObra[f.field]} onChange={e => setNovaObra(p => ({...p, [f.field]:e.target.value}))}
                     style={{ width:'100%', padding:'10px 12px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }}>
                     <option value="">Selecione...</option>
-                    {f.options.map(o => <option key={o}>{o}</option>)}
+                    {f.field === 'tipo' ? (
+                      <>
+                        <optgroup label="Transformação de agência">
+                          {f.options.map(o => <option key={o}>{o}</option>)}
+                        </optgroup>
+                        <optgroup label="Movimentação de máquina (ATM/BDN)">
+                          {TIPOS_BDN.map(o => <option key={o}>{o}</option>)}
+                        </optgroup>
+                      </>
+                    ) : f.options.map(o => <option key={o}>{o}</option>)}
                   </select>
                 ) : f.type === 'textarea' ? (
                   <textarea value={novaObra[f.field]} onChange={e => setNovaObra(p => ({...p, [f.field]:e.target.value}))}
@@ -3741,6 +3752,17 @@ export default function App() {
                 )}
               </div>
             ))}
+            {TIPOS_BDN.includes(novaObra.tipo) && (
+              <div style={{ marginBottom:12, background:'#F0F7FF', borderRadius:10, padding:12, border:'1px solid #BFDBFE' }}>
+                <label style={{ fontSize:12, color:'#1E40AF', fontWeight:700, display:'block', marginBottom:4 }}>Rede *</label>
+                <select value={novaObra.rede} onChange={e => setNovaObra(p => ({...p, rede:e.target.value}))}
+                  style={{ width:'100%', padding:'10px 12px', border:'1px solid #BFDBFE', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }}>
+                  <option value="">Selecione...</option>
+                  {['BANCO24HORAS','BRADESCO','AGIBANK','CREFISA','BANESTES'].map(o => <option key={o}>{o}</option>)}
+                </select>
+                <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Define a régua de status: Bradesco tem processo próprio (com vistoria e espera pelo pedido); as demais seguem o processo Banco24Horas.</div>
+              </div>
+            )}
             <div style={{ display:'grid', gridTemplateColumns:'2fr 1.3fr 0.6fr', gap:8, marginBottom:12 }}>
               <div>
                 <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Endereço</label>
@@ -3788,8 +3810,8 @@ export default function App() {
                 style={{ width:'100%', padding:'10px 12px', border:'1px solid #BFDBFE', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
               <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Padrão: hoje. Ajuste se a demanda chegou em outra data.</div>
             </div>
-            <button onClick={salvarNovaObra} disabled={!novaObra.tipo || !novaObra.nome || salvando}
-              style={{ width:'100%', padding:13, background: (!novaObra.tipo||!novaObra.nome||salvando) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor:'pointer', marginBottom:8 }}>
+            <button onClick={salvarNovaObra} disabled={!novaObra.tipo || !novaObra.nome || (TIPOS_BDN.includes(novaObra.tipo) && !novaObra.rede) || salvando}
+              style={{ width:'100%', padding:13, background: (!novaObra.tipo||!novaObra.nome||(TIPOS_BDN.includes(novaObra.tipo) && !novaObra.rede)||salvando) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor:'pointer', marginBottom:8 }}>
               {salvando ? 'Salvando...' : 'Criar Obra'}
             </button>
             <button onClick={() => setModalNovaObra(false)}
