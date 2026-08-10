@@ -1199,6 +1199,31 @@ function getEtapaAtual(status, rede, tipo) {
   return 1
 }
 
+function SidebarRH({ ativa, onChange, totalColaboradores, totalHolerites }) {
+  const itens = [
+    { id:'colaboradores', label:'Colaboradores', count: totalColaboradores },
+    { id:'fechamento', label:'Fechamento de Ponto', count:null },
+    { id:'holerites', label:'Holerites', count: totalHolerites },
+  ]
+  return (
+    <div style={{ width:170, flexShrink:0, background:'#fff', borderRight:'1px solid #E0E8F0', minHeight:'70vh' }}>
+      {itens.map(s => (
+        <div key={s.id} onClick={() => onChange(s.id)}
+          style={{ padding:'12px 14px', fontSize:12, fontWeight: ativa===s.id ? 700 : 500, cursor:'pointer',
+            color: ativa===s.id ? '#5B21B6' : '#475569', background: ativa===s.id ? '#F5F3FF' : 'transparent',
+            borderLeft: ativa===s.id ? '3px solid #7C3AED' : '3px solid transparent', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <span>{s.label}</span>
+          {s.count != null && (
+            <span style={{ fontSize:10, background: ativa===s.id ? '#7C3AED' : '#E0E8F0', color: ativa===s.id ? '#fff' : '#64748B', borderRadius:10, padding:'1px 6px', fontWeight:700 }}>
+              {s.count}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizado, onChangeTerceirizado, terceirizadoTexto, onChangeTerceirizadoTexto, bloqueado, mensagemBloqueio }) {
   const [busca, setBusca] = useState('')
   if (bloqueado) {
@@ -1735,6 +1760,7 @@ export default function App() {
   const [filtroTipo, setFiltroTipo] = useState('')
   const [filtroRede, setFiltroRede] = useState('')
   const [mostrarCenario, setMostrarCenario] = useState(true)
+  const [rhSubaba, setRhSubaba] = useState('colaboradores')
   const [filtroCenarioUF, setFiltroCenarioUF] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
   const [busca, setBusca] = useState('')
@@ -2941,8 +2967,6 @@ export default function App() {
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'rh', label:'RH', count: rhColaboradores.length, cor:'#7C3AED' }] : []),
           ...(papel ? [{ id:'meusdados', label:'Meus Documentos', count:null, cor:'#7C3AED' }] : []),
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'jantas', label:'Jantas', count: jantasTodas.filter(j => j.status === 'pendente').length, cor:'#B45309' }] : []),
-          ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'fechamento', label:'Fechamento de Ponto', count:null, cor:'#0F766E' }] : []),
-          ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'holerites', label:'Holerites', count: holeritesSalvos.length, cor:'#0E4D73' }] : []),
           ...(podeVerValores ? [{ id:'despesas', label:'Despesas', count:null, cor:'#B91C1C' }] : []),
         ].map(a => (
           <button key={a.id} onClick={() => setAba(a.id)}
@@ -3114,9 +3138,11 @@ export default function App() {
         </div>
       )}
 
-      {/* ====== ABA: RH ====== */}
-      {aba === 'rh' && (papel === 'admin' || papel === 'rh' || papel === 'financeiro') && (
-        <div style={{ padding:12 }}>
+      {/* ====== ABA: RH — Colaboradores (com sub-navegação lateral) ====== */}
+      {aba === 'rh' && rhSubaba === 'colaboradores' && (papel === 'admin' || papel === 'rh' || papel === 'financeiro') && (
+        <div style={{ display:'flex', alignItems:'flex-start' }}>
+          <SidebarRH ativa={rhSubaba} onChange={setRhSubaba} totalColaboradores={rhColaboradores.length} totalHolerites={holeritesSalvos.length} />
+          <div style={{ flex:1, minWidth:0, padding:12 }}>
           <div style={{ fontSize:11, color:'#5B21B6', fontWeight:700, marginBottom:10, padding:'8px 12px', background:'#EDE9FE', borderRadius:8, display:'flex', gap:16, flexWrap:'wrap', alignItems:'center' }}>
             <span>{rhColaboradores.length} colaborador(es) cadastrado(s)</span>
             {(() => {
@@ -3241,6 +3267,7 @@ export default function App() {
               onUpdate={campos => atualizarRH(c.id, campos)}
               onRemove={() => removerRH(c.id)} />
           ))}
+        </div>
         </div>
       )}
 
@@ -3466,9 +3493,11 @@ export default function App() {
         )
       })()}
 
-      {/* ====== ABA: FECHAMENTO DE PONTO ====== */}
-      {aba === 'fechamento' && (papel === 'admin' || papel === 'rh' || papel === 'financeiro') && (
-        <div style={{ padding:12 }}>
+      {/* ====== SUB-ABA RH: FECHAMENTO DE PONTO ====== */}
+      {aba === 'rh' && rhSubaba === 'fechamento' && (
+        <div style={{ display:'flex', alignItems:'flex-start' }}>
+          <SidebarRH ativa={rhSubaba} onChange={setRhSubaba} totalColaboradores={rhColaboradores.length} totalHolerites={holeritesSalvos.length} />
+          <div style={{ flex:1, minWidth:0, padding:12 }}>
           <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:10, padding:'10px 14px', fontSize:12, color:'#92400E', marginBottom:14 }}>
             ⚠ Fase 1 (em teste): sobe o espelho de ponto bruto (.xlsx) e o Pipeline calcula sozinho as violações de interjornada (mín. 11h entre turnos) e intrajornada (15min se 4-6h trabalhadas, 1h se mais de 6h, exceto fins de semana/feriado). Confere contra um mês que você já sabe que fechou certo antes de usar pra valer.
           </div>
@@ -3608,11 +3637,14 @@ export default function App() {
             )
           })()}
         </div>
+        </div>
       )}
 
-      {/* ====== ABA: HOLERITES ====== */}
-      {aba === 'holerites' && (papel === 'admin' || papel === 'rh' || papel === 'financeiro') && (
-        <div style={{ padding:14 }}>
+      {/* ====== SUB-ABA RH: HOLERITES ====== */}
+      {aba === 'rh' && rhSubaba === 'holerites' && (
+        <div style={{ display:'flex', alignItems:'flex-start' }}>
+          <SidebarRH ativa={rhSubaba} onChange={setRhSubaba} totalColaboradores={rhColaboradores.length} totalHolerites={holeritesSalvos.length} />
+          <div style={{ flex:1, minWidth:0, padding:14 }}>
           <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:16 }}>
             <div style={{ fontSize:13, fontWeight:700, color:'#1A2340', marginBottom:10 }}>📥 Importar holerites do mês (.pdf)</div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
@@ -3759,6 +3791,7 @@ export default function App() {
               )
             })()}
           </div>
+        </div>
         </div>
       )}
 
