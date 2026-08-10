@@ -3,7 +3,11 @@ import * as XLSX from 'xlsx'
 import * as XLSXStyle from 'xlsx-js-style'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs'
+import pdfjsWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 import { supabase } from './supabase'
+
+GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl
 
 const OBRAS_INICIAIS = [
   {tipo:'TRANSF PAE',nome:'PAB VIAÇÃO OSASCO LTDA',local:'OSASCO-SP',inicio:'02/04/2026',termino:'05/04/2026',status:'NF EMITIDO',valor:5126.03,sige:'13653',pedido:'4501792509',nf:'3101'},
@@ -553,6 +557,155 @@ function calcularViolacoesIntrajornada(dias, temDiaReferencia) {
 function minutosParaHoras(min) {
   const h = Math.floor(Math.abs(min) / 60), m = Math.abs(min) % 60
   return `${min < 0 ? '-' : ''}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+// ===== Parser de holerite em PDF (layout PG Construtora / GRUPO PG) =====
+// O extrator de texto do PDF devolve os itens em ordem "por coluna" (todos os
+// códigos, depois todas as descrições, depois...), não em ordem de leitura -
+// por isso reconstruímos as linhas pela posição (x,y) de cada item, em vez de
+// tentar ler o texto corrido. Cada funcionário aparece 2x na mesma página (via
+// funcionário/via empresa, idênticas) - separado pela linha de traços "---".
+function toNumeroBR(s) {
+  if (s == null) return null
+  const t = String(s).trim().replace(/\./g, '').replace(',', '.')
+  const n = parseFloat(t)
+  return isNaN(n) ? null : n
+}
+
+async function extraiLinhasPdf(arrayBuffer) {
+  const doc = await getDocument({ data: new Uint8Array(arrayBuffer) }).promise
+  const paginas = []
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p)
+    const content = await page.getTextContent()
+    const items = content.items
+      .map(it => ({ str: it.str, x: Math.round(it.transform[4]), y: Math.round(it.transform[5]) }))
+      .filter(it => it.str.trim())
+    const rows = []
+    items.forEach(it => {
+      let row = rows.find(r => Math.abs(r.y - it.y) <= 2)
+      if (!row) { row = { y: it.y, items: [] }; rows.push(row) }
+      row.items.push(it)
+    })
+    rows.sort((a, b) => b.y - a.y)
+    rows.forEach(r => r.items.sort((a, b) => a.x - b.x))
+    paginas.push(rows)
+  }
+  return paginas
+}
+
+function linhaTokens(row) { return row.items.map(i => i.str.trim()).filter(Boolean) }
+
+function parsePaginaHolerite(rows) {
+  const fimIdx = rows.findIndex(r => r.items.some(i => i.str.startsWith('---')))
+  const via1 = fimIdx === -1 ? rows : rows.slice(0, fimIdx)
+  const idxNomeLabel = via1.findIndex(r => r.items.some(i => i.str === 'Nome do Funcionário'))
+  if (idxNomeLabel === -1) return null
+  const infoRow = via1[idxNomeLabel + 1]
+  const cargoRow = via1[idxNomeLabel + 2]
+  if (!infoRow) return null
+  const infoTokens = linhaTokens(infoRow)
+  const empCodigo = infoTokens[0]
+  let nome = ''
+  for (let i = 1; i < infoTokens.length; i++) {
+    if (/^\d{5,6}$/.test(infoTokens[i])) break
+    nome += (nome ? ' ' : '') + infoTokens[i]
+  }
+  const cargoTokens = cargoRow ? linhaTokens(cargoRow) : []
+  const admIdx = cargoTokens.indexOf('Admissão:')
+  const cargo = admIdx > 0 ? cargoTokens.slice(0, admIdx).join(' ') : cargoTokens.join(' ')
+  const admissao = admIdx >= 0 ? cargoTokens[admIdx + 1] : null
+
+  const idxHeaderTabela = via1.findIndex(r => r.items.some(i => i.str === 'Código') && r.items.some(i => i.str === 'Descrição'))
+  if (idxHeaderTabela === -1) return null
+  const colX = {}
+  via1[idxHeaderTabela].items.forEach(i => { colX[i.str] = i.x })
+  const colunas = ['Código', 'Descrição', 'Referência', 'Vencimentos', 'Descontos']
+  function bucket(x) {
+    let melhor = colunas[0]
+    colunas.forEach(c => { if (colX[c] !== undefined && x >= colX[c] - 5) melhor = c })
+    return melhor
+  }
+
+  const idxTotalVenc = via1.findIndex((r, idx) => idx > idxHeaderTabela && r.items.some(i => i.str === 'Total de Vencimentos'))
+  const fimTabela = idxTotalVenc === -1 ? via1.length : idxTotalVenc
+  const rubricas = []
+  for (let r = idxHeaderTabela + 1; r < fimTabela; r++) {
+    const row = via1[r]
+    if (!row) continue
+    const cols = { Código: '', Descrição: '', Referência: '', Vencimentos: '', Descontos: '' }
+    row.items.forEach(it => {
+      if (it.str === 'Assinatura do Funcionário' || it.str.startsWith('___')) return
+      const c = bucket(it.x)
+      cols[c] += (cols[c] ? ' ' : '') + it.str
+    })
+    if (cols['Código'] || cols['Descrição']) {
+      rubricas.push({
+        codigo: cols['Código'].trim(),
+        descricao: cols['Descrição'].trim(),
+        referencia: cols['Referência'].trim(),
+        vencimento: toNumeroBR(cols['Vencimentos']),
+        desconto: toNumeroBR(cols['Descontos']),
+      })
+    }
+  }
+
+  let totalVencimentos = null, totalDescontos = null
+  if (idxTotalVenc !== -1) {
+    const totalVencX = via1[idxTotalVenc].items.find(i => i.str === 'Total de Vencimentos')?.x
+    const totalDescX = via1[idxTotalVenc].items.find(i => i.str === 'Total de Descontos')?.x
+    const totaisRow = via1[idxTotalVenc + 1]
+    if (totaisRow) {
+      totaisRow.items.forEach(it => {
+        if (!/\d/.test(it.str)) return
+        if (totalVencX != null && Math.abs(it.x - totalVencX) < 40) totalVencimentos = toNumeroBR(it.str)
+        else if (totalDescX != null && Math.abs(it.x - totalDescX) < 40) totalDescontos = toNumeroBR(it.str)
+      })
+    }
+  }
+
+  let valorLiquido = null
+  const idxLiquido = via1.findIndex((r, idx) => idx > idxTotalVenc && r.items.some(i => i.str.includes('Valor Líquido')))
+  if (idxLiquido >= 0) {
+    const toks = via1[idxLiquido].items.filter(i => i.x > 460 && /\d/.test(i.str))
+    if (toks.length) valorLiquido = toNumeroBR(toks[toks.length - 1].str)
+  }
+
+  let salarioBase = null
+  const idxSalBase = via1.findIndex((r, idx) => idx > idxTotalVenc && r.items.some(i => i.str === 'Salário Base'))
+  if (idxSalBase >= 0 && via1[idxSalBase + 1]) salarioBase = toNumeroBR(linhaTokens(via1[idxSalBase + 1])[0])
+
+  return { empCodigo, nome, cargo, admissao, rubricas, totalVencimentos, totalDescontos, valorLiquido, salarioBase }
+}
+
+async function parseHoleritePdf(arrayBuffer) {
+  const paginas = await extraiLinhasPdf(arrayBuffer)
+  const funcionarios = []
+  let atual = null
+  paginas.forEach(rows => {
+    const parsed = parsePaginaHolerite(rows)
+    if (!parsed) return
+    if (atual && atual.empCodigo === parsed.empCodigo && atual.nome === parsed.nome) {
+      atual.rubricas.push(...parsed.rubricas)
+      if (parsed.valorLiquido != null) atual.valorLiquido = parsed.valorLiquido
+      if (parsed.totalVencimentos != null) atual.totalVencimentos = parsed.totalVencimentos
+      if (parsed.totalDescontos != null) atual.totalDescontos = parsed.totalDescontos
+      if (parsed.salarioBase != null) atual.salarioBase = parsed.salarioBase
+    } else {
+      if (atual) funcionarios.push(atual)
+      atual = parsed
+    }
+  })
+  if (atual) funcionarios.push(atual)
+  return funcionarios
+}
+
+function somaRubricas(rubricas, palavraChave) {
+  return rubricas.filter(r => r.descricao.toUpperCase().includes(palavraChave))
+    .reduce((acc, r) => ({
+      minutos: acc.minutos + horaParaMinutos(r.referencia),
+      valor: acc.valor + (r.vencimento || 0),
+    }), { minutos: 0, valor: 0 })
 }
 
 function parsePeriodoEspelho(rows) {
@@ -1680,6 +1833,18 @@ export default function App() {
   const [pontoSalvo, setPontoSalvo] = useState(false)
   const [pontoSalvos, setPontoSalvos] = useState([])
   const [pontoCarregandoSalvo, setPontoCarregandoSalvo] = useState(false)
+  const [holeriteBase, setHoleriteBase] = useState('SAO')
+  const [holeriteMes, setHoleriteMes] = useState('')
+  const [holeriteArquivoSaldo, setHoleriteArquivoSaldo] = useState(null)
+  const [holeriteArquivoAdiant, setHoleriteArquivoAdiant] = useState(null)
+  const [holeriteProcessando, setHoleriteProcessando] = useState(false)
+  const [holeriteErro, setHoleriteErro] = useState('')
+  const [holeritePreview, setHoleritePreview] = useState(null)
+  const [holeriteSalvando, setHoleriteSalvando] = useState(false)
+  const [holeritesSalvos, setHoleritesSalvos] = useState([])
+  const [filtroHoleriteMes, setFiltroHoleriteMes] = useState('')
+  const [filtroHoleriteBase, setFiltroHoleriteBase] = useState('')
+  const [filtroHoleriteNome, setFiltroHoleriteNome] = useState('')
   const [despesasModo, setDespesasModo] = useState('mes')
   const [despesasMes, setDespesasMes] = useState(new Date().getMonth() + 1)
   const [despesasAno, setDespesasAno] = useState(new Date().getFullYear())
@@ -1725,6 +1890,7 @@ export default function App() {
       carregarEmailsLogin()
       carregarJantasTodas()
       carregarFechamentosSalvos()
+      carregarHolerites()
     }
   }, [papel])
 
@@ -1735,6 +1901,81 @@ export default function App() {
   async function carregarRH() {
     const { data } = await supabase.from('rh_colaboradores').select('*').order('nome')
     setRhColaboradores(data || [])
+  }
+
+  async function carregarHolerites() {
+    const { data } = await supabase.from('holerites_mensais').select('*').order('mes', { ascending: false }).order('colaborador_nome')
+    setHoleritesSalvos(data || [])
+  }
+
+  async function processarHolerites() {
+    if (!holeriteArquivoSaldo) { setHoleriteErro('Selecione ao menos o PDF do saldo (holerite final do mês).'); return }
+    setHoleriteProcessando(true)
+    setHoleriteErro('')
+    try {
+      const bufSaldo = await holeriteArquivoSaldo.arrayBuffer()
+      const funcSaldo = await parseHoleritePdf(bufSaldo)
+      let funcAdiant = []
+      if (holeriteArquivoAdiant) {
+        const bufAdiant = await holeriteArquivoAdiant.arrayBuffer()
+        funcAdiant = await parseHoleritePdf(bufAdiant)
+      }
+      if (funcSaldo.length === 0) {
+        setHoleriteErro('Não consegui identificar nenhum funcionário nesse PDF - confere se é o arquivo certo.')
+        setHoleriteProcessando(false)
+        return
+      }
+      const combinados = funcSaldo.map(f => {
+        const adiant = funcAdiant.find(a => a.nome === f.nome)
+        const colaborador = rhColaboradores.find(c => `${c.nome} ${c.sobrenome || ''}`.trim().toUpperCase() === f.nome.toUpperCase())
+        return {
+          ...f,
+          colaboradorId: colaborador?.id || null,
+          liquidoAdiantamento: adiant?.valorLiquido || 0,
+          liquidoMes: (f.valorLiquido || 0) + (adiant?.valorLiquido || 0),
+          he: somaRubricas(f.rubricas, 'HORAS EXTRAS'),
+          inter: somaRubricas(f.rubricas, 'INTER JORNADA'),
+          intra: somaRubricas(f.rubricas, 'INTRAJORNADA'),
+          noturno: somaRubricas(f.rubricas, 'ADICIONAL NOTURNO'),
+        }
+      })
+      setHoleritePreview(combinados)
+    } catch (e) {
+      setHoleriteErro('Erro ao ler o PDF: ' + e.message)
+    }
+    setHoleriteProcessando(false)
+  }
+
+  async function confirmarImportacaoHolerites() {
+    if (!holeritePreview || !holeriteMes || !holeriteBase) return
+    setHoleriteSalvando(true)
+    const linhas = holeritePreview.map(f => ({
+      colaborador_id: f.colaboradorId,
+      colaborador_nome: f.nome,
+      base: holeriteBase,
+      mes: holeriteMes,
+      funcao: f.cargo || null,
+      admissao: f.admissao ? brToIso(f.admissao) : null,
+      salario_base: f.salarioBase,
+      total_vencimentos: f.totalVencimentos,
+      total_descontos: f.totalDescontos,
+      total_liquido_saldo: f.valorLiquido,
+      total_liquido_adiantamento: f.liquidoAdiantamento || null,
+      total_liquido_mes: f.liquidoMes,
+      rubricas: f.rubricas,
+      arquivo_origem: holeriteArquivoSaldo?.name || null,
+      importado_por: usuario?.email || null,
+    }))
+    const { error } = await supabase.from('holerites_mensais').upsert(linhas, { onConflict: 'colaborador_nome,base,mes' })
+    if (error) {
+      setHoleriteErro('Erro ao salvar: ' + error.message)
+    } else {
+      setHoleritePreview(null)
+      setHoleriteArquivoSaldo(null)
+      setHoleriteArquivoAdiant(null)
+      carregarHolerites()
+    }
+    setHoleriteSalvando(false)
   }
 
   async function carregarEmailsLogin() {
@@ -2701,6 +2942,7 @@ export default function App() {
           ...(papel ? [{ id:'meusdados', label:'Meus Documentos', count:null, cor:'#7C3AED' }] : []),
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'jantas', label:'Jantas', count: jantasTodas.filter(j => j.status === 'pendente').length, cor:'#B45309' }] : []),
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'fechamento', label:'Fechamento de Ponto', count:null, cor:'#0F766E' }] : []),
+          ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'holerites', label:'Holerites', count: holeritesSalvos.length, cor:'#0E4D73' }] : []),
           ...(podeVerValores ? [{ id:'despesas', label:'Despesas', count:null, cor:'#B91C1C' }] : []),
         ].map(a => (
           <button key={a.id} onClick={() => setAba(a.id)}
@@ -3365,6 +3607,158 @@ export default function App() {
               </>
             )
           })()}
+        </div>
+      )}
+
+      {/* ====== ABA: HOLERITES ====== */}
+      {aba === 'holerites' && (papel === 'admin' || papel === 'rh' || papel === 'financeiro') && (
+        <div style={{ padding:14 }}>
+          <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:16 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:'#1A2340', marginBottom:10 }}>📥 Importar holerites do mês (.pdf)</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
+              <div>
+                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Base</label>
+                <select value={holeriteBase} onChange={e => setHoleriteBase(e.target.value)}
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', background:'#fff' }}>
+                  <option value="SAO">SAO</option>
+                  <option value="RIO">RIO</option>
+                  <option value="BHZ">BHZ</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Mês (competência)</label>
+                <input type="month" value={holeriteMes} onChange={e => setHoleriteMes(e.target.value)}
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+              </div>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
+              <div>
+                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>PDF do saldo (HOLERITE final) *</label>
+                <input type="file" accept="application/pdf" onChange={e => setHoleriteArquivoSaldo(e.target.files?.[0] || null)}
+                  style={{ width:'100%', fontSize:12 }} />
+              </div>
+              <div>
+                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>PDF do adiantamento (opcional)</label>
+                <input type="file" accept="application/pdf" onChange={e => setHoleriteArquivoAdiant(e.target.files?.[0] || null)}
+                  style={{ width:'100%', fontSize:12 }} />
+              </div>
+            </div>
+            <div style={{ fontSize:11, color:'#64748B', marginBottom:10 }}>
+              Sem o PDF do adiantamento, o "total do mês" fica igual ao líquido do saldo (sem somar a 1ª parcela).
+            </div>
+            {holeriteErro && <div style={{ fontSize:12, color:'#991B1B', marginBottom:10 }}>{holeriteErro}</div>}
+            <button onClick={processarHolerites} disabled={holeriteProcessando || !holeriteArquivoSaldo}
+              style={{ padding:'9px 16px', background: (holeriteProcessando || !holeriteArquivoSaldo) ? '#ccc' : '#0E4D73', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer' }}>
+              {holeriteProcessando ? 'Lendo PDF...' : 'Processar PDFs'}
+            </button>
+          </div>
+
+          {holeritePreview && (
+            <div style={{ background:'#fff', border:'1px solid #BFDBFE', borderRadius:12, padding:14, marginBottom:16 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:'#1E40AF', marginBottom:10 }}>
+                Prévia — {holeritePreview.length} funcionário(s) encontrados em {holeriteBase} {holeriteMes || '(preencha o mês acima)'}
+              </div>
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
+                  <thead>
+                    <tr style={{ background:'#F8FAFC', textAlign:'left' }}>
+                      {['Colaborador','Cadastro','HE (h / R$)','Inter (h / R$)','Intra (h / R$)','Noturno (R$)','Líquido saldo','Líquido adiant.','Total do mês'].map(h => (
+                        <th key={h} style={{ padding:'6px 8px', borderBottom:'1px solid #E0E8F0', whiteSpace:'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {holeritePreview.map((f, i) => (
+                      <tr key={i} style={{ borderBottom:'1px solid #F1F5F9' }}>
+                        <td style={{ padding:'6px 8px', fontWeight:600 }}>{f.nome}</td>
+                        <td style={{ padding:'6px 8px' }}>
+                          {f.colaboradorId
+                            ? <span style={{ color:'#065F46' }}>✓ encontrado</span>
+                            : <span style={{ color:'#991B1B' }}>⚠ não achei no RH</span>}
+                        </td>
+                        <td style={{ padding:'6px 8px', whiteSpace:'nowrap' }}>{minutosParaHoras(f.he.minutos)} / {fmt(f.he.valor)}</td>
+                        <td style={{ padding:'6px 8px', whiteSpace:'nowrap' }}>{minutosParaHoras(f.inter.minutos)} / {fmt(f.inter.valor)}</td>
+                        <td style={{ padding:'6px 8px', whiteSpace:'nowrap' }}>{minutosParaHoras(f.intra.minutos)} / {fmt(f.intra.valor)}</td>
+                        <td style={{ padding:'6px 8px', whiteSpace:'nowrap' }}>{fmt(f.noturno.valor)}</td>
+                        <td style={{ padding:'6px 8px', whiteSpace:'nowrap' }}>{fmt(f.valorLiquido || 0)}</td>
+                        <td style={{ padding:'6px 8px', whiteSpace:'nowrap' }}>{fmt(f.liquidoAdiantamento || 0)}</td>
+                        <td style={{ padding:'6px 8px', whiteSpace:'nowrap', fontWeight:700 }}>{fmt(f.liquidoMes || 0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{ display:'flex', gap:8, marginTop:12 }}>
+                <button onClick={confirmarImportacaoHolerites} disabled={holeriteSalvando || !holeriteMes}
+                  style={{ padding:'9px 16px', background: (holeriteSalvando || !holeriteMes) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer' }}>
+                  {holeriteSalvando ? 'Salvando...' : !holeriteMes ? 'Preencha o mês pra salvar' : 'Confirmar importação'}
+                </button>
+                <button onClick={() => setHoleritePreview(null)}
+                  style={{ padding:'9px 16px', background:'#fff', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#64748B', cursor:'pointer' }}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:'#1A2340', marginBottom:10 }}>Consulta — {holeritesSalvos.length} holerite(s) importado(s)</div>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:12 }}>
+              <select value={filtroHoleriteBase} onChange={e => setFiltroHoleriteBase(e.target.value)}
+                style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                <option value="">Todas bases</option>
+                {['SAO','RIO','BHZ'].map(b => <option key={b}>{b}</option>)}
+              </select>
+              <select value={filtroHoleriteMes} onChange={e => setFiltroHoleriteMes(e.target.value)}
+                style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                <option value="">Todos os meses</option>
+                {[...new Set(holeritesSalvos.map(h => h.mes))].sort().reverse().map(m => <option key={m}>{m}</option>)}
+              </select>
+              <input value={filtroHoleriteNome} onChange={e => setFiltroHoleriteNome(e.target.value)} placeholder="Buscar colaborador..."
+                style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', flex:1, minWidth:160 }} />
+            </div>
+            {(() => {
+              const filtrados = holeritesSalvos.filter(h => {
+                if (filtroHoleriteBase && h.base !== filtroHoleriteBase) return false
+                if (filtroHoleriteMes && h.mes !== filtroHoleriteMes) return false
+                if (filtroHoleriteNome && !h.colaborador_nome.toLowerCase().includes(filtroHoleriteNome.toLowerCase())) return false
+                return true
+              })
+              if (filtrados.length === 0) return <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'20px 0' }}>Nenhum holerite importado ainda (ou nenhum bate com o filtro)</div>
+              return (
+                <div style={{ overflowX:'auto' }}>
+                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
+                    <thead>
+                      <tr style={{ background:'#F8FAFC', textAlign:'left' }}>
+                        {['Colaborador','Base','Mês','HE (h / R$)','Inter (h / R$)','Intra (h / R$)','Total recebido no mês'].map(h => (
+                          <th key={h} style={{ padding:'6px 8px', borderBottom:'1px solid #E0E8F0', whiteSpace:'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtrados.map(h => {
+                        const rubricas = Array.isArray(h.rubricas) ? h.rubricas : []
+                        const he = somaRubricas(rubricas, 'HORAS EXTRAS')
+                        const inter = somaRubricas(rubricas, 'INTER JORNADA')
+                        const intra = somaRubricas(rubricas, 'INTRAJORNADA')
+                        return (
+                          <tr key={h.id} style={{ borderBottom:'1px solid #F1F5F9' }}>
+                            <td style={{ padding:'6px 8px', fontWeight:600 }}>{h.colaborador_nome}{!h.colaborador_id && <span title="Não encontrado no cadastro de RH" style={{ color:'#991B1B' }}> ⚠</span>}</td>
+                            <td style={{ padding:'6px 8px' }}>{h.base}</td>
+                            <td style={{ padding:'6px 8px' }}>{h.mes}</td>
+                            <td style={{ padding:'6px 8px', whiteSpace:'nowrap' }}>{minutosParaHoras(he.minutos)} / {fmt(he.valor)}</td>
+                            <td style={{ padding:'6px 8px', whiteSpace:'nowrap' }}>{minutosParaHoras(inter.minutos)} / {fmt(inter.valor)}</td>
+                            <td style={{ padding:'6px 8px', whiteSpace:'nowrap' }}>{minutosParaHoras(intra.minutos)} / {fmt(intra.valor)}</td>
+                            <td style={{ padding:'6px 8px', whiteSpace:'nowrap', fontWeight:700 }}>{fmt(h.total_liquido_mes || 0)}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            })()}
+          </div>
         </div>
       )}
 
