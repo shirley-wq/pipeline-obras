@@ -3594,10 +3594,16 @@ export default function App() {
                       {podeVerValores && <div style={{ fontSize:13, fontWeight:700, color:'#2D3A8C', whiteSpace:'nowrap' }}>{fmt(obra.valor)}</div>}
                     </div>
                     <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
-                      {TIPOS_BDN.includes(obra.tipo) && obra.sige && (
-                        <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#1A2340', color:'#fff' }}>
-                          {obra.rede === 'BRADESCO' ? 'BDN' : 'PC'} {obra.sige}
-                        </span>
+                      {TIPOS_BDN.includes(obra.tipo) && (
+                        obra.sige ? (
+                          <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#1A2340', color:'#fff' }}>
+                            {obra.rede === 'BRADESCO' ? 'BDN' : 'PC'} {obra.sige}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FEE2E2', color:'#991B1B' }}>
+                            ⚠ Sem {obra.rede === 'BRADESCO' ? 'BDN' : 'PC'}
+                          </span>
+                        )
                       )}
                       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:tc.bg, color:tc.text }}>{obra.tipo}</span>
                       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text }}>{obra.status}</span>
