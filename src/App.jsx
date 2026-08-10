@@ -3595,7 +3595,9 @@ export default function App() {
                     </div>
                     <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
                       {TIPOS_BDN.includes(obra.tipo) && obra.sige && (
-                        <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#1A2340', color:'#fff' }}>PC/BDN {obra.sige}</span>
+                        <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#1A2340', color:'#fff' }}>
+                          {obra.rede === 'BRADESCO' ? 'BDN' : 'PC'} {obra.sige}
+                        </span>
                       )}
                       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:tc.bg, color:tc.text }}>{obra.tipo}</span>
                       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text }}>{obra.status}</span>
