@@ -133,10 +133,8 @@ function entregaveisObrigatorios(tipo) {
   return (tipo === 'TRANSF UN' || tipo === 'TRANSF EN') ? ENTREGAVEIS_TRANSFORMACAO : ENTREGAVEIS_BOOK
 }
 const ENTREGAVEIS_VISTORIA = [
-  'Book de Vistoria PPT',
   'Book Checklist Fácil',
-  'Orçamento de Reforma',
-  'Orçamento de Descaracterização',
+  'ORÇAMENTO PRA UN/EN',
 ]
 
 const COLABORADORES = [
