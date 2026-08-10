@@ -2242,6 +2242,11 @@ export default function App() {
 
   async function salvarNovaObra() {
     if (!novaObra.tipo || !novaObra.nome) return
+    const sigeDigitado = novaObra.sige.trim()
+    if (sigeDigitado) {
+      const jaExiste = obras.find(o => (o.sige || '').trim() === sigeDigitado)
+      if (jaExiste && !confirm(`Já existe uma obra com o SIGE ${sigeDigitado}: "${jaExiste.nome}" (${jaExiste.tipo}). Criar mesmo assim?`)) return
+    }
     setSalvando(true)
     const ehBDN = TIPOS_BDN.includes(novaObra.tipo)
     const { data, error } = await supabase.from('pipeline_obras').insert({
