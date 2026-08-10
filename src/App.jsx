@@ -1574,6 +1574,7 @@ export default function App() {
   const [obras, setObras] = useState([])
   const [filtroTipo, setFiltroTipo] = useState('')
   const [filtroRede, setFiltroRede] = useState('')
+  const [mostrarCenario, setMostrarCenario] = useState(true)
   const [filtroStatus, setFiltroStatus] = useState('')
   const [busca, setBusca] = useState('')
   const [filtroDe, setFiltroDe] = useState('')
@@ -2560,6 +2561,19 @@ export default function App() {
     { label:'📦 Outros', obras: obrasFiltradas.filter(o => getGrupoObra(o) === 'outros') },
   ].filter(g => g.obras.length > 0)
 
+  // Cenário por estado: obras "em execução" (obrasAtivas) separadas em 2 famílias -
+  // Movimentação de máquina (ATM/BDN, régua própria) x Obras (transformação/descaracterização de agência).
+  const cenarioPorUFMap = {}
+  obrasAtivas.forEach(o => {
+    const estado = uf(o.local) || o.uf || 'S/UF'
+    if (!cenarioPorUFMap[estado]) cenarioPorUFMap[estado] = { uf: estado, obras: 0, movimentacao: 0 }
+    if (TIPOS_BDN.includes(o.tipo)) cenarioPorUFMap[estado].movimentacao++
+    else cenarioPorUFMap[estado].obras++
+  })
+  const cenarioPorUF = Object.values(cenarioPorUFMap).sort((a, b) => (b.obras + b.movimentacao) - (a.obras + a.movimentacao))
+  const cenarioTotalObras = obrasAtivas.filter(o => !TIPOS_BDN.includes(o.tipo)).length
+  const cenarioTotalMovimentacao = obrasAtivas.filter(o => TIPOS_BDN.includes(o.tipo)).length
+
   const todasDespesas = []
   obras.forEach(o => {
     (Array.isArray(o.despesas_pessoal) ? o.despesas_pessoal : []).forEach(d => {
@@ -3477,6 +3491,56 @@ export default function App() {
             </button>
           )}
         </div>
+      </div>
+
+      {/* Cenário */}
+      <div style={{ background:'#fff', borderBottom:'1px solid #E0E8F0', padding:'14px 16px' }}>
+        <div onClick={() => setMostrarCenario(v => !v)} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer' }}>
+          <div style={{ fontSize:13, fontWeight:700, color:'#1A2340' }}>📊 Cenário — obras em execução</div>
+          <span style={{ fontSize:11, color:'#4A7FC1', fontWeight:600 }}>{mostrarCenario ? 'Recolher ▲' : 'Expandir ▼'}</span>
+        </div>
+        {mostrarCenario && (
+          <div style={{ marginTop:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:14 }}>
+              {[
+                { n: cenarioTotalObras + cenarioTotalMovimentacao, l:'Total em execução', cor:'#1A2340' },
+                { n: cenarioTotalObras, l:'Obras (transf./descaract.)', cor:'#2D3A8C' },
+                { n: cenarioTotalMovimentacao, l:'Movimentação (ATM/BDN)', cor:'#0F766E' },
+              ].map((c,i) => (
+                <div key={i} style={{ background: c.cor, borderRadius:10, padding:'10px 8px', textAlign:'center' }}>
+                  <div style={{ fontSize:20, fontWeight:700, color:'#fff' }}>{c.n}</div>
+                  <div style={{ fontSize:10, color:'rgba(255,255,255,.75)', marginTop:2 }}>{c.l}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ border:'1px solid #E0E8F0', borderRadius:10, overflow:'hidden' }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', background:'#1A2340', padding:'8px 10px' }}>
+                {['Estado','Obras','Movimentação','Total'].map(h => (
+                  <div key={h} style={{ fontSize:10, fontWeight:700, color:'#fff', textTransform:'uppercase' }}>{h}</div>
+                ))}
+              </div>
+              {cenarioPorUF.length === 0 && (
+                <div style={{ padding:12, fontSize:12, color:'#888', textAlign:'center' }}>Nenhuma obra em execução</div>
+              )}
+              {cenarioPorUF.map((c, i) => (
+                <div key={c.uf} style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', padding:'8px 10px', background: i % 2 ? '#F8FAFC' : '#fff', borderTop:'1px solid #F0F4F8' }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:'#1A2340' }}>{c.uf}</div>
+                  <div style={{ fontSize:12, color:'#2D3A8C' }}>{c.obras}</div>
+                  <div style={{ fontSize:12, color:'#0F766E' }}>{c.movimentacao}</div>
+                  <div style={{ fontSize:12, fontWeight:700, color:'#1A2340' }}>{c.obras + c.movimentacao}</div>
+                </div>
+              ))}
+              {cenarioPorUF.length > 0 && (
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', padding:'8px 10px', background:'#EEF2FF', borderTop:'1.5px solid #C7D2FE' }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:'#1A2340' }}>TOTAL</div>
+                  <div style={{ fontSize:12, fontWeight:700, color:'#2D3A8C' }}>{cenarioTotalObras}</div>
+                  <div style={{ fontSize:12, fontWeight:700, color:'#0F766E' }}>{cenarioTotalMovimentacao}</div>
+                  <div style={{ fontSize:12, fontWeight:700, color:'#1A2340' }}>{cenarioTotalObras + cenarioTotalMovimentacao}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Lista */}
