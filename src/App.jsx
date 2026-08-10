@@ -200,6 +200,13 @@ function uf(local) {
   const p = local.trim().split('-')
   return p.length > 1 ? p[p.length - 1].trim() : local.trim()
 }
+// UF real da obra: tenta extrair do "local" (cidade-UF); se não der, cai pro campo uf
+// cadastrado separado; só marca "S/UF" quando nenhum dos dois existe de verdade.
+function estadoDaObra(o) {
+  const parsed = uf(o.local)
+  if (parsed !== '—') return parsed
+  return (o.uf && o.uf.trim()) || 'S/UF'
+}
 
 // CNPJs próprios do Grupo PG usados pra faturar a Tecban - SP fatura o próprio estado
 // e qualquer outro que não seja RJ/MG (é o "coringa"); RJ e MG só faturam o próprio estado.
@@ -1575,6 +1582,7 @@ export default function App() {
   const [filtroTipo, setFiltroTipo] = useState('')
   const [filtroRede, setFiltroRede] = useState('')
   const [mostrarCenario, setMostrarCenario] = useState(true)
+  const [filtroCenarioUF, setFiltroCenarioUF] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
   const [busca, setBusca] = useState('')
   const [filtroDe, setFiltroDe] = useState('')
@@ -2515,6 +2523,7 @@ export default function App() {
     if (filtroRede && o.rede !== filtroRede) return false
     if (filtroStatus && o.status !== filtroStatus) return false
     if (filtroResponsavel && o.responsavel_escritorio !== filtroResponsavel && o.auxiliar_escritorio !== filtroResponsavel) return false
+    if (filtroCenarioUF && estadoDaObra(o) !== filtroCenarioUF) return false
     if (busca) {
       const b = busca.toLowerCase()
       const bate = o.nome.toLowerCase().includes(b) || (o.local||'').toLowerCase().includes(b)
@@ -2565,7 +2574,7 @@ export default function App() {
   // Movimentação de máquina (ATM/BDN, régua própria) x Obras (transformação/descaracterização de agência).
   const cenarioPorUFMap = {}
   obrasAtivas.forEach(o => {
-    const estado = uf(o.local) || o.uf || 'S/UF'
+    const estado = estadoDaObra(o)
     if (!cenarioPorUFMap[estado]) cenarioPorUFMap[estado] = { uf: estado, obras: 0, movimentacao: 0 }
     if (TIPOS_BDN.includes(o.tipo)) cenarioPorUFMap[estado].movimentacao++
     else cenarioPorUFMap[estado].obras++
@@ -3495,9 +3504,17 @@ export default function App() {
 
       {/* Cenário */}
       <div style={{ background:'#fff', borderBottom:'1px solid #E0E8F0', padding:'14px 16px' }}>
-        <div onClick={() => setMostrarCenario(v => !v)} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer' }}>
-          <div style={{ fontSize:13, fontWeight:700, color:'#1A2340' }}>📊 Cenário — obras em execução</div>
-          <span style={{ fontSize:11, color:'#4A7FC1', fontWeight:600 }}>{mostrarCenario ? 'Recolher ▲' : 'Expandir ▼'}</span>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div onClick={() => setMostrarCenario(v => !v)} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+            <div style={{ fontSize:13, fontWeight:700, color:'#1A2340' }}>📊 Cenário — obras em execução</div>
+            {filtroCenarioUF && (
+              <span onClick={e => { e.stopPropagation(); setFiltroCenarioUF('') }}
+                style={{ fontSize:11, fontWeight:700, padding:'3px 8px', borderRadius:20, background:'#2D3A8C', color:'#fff', cursor:'pointer' }}>
+                Filtrando: {filtroCenarioUF} ✕
+              </span>
+            )}
+          </div>
+          <span onClick={() => setMostrarCenario(v => !v)} style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, cursor:'pointer' }}>{mostrarCenario ? 'Recolher ▲' : 'Expandir ▼'}</span>
         </div>
         {mostrarCenario && (
           <div style={{ marginTop:12 }}>
@@ -3522,14 +3539,21 @@ export default function App() {
               {cenarioPorUF.length === 0 && (
                 <div style={{ padding:12, fontSize:12, color:'#888', textAlign:'center' }}>Nenhuma obra em execução</div>
               )}
-              {cenarioPorUF.map((c, i) => (
-                <div key={c.uf} style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', padding:'8px 10px', background: i % 2 ? '#F8FAFC' : '#fff', borderTop:'1px solid #F0F4F8' }}>
-                  <div style={{ fontSize:12, fontWeight:700, color:'#1A2340' }}>{c.uf}</div>
-                  <div style={{ fontSize:12, color:'#2D3A8C' }}>{c.obras}</div>
-                  <div style={{ fontSize:12, color:'#0F766E' }}>{c.movimentacao}</div>
-                  <div style={{ fontSize:12, fontWeight:700, color:'#1A2340' }}>{c.obras + c.movimentacao}</div>
-                </div>
-              ))}
+              {cenarioPorUF.map((c, i) => {
+                const selecionado = filtroCenarioUF === c.uf
+                return (
+                  <div key={c.uf} onClick={() => setFiltroCenarioUF(v => v === c.uf ? '' : c.uf)}
+                    style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', padding:'8px 10px', cursor:'pointer',
+                      background: selecionado ? '#EEF2FF' : (i % 2 ? '#F8FAFC' : '#fff'),
+                      borderTop: selecionado ? '1px solid #C7D2FE' : '1px solid #F0F4F8',
+                      borderLeft: selecionado ? '3px solid #2D3A8C' : '3px solid transparent' }}>
+                    <div style={{ fontSize:12, fontWeight:700, color:'#1A2340' }}>{c.uf}</div>
+                    <div style={{ fontSize:12, color:'#2D3A8C' }}>{c.obras}</div>
+                    <div style={{ fontSize:12, color:'#0F766E' }}>{c.movimentacao}</div>
+                    <div style={{ fontSize:12, fontWeight:700, color:'#1A2340' }}>{c.obras + c.movimentacao}</div>
+                  </div>
+                )
+              })}
               {cenarioPorUF.length > 0 && (
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', padding:'8px 10px', background:'#EEF2FF', borderTop:'1.5px solid #C7D2FE' }}>
                   <div style={{ fontSize:12, fontWeight:700, color:'#1A2340' }}>TOTAL</div>
