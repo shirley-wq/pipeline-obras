@@ -863,6 +863,7 @@ function gerarBriefing(obra) {
       </div>
     </div>
     ${obra.biombo_fila > 0 ? `<div style="margin-top:12px;font-size:14px">📦 <b>Biombo de fila:</b> ${obra.biombo_fila} unidade(s)</div>` : ''}
+    ${obra.porta_giratoria > 0 ? `<div style="margin-top:12px;font-size:14px">🚪 <b>Porta giratória:</b> ${obra.porta_giratoria} unidade(s)</div>` : ''}
   </div>
 
   <div class="card">
@@ -1603,6 +1604,7 @@ export default function App() {
   const [novaDivM2, setNovaDivM2] = useState('')
   const [itensEspeciais, setItensEspeciais] = useState([])
   const [biomboFila, setBiomboFila] = useState('')
+  const [portaGiratoria, setPortaGiratoria] = useState('')
   const [dataVistoria, setDataVistoria] = useState('')
   const [colabsVistoria, setColabsVistoria] = useState([])
   const [terceirizadoVistoria, setTerceirizadoVistoria] = useState(false)
@@ -2325,6 +2327,7 @@ export default function App() {
       campos.divisorias = divisorias.length > 0 ? divisorias : null
       campos.itens_especiais = itensEspeciais.length > 0 ? itensEspeciais : null
       campos.biombo_fila = biomboFila !== '' ? parseInt(biomboFila) || 0 : null
+      campos.porta_giratoria = portaGiratoria !== '' ? parseInt(portaGiratoria) || 0 : null
     }
     if (modal.tipo !== 'TRANSF UN') {
       if (dataObra.inicio) campos.inicio = isoToBr(dataObra.inicio)
@@ -2370,6 +2373,9 @@ export default function App() {
     setNovoLembreteEtapa('')
     setNovoLembreteTexto('')
     setAdesivos([])
+    setItensEspeciais([])
+    setBiomboFila('')
+    setPortaGiratoria('')
     setEditDados({ nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'' })
     setDataCadastroModal('')
     setDataVistoria('')
@@ -2582,7 +2588,7 @@ export default function App() {
   const despesasPorObraLista = Object.values(despesasPorObraMap).sort((a, b) => b.total - a.total)
 
   function exportarCSV() {
-    const cab = ['Tipo','Nome','Local','Status','Valor','SIGE','Pedido','NF','Início','Término','ART pronta','Em negociação','Observação','Post-its Régua','Data Entrada Pipeline','Dias no Pipeline','Vidros','Divisórias','Itens Especiais','Biombo de Fila','Atualizado por','Atualizado em']
+    const cab = ['Tipo','Nome','Local','Status','Valor','SIGE','Pedido','NF','Início','Término','ART pronta','Em negociação','Observação','Post-its Régua','Data Entrada Pipeline','Dias no Pipeline','Vidros','Divisórias','Itens Especiais','Biombo de Fila','Porta Giratória','Atualizado por','Atualizado em']
     const esc = v => { const s = String(v ?? ''); return (s.includes(';') || s.includes('"') || s.includes('\n')) ? `"${s.replace(/"/g,'""')}"` : s }
     const linhas = obrasFiltradas.map(o => {
       const d = diasNoPipeline(o.data_cadastro)
@@ -2603,6 +2609,7 @@ export default function App() {
         Array.isArray(o.divisorias) && o.divisorias.length > 0 ? o.divisorias.map(d => `${d.tipo} ${d.m2}m²`).join(' | ') : '',
         Array.isArray(o.itens_especiais) && o.itens_especiais.length > 0 ? o.itens_especiais.join(' | ') : '',
         o.biombo_fila != null ? String(o.biombo_fila) : '',
+        o.porta_giratoria != null ? String(o.porta_giratoria) : '',
         o.atualizado_por||'',
         o.atualizado_em ? new Date(o.atualizado_em).toLocaleString('pt-BR') : ''
       ].map(esc).join(';')
@@ -3580,14 +3587,14 @@ export default function App() {
                                   <div style={{ fontSize:10, fontWeight:600, color:'#1A2340', marginBottom:5, lineHeight:1.2 }}>{etapa.titulo}</div>
                                   <div style={{ fontSize:13, fontWeight:700, color: data ? '#1A6B4A' : '#9CA3AF' }}>{data ? isoToBr(data) : '—'}</div>
                                   {obra[`resp_etapa${i+1}`] && <div style={{ fontSize:9, color:'#475569', marginTop:3 }}>👤 {obra[`resp_etapa${i+1}`]}</div>}
-                                  {i === 0 && obra.adesivos && (
+                                  {i === 2 && obra.adesivos && (
                                     <div style={{ display:'flex', flexWrap:'wrap', gap:3, justifyContent:'center', marginTop:6 }}>
                                       {obra.adesivos.split(',').map(a => (
                                         <span key={a} style={{ fontSize:8, background:'#2D3A8C', color:'#fff', borderRadius:4, padding:'1px 5px', fontWeight:600 }}>{a}</span>
                                       ))}
                                     </div>
                                   )}
-                                  {i === 0 && Array.isArray(obra.vidros) && obra.vidros.length > 0 && (
+                                  {i === 2 && Array.isArray(obra.vidros) && obra.vidros.length > 0 && (
                                     <div style={{ marginTop:5, textAlign:'left' }}>
                                       <div style={{ fontSize:8, color:'#0369A1', fontWeight:700, marginBottom:2 }}>VIDROS:</div>
                                       {obra.vidros.map((v, vi) => (
@@ -3595,7 +3602,7 @@ export default function App() {
                                       ))}
                                     </div>
                                   )}
-                                  {i === 0 && Array.isArray(obra.divisorias) && obra.divisorias.length > 0 && (
+                                  {i === 2 && Array.isArray(obra.divisorias) && obra.divisorias.length > 0 && (
                                     <div style={{ marginTop:5, textAlign:'left' }}>
                                       <div style={{ fontSize:8, color:'#166534', fontWeight:700, marginBottom:2 }}>DIVISÓRIA:</div>
                                       {obra.divisorias.map((d, di) => (
@@ -3603,7 +3610,7 @@ export default function App() {
                                       ))}
                                     </div>
                                   )}
-                                  {i === 0 && (Array.isArray(obra.itens_especiais) && obra.itens_especiais.length > 0 || obra.biombo_fila) && (
+                                  {i === 2 && (Array.isArray(obra.itens_especiais) && obra.itens_especiais.length > 0 || obra.biombo_fila || obra.porta_giratoria) && (
                                     <div style={{ marginTop:5, textAlign:'left' }}>
                                       <div style={{ fontSize:8, color:'#065F46', fontWeight:700, marginBottom:2 }}>ITENS:</div>
                                       {Array.isArray(obra.itens_especiais) && obra.itens_especiais.map((it, ii) => (
@@ -3611,6 +3618,9 @@ export default function App() {
                                       ))}
                                       {obra.biombo_fila > 0 && (
                                         <div style={{ fontSize:8, color:'#065F46', background:'#D1FAE5', borderRadius:3, padding:'1px 4px', marginBottom:2 }}>📦 Biombo de fila: {obra.biombo_fila}</div>
+                                      )}
+                                      {obra.porta_giratoria > 0 && (
+                                        <div style={{ fontSize:8, color:'#065F46', background:'#D1FAE5', borderRadius:3, padding:'1px 4px', marginBottom:2 }}>🚪 Porta giratória: {obra.porta_giratoria}</div>
                                       )}
                                     </div>
                                   )}
@@ -3669,6 +3679,7 @@ export default function App() {
                         setNovaDivM2('')
                         setItensEspeciais(Array.isArray(obra.itens_especiais) ? obra.itens_especiais : [])
                         setBiomboFila(obra.biombo_fila != null ? String(obra.biombo_fila) : '')
+                        setPortaGiratoria(obra.porta_giratoria != null ? String(obra.porta_giratoria) : '')
                         setEditDados({ nome: obra.nome||'', endereco: obra.endereco||'', cidade: obra.cidade||'', uf: obra.uf||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', pedido: obra.pedido||'', nf: obra.nf||'', os_tecban: obra.os_tecban||'', pedido_valor: obra.pedido_valor!=null ? String(obra.pedido_valor) : '', pedido_os: obra.pedido_os||'', pedido_cnpj: obra.pedido_cnpj||'' })
                         setDataCadastroModal(obra.data_cadastro || '')
                         setDataVistoria(obra.data_vistoria || '')
@@ -4102,9 +4113,15 @@ export default function App() {
                               )
                             })}
                           </div>
-                          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
                             <label style={{ fontSize:11, color:'#64748B', fontWeight:600, whiteSpace:'nowrap' }}>Qtd. Biombo de fila:</label>
                             <input type="number" min="0" value={biomboFila} onChange={e => setBiomboFila(e.target.value)}
+                              placeholder="0"
+                              style={{ width:70, padding:'6px 10px', border:'1.5px solid #BBF7D0', borderRadius:8, fontSize:13, fontWeight:700, color:'#1A2340', textAlign:'center', boxSizing:'border-box' }} />
+                          </div>
+                          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                            <label style={{ fontSize:11, color:'#64748B', fontWeight:600, whiteSpace:'nowrap' }}>Qtd. Porta giratória:</label>
+                            <input type="number" min="0" value={portaGiratoria} onChange={e => setPortaGiratoria(e.target.value)}
                               placeholder="0"
                               style={{ width:70, padding:'6px 10px', border:'1.5px solid #BBF7D0', borderRadius:8, fontSize:13, fontWeight:700, color:'#1A2340', textAlign:'center', boxSizing:'border-box' }} />
                           </div>
