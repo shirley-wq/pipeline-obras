@@ -2310,11 +2310,14 @@ export default function App() {
       pedido_os: editDados.pedido_os || null,
       pedido_cnpj: editDados.pedido_cnpj || null,
     }
+    const listaVistoria = [...colabsVistoria, ...(terceirizadoVistoria ? [TERCEIRIZADO_PREFIXO + (terceirizadoVistoriaTexto.trim() || '(não informado)')] : [])]
     if (modal.tipo === 'TRANSF UN') {
-      campos.data_etapa1 = datas.data_etapa1 || null
+      // Etapa 1 (Vistoria + BDN) não tem input próprio na tela - vem direto do bloco
+      // "Data da vistoria" acima, pra não pedir a mesma informação (quem fez/quando) 2x.
+      campos.data_etapa1 = dataVistoria || null
       campos.data_etapa2 = datas.data_etapa2 || null
       campos.data_etapa3 = datas.data_etapa3 || null
-      campos.resp_etapa1 = resps.resp_etapa1 || null
+      campos.resp_etapa1 = listaVistoria.length > 0 ? listaVistoria.join(', ') : null
       campos.resp_etapa2 = resps.resp_etapa2 || null
       campos.resp_etapa3 = resps.resp_etapa3 || null
       campos.adesivos = adesivos.length > 0 ? adesivos.join(',') : null
@@ -2336,7 +2339,6 @@ export default function App() {
     }
     campos.entregaveis_vistoria = entregaveisVistoria.length > 0 ? entregaveisVistoria : null
     campos.data_vistoria = dataVistoria || null
-    const listaVistoria = [...colabsVistoria, ...(terceirizadoVistoria ? [TERCEIRIZADO_PREFIXO + (terceirizadoVistoriaTexto.trim() || '(não informado)')] : [])]
     campos.colaboradores_vistoria = listaVistoria.length > 0 ? listaVistoria : null
     campos.data_obra_inicio = modal.tipo === 'TRANSF UN' ? (dataObraInicio || null) : (dataObra.inicio || null)
     const listaObra = [...colabsObra, ...(terceirizadoObra ? [TERCEIRIZADO_PREFIXO + (terceirizadoObraTexto.trim() || '(não informado)')] : [])]
@@ -3999,12 +4001,13 @@ export default function App() {
                   {COLABORADORES.map(nome => <option key={nome} value={nome} />)}
                 </datalist>
                 {ETAPAS_UN.map((etapa, i) => (
+                  i === 0 ? null : (
                   <div key={etapa.campo} style={{ marginBottom:12 }}>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>
                       {i+1}ª Etapa — {etapa.titulo}
                     </label>
                     <div style={{ fontSize:10, color:'#888', marginBottom:4 }}>{etapa.desc}</div>
-                    <div style={{ display:'flex', gap:8, marginBottom: i === 0 ? 0 : undefined }}>
+                    <div style={{ display:'flex', gap:8 }}>
                       <input type="date" value={datas[etapa.campo]||''}
                         onChange={e => setDatas(d => ({...d, [etapa.campo]: e.target.value}))}
                         style={{ flex:1, padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
@@ -4013,7 +4016,7 @@ export default function App() {
                         placeholder="Responsável" list="lista-colaboradores-etapas"
                         style={{ flex:1, padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                     </div>
-                    {i === 0 && (
+                    {i === 2 && (
                       <div style={{ marginTop:8 }}>
                         <div style={{ fontSize:10, color:'#64748B', fontWeight:600, marginBottom:6 }}>Adesivos necessários:</div>
                         <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
@@ -4109,6 +4112,7 @@ export default function App() {
                       </div>
                     )}
                   </div>
+                  )
                 ))}
               </div>
             )}
