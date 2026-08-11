@@ -618,14 +618,20 @@ function parsePaginaHolerite(rows) {
 
   const idxHeaderTabela = via1.findIndex(r => r.items.some(i => i.str === 'Código') && r.items.some(i => i.str === 'Descrição'))
   if (idxHeaderTabela === -1) return null
+  // A posição do RÓTULO do cabeçalho ("Descrição" etc.) não corresponde a onde o
+  // dado de cada linha realmente começa (o texto da descrição começa bem mais à
+  // esquerda que a palavra "Descrição" do cabeçalho) - por isso não dá pra usar a
+  // posição do cabeçalho pra separar colunas. Em vez disso, cada linha é lida por
+  // conteúdo/ordem: 1º token numérico curto = código, próximo token com letra =
+  // descrição, e dos números que sobram o primeiro é a referência; os demais são
+  // vencimento ou desconto, decidido pela posição em relação ao meio do intervalo
+  // entre as colunas "Vencimentos" e "Descontos" do cabeçalho (essas sim distantes
+  // o bastante uma da outra pra não errar).
   const colX = {}
   via1[idxHeaderTabela].items.forEach(i => { colX[i.str] = i.x })
-  const colunas = ['Código', 'Descrição', 'Referência', 'Vencimentos', 'Descontos']
-  function bucket(x) {
-    let melhor = colunas[0]
-    colunas.forEach(c => { if (colX[c] !== undefined && x >= colX[c] - 5) melhor = c })
-    return melhor
-  }
+  const limiarVencDesc = (colX['Vencimentos'] != null && colX['Descontos'] != null)
+    ? (colX['Vencimentos'] + colX['Descontos']) / 2
+    : 430
 
   const idxTotalVenc = via1.findIndex((r, idx) => idx > idxHeaderTabela && r.items.some(i => i.str === 'Total de Vencimentos'))
   const fimTabela = idxTotalVenc === -1 ? via1.length : idxTotalVenc
@@ -633,21 +639,24 @@ function parsePaginaHolerite(rows) {
   for (let r = idxHeaderTabela + 1; r < fimTabela; r++) {
     const row = via1[r]
     if (!row) continue
-    const cols = { Código: '', Descrição: '', Referência: '', Vencimentos: '', Descontos: '' }
-    row.items.forEach(it => {
-      if (it.str === 'Assinatura do Funcionário' || it.str.startsWith('___')) return
-      const c = bucket(it.x)
-      cols[c] += (cols[c] ? ' ' : '') + it.str
-    })
-    if (cols['Código'] || cols['Descrição']) {
-      rubricas.push({
-        codigo: cols['Código'].trim(),
-        descricao: cols['Descrição'].trim(),
-        referencia: cols['Referência'].trim(),
-        vencimento: toNumeroBR(cols['Vencimentos']),
-        desconto: toNumeroBR(cols['Descontos']),
-      })
+    const tokens = row.items.filter(it => it.str !== 'Assinatura do Funcionário' && !it.str.startsWith('___'))
+    if (tokens.length === 0) continue
+    let i = 0
+    let codigo = ''
+    if (/^\d+$/.test(tokens[0].str)) { codigo = tokens[0].str; i = 1 }
+    let descricao = ''
+    if (tokens[i] && /[A-Za-zÀ-ÿ]/.test(tokens[i].str)) { descricao = tokens[i].str; i++ }
+    const restantes = tokens.slice(i)
+    let referencia = '', vencimento = null, desconto = null
+    if (restantes.length > 0) {
+      referencia = restantes[0].str
+      for (let k = 1; k < restantes.length; k++) {
+        const valor = toNumeroBR(restantes[k].str)
+        if (restantes[k].x < limiarVencDesc) vencimento = valor
+        else desconto = valor
+      }
     }
+    if (codigo || descricao) rubricas.push({ codigo, descricao, referencia, vencimento, desconto })
   }
 
   let totalVencimentos = null, totalDescontos = null
