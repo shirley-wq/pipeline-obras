@@ -717,6 +717,33 @@ function somaRubricas(rubricas, palavraChave) {
     }), { minutos: 0, valor: 0 })
 }
 
+// Comparação de nome pra casar holerite <-> cadastro do RH, tolerando as
+// variações mais comuns entre a folha de pagamento e o cadastro (conectivo
+// de/da/do que um lado tem e o outro não - ex: "Souza da Paz" x "Souza Paz" -
+// e apelido/forma reduzida do primeiro nome - ex: "Carol" x "Carolina").
+// Continua exigindo TODOS os outros nomes (sobrenomes) iguais, pra não gerar
+// falso positivo entre pessoas diferentes. Só usado no casamento de holerite -
+// as outras importações (ponto/descontos) continuam com comparação exata,
+// por decisão explícita da Shirley (ver memória de 2026-07-31).
+function tokenizaNomeFlexivel(nome) {
+  return String(nome || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toUpperCase()
+    .split(/\s+/)
+    .filter(t => t && !['DE', 'DA', 'DO', 'DAS', 'DOS'].includes(t))
+}
+function nomesDeColaboradorBatem(nomeA, nomeB) {
+  const a = tokenizaNomeFlexivel(nomeA)
+  const b = tokenizaNomeFlexivel(nomeB)
+  if (a.length !== b.length || a.length === 0) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] === b[i]) continue
+    if (i === 0 && a[i].length >= 4 && b[i].length >= 4 && (a[i].startsWith(b[i]) || b[i].startsWith(a[i]))) continue
+    return false
+  }
+  return true
+}
+
 function parsePeriodoEspelho(rows) {
   for (let i = 0; i < Math.min(rows.length, 5); i++) {
     const m = String(rows[i][0] || '').match(/(\d{2})\/(\d{2})\/(\d{4})\s*(?:a|até)\s*(\d{2})\/(\d{2})\/(\d{4})/i)
@@ -1965,7 +1992,7 @@ export default function App() {
       }
       const combinados = funcSaldo.map(f => {
         const adiant = funcAdiant.find(a => a.nome === f.nome)
-        const colaborador = rhColaboradores.find(c => `${c.nome} ${c.sobrenome || ''}`.trim().toUpperCase() === f.nome.toUpperCase())
+        const colaborador = rhColaboradores.find(c => nomesDeColaboradorBatem(`${c.nome} ${c.sobrenome || ''}`, f.nome))
         return {
           ...f,
           colaboradorId: colaborador?.id || null,
