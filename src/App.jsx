@@ -1873,6 +1873,7 @@ export default function App() {
   const [filtroHoleriteBase, setFiltroHoleriteBase] = useState('')
   const [filtroHoleriteNome, setFiltroHoleriteNome] = useState('')
   const [horasExtrasColaboradorId, setHorasExtrasColaboradorId] = useState('')
+  const [horasExtrasMes, setHorasExtrasMes] = useState('')
   const [despesasModo, setDespesasModo] = useState('mes')
   const [despesasMes, setDespesasMes] = useState(new Date().getMonth() + 1)
   const [despesasAno, setDespesasAno] = useState(new Date().getFullYear())
@@ -3803,11 +3804,23 @@ export default function App() {
           <SidebarRH ativa={rhSubaba} onChange={setRhSubaba} totalColaboradores={rhColaboradores.length} totalHolerites={holeritesSalvos.length} />
           <div style={{ flex:1, minWidth:0, padding:14 }}>
             <div style={{ fontSize:13, fontWeight:700, color:'#1A2340', marginBottom:10 }}>Horas Extras — histórico por colaborador</div>
-            <select value={horasExtrasColaboradorId} onChange={e => setHorasExtrasColaboradorId(e.target.value)}
-              style={{ width:'100%', maxWidth:380, padding:'9px 12px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', background:'#fff', marginBottom:16, boxSizing:'border-box' }}>
-              <option value="">Selecione um colaborador...</option>
-              {rhColaboradores.map(c => <option key={c.id} value={c.id}>{c.nome} {c.sobrenome || ''}</option>)}
-            </select>
+            <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginBottom:16 }}>
+              <select value={horasExtrasColaboradorId} onChange={e => { setHorasExtrasColaboradorId(e.target.value); setHorasExtrasMes('') }}
+                style={{ flex:'1 1 260px', maxWidth:380, padding:'9px 12px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', background:'#fff', boxSizing:'border-box' }}>
+                <option value="">Selecione um colaborador...</option>
+                {rhColaboradores.map(c => <option key={c.id} value={c.id}>{c.nome} {c.sobrenome || ''}</option>)}
+              </select>
+              {horasExtrasColaboradorId && (() => {
+                const mesesDisponiveis = [...new Set(holeritesSalvos.filter(h => h.colaborador_id === horasExtrasColaboradorId).map(h => h.mes))].sort().reverse()
+                return (
+                  <select value={horasExtrasMes} onChange={e => setHorasExtrasMes(e.target.value)}
+                    style={{ padding:'9px 12px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', background:'#fff', boxSizing:'border-box' }}>
+                    <option value="">Todos os meses</option>
+                    {mesesDisponiveis.map(m => <option key={m} value={m}>{mesLabel(m)}</option>)}
+                  </select>
+                )
+              })()}
+            </div>
 
             {!horasExtrasColaboradorId && (
               <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'30px 0' }}>Escolha um colaborador pra ver o histórico de holerites.</div>
@@ -3816,9 +3829,10 @@ export default function App() {
             {horasExtrasColaboradorId && (() => {
               const holeritesDoColaborador = holeritesSalvos
                 .filter(h => h.colaborador_id === horasExtrasColaboradorId)
+                .filter(h => !horasExtrasMes || h.mes === horasExtrasMes)
                 .sort((a, b) => b.mes.localeCompare(a.mes))
               if (holeritesDoColaborador.length === 0) {
-                return <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'30px 0' }}>Nenhum holerite importado ainda pra esse colaborador.</div>
+                return <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'30px 0' }}>Nenhum holerite importado ainda pra esse colaborador{horasExtrasMes ? ' nesse mês' : ''}.</div>
               }
               return holeritesDoColaborador.map(h => {
                 const rubricas = Array.isArray(h.rubricas) ? h.rubricas : []
