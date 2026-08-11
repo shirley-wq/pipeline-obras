@@ -572,6 +572,15 @@ function toNumeroBR(s) {
   return isNaN(n) ? null : n
 }
 
+// Alguns caracteres/glifos do PDF não são mapeados certinho pelo extrator
+// (ver aviso "TT: undefined function" no console) e podem virar caracteres de
+// controle inválidos no meio do texto - o Postgres rejeita isso ao salvar
+// jsonb ("unsupported Unicode escape sequence"). Tira esses caracteres assim
+// que o texto é lido, antes de qualquer outro processamento.
+function limpaTextoPdf(s) {
+  return String(s || '').replace(/[\x00-\x1F\x7F]/g, '').trim()
+}
+
 async function extraiLinhasPdf(arrayBuffer) {
   const doc = await getDocument({ data: new Uint8Array(arrayBuffer) }).promise
   const paginas = []
@@ -579,8 +588,8 @@ async function extraiLinhasPdf(arrayBuffer) {
     const page = await doc.getPage(p)
     const content = await page.getTextContent()
     const items = content.items
-      .map(it => ({ str: it.str, x: Math.round(it.transform[4]), y: Math.round(it.transform[5]) }))
-      .filter(it => it.str.trim())
+      .map(it => ({ str: limpaTextoPdf(it.str), x: Math.round(it.transform[4]), y: Math.round(it.transform[5]) }))
+      .filter(it => it.str)
     const rows = []
     items.forEach(it => {
       let row = rows.find(r => Math.abs(r.y - it.y) <= 2)
