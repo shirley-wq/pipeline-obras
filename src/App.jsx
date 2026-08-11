@@ -1204,6 +1204,7 @@ function SidebarRH({ ativa, onChange, totalColaboradores, totalHolerites }) {
     { id:'colaboradores', label:'Colaboradores', count: totalColaboradores },
     { id:'fechamento', label:'Fechamento de Ponto', count:null },
     { id:'holerites', label:'Holerites', count: totalHolerites },
+    { id:'horas_extras', label:'Horas Extras', count:null },
   ]
   return (
     <div style={{ width:170, flexShrink:0, background:'#fff', borderRight:'1px solid #E0E8F0', minHeight:'70vh' }}>
@@ -1871,6 +1872,7 @@ export default function App() {
   const [filtroHoleriteMes, setFiltroHoleriteMes] = useState('')
   const [filtroHoleriteBase, setFiltroHoleriteBase] = useState('')
   const [filtroHoleriteNome, setFiltroHoleriteNome] = useState('')
+  const [horasExtrasColaboradorId, setHorasExtrasColaboradorId] = useState('')
   const [despesasModo, setDespesasModo] = useState('mes')
   const [despesasMes, setDespesasMes] = useState(new Date().getMonth() + 1)
   const [despesasAno, setDespesasAno] = useState(new Date().getFullYear())
@@ -3792,6 +3794,78 @@ export default function App() {
             })()}
           </div>
         </div>
+        </div>
+      )}
+
+      {/* ====== SUB-ABA RH: HORAS EXTRAS (consulta detalhada por colaborador) ====== */}
+      {aba === 'rh' && rhSubaba === 'horas_extras' && (
+        <div style={{ display:'flex', alignItems:'flex-start' }}>
+          <SidebarRH ativa={rhSubaba} onChange={setRhSubaba} totalColaboradores={rhColaboradores.length} totalHolerites={holeritesSalvos.length} />
+          <div style={{ flex:1, minWidth:0, padding:14 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:'#1A2340', marginBottom:10 }}>Horas Extras — histórico por colaborador</div>
+            <select value={horasExtrasColaboradorId} onChange={e => setHorasExtrasColaboradorId(e.target.value)}
+              style={{ width:'100%', maxWidth:380, padding:'9px 12px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', background:'#fff', marginBottom:16, boxSizing:'border-box' }}>
+              <option value="">Selecione um colaborador...</option>
+              {rhColaboradores.map(c => <option key={c.id} value={c.id}>{c.nome} {c.sobrenome || ''}</option>)}
+            </select>
+
+            {!horasExtrasColaboradorId && (
+              <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'30px 0' }}>Escolha um colaborador pra ver o histórico de holerites.</div>
+            )}
+
+            {horasExtrasColaboradorId && (() => {
+              const holeritesDoColaborador = holeritesSalvos
+                .filter(h => h.colaborador_id === horasExtrasColaboradorId)
+                .sort((a, b) => b.mes.localeCompare(a.mes))
+              if (holeritesDoColaborador.length === 0) {
+                return <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'30px 0' }}>Nenhum holerite importado ainda pra esse colaborador.</div>
+              }
+              return holeritesDoColaborador.map(h => {
+                const rubricas = Array.isArray(h.rubricas) ? h.rubricas : []
+                return (
+                  <div key={h.id} style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:16 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:10, flexWrap:'wrap', gap:8 }}>
+                      <div style={{ fontSize:13, fontWeight:700, color:'#1A2340' }}>{h.base} — {h.mes}{h.funcao ? ` · ${h.funcao}` : ''}</div>
+                      <div style={{ fontSize:13, fontWeight:700, color:'#1A6B4A' }}>Total do mês: {fmt(h.total_liquido_mes || 0)}</div>
+                    </div>
+                    <div style={{ overflowX:'auto' }}>
+                      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                        <thead>
+                          <tr style={{ background:'#F8FAFC', textAlign:'left' }}>
+                            {['Descrição','Referência','Vencimentos','Descontos'].map(hd => (
+                              <th key={hd} style={{ padding:'6px 8px', borderBottom:'1px solid #E0E8F0' }}>{hd}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rubricas.map((r, i) => (
+                            <tr key={i} style={{ borderBottom:'1px solid #F1F5F9' }}>
+                              <td style={{ padding:'5px 8px' }}>{r.descricao}{r.codigo ? <span style={{ color:'#94A3B8' }}> ({r.codigo})</span> : ''}</td>
+                              <td style={{ padding:'5px 8px' }}>{r.referencia}</td>
+                              <td style={{ padding:'5px 8px' }}>{r.vencimento != null ? fmt(r.vencimento) : ''}</td>
+                              <td style={{ padding:'5px 8px' }}>{r.desconto != null ? fmt(r.desconto) : ''}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr style={{ background:'#F8FAFC', fontWeight:700 }}>
+                            <td style={{ padding:'6px 8px' }} colSpan={2}>Total</td>
+                            <td style={{ padding:'6px 8px' }}>{h.total_vencimentos != null ? fmt(h.total_vencimentos) : '—'}</td>
+                            <td style={{ padding:'6px 8px' }}>{h.total_descontos != null ? fmt(h.total_descontos) : '—'}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                    <div style={{ display:'flex', gap:16, flexWrap:'wrap', marginTop:10, paddingTop:10, borderTop:'1px solid #F1F5F9', fontSize:12 }}>
+                      <div><span style={{ color:'#888' }}>Salário Base: </span><b>{h.salario_base != null ? fmt(h.salario_base) : '—'}</b></div>
+                      <div><span style={{ color:'#888' }}>Líquido saldo: </span><b>{fmt(h.total_liquido_saldo || 0)}</b></div>
+                      <div><span style={{ color:'#888' }}>Líquido adiantamento: </span><b>{fmt(h.total_liquido_adiantamento || 0)}</b></div>
+                    </div>
+                  </div>
+                )
+              })
+            })()}
+          </div>
         </div>
       )}
 
