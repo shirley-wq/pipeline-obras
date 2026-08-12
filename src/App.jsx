@@ -1918,7 +1918,9 @@ export default function App() {
   const [filtroHoleriteBase, setFiltroHoleriteBase] = useState('')
   const [filtroHoleriteNome, setFiltroHoleriteNome] = useState('')
   const [horasExtrasColaboradorId, setHorasExtrasColaboradorId] = useState('')
-  const [horasExtrasMes, setHorasExtrasMes] = useState('')
+  const [horasExtrasNomeDigitado, setHorasExtrasNomeDigitado] = useState('')
+  const [horasExtrasMesDe, setHorasExtrasMesDe] = useState('')
+  const [horasExtrasMesAte, setHorasExtrasMesAte] = useState('')
   const [despesasModo, setDespesasModo] = useState('mes')
   const [despesasMes, setDespesasMes] = useState(new Date().getMonth() + 1)
   const [despesasAno, setDespesasAno] = useState(new Date().getFullYear())
@@ -3843,86 +3845,98 @@ export default function App() {
         </div>
       )}
 
-      {/* ====== SUB-ABA RH: HORAS EXTRAS (consulta detalhada por colaborador) ====== */}
+      {/* ====== SUB-ABA RH: HOLERITES (consulta compacta por colaborador, pensada pro celular) ====== */}
       {aba === 'rh' && rhSubaba === 'horas_extras' && (
         <div style={{ display:'flex', alignItems:'flex-start' }}>
           <SidebarRH ativa={rhSubaba} onChange={setRhSubaba} totalColaboradores={rhColaboradores.length} totalHolerites={holeritesSalvos.length} />
           <div style={{ flex:1, minWidth:0, padding:14 }}>
             <div style={{ fontSize:13, fontWeight:700, color:'#1A2340', marginBottom:10 }}>Holerites — histórico por colaborador</div>
-            <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginBottom:16 }}>
-              <select value={horasExtrasColaboradorId} onChange={e => { setHorasExtrasColaboradorId(e.target.value); setHorasExtrasMes('') }}
-                style={{ flex:'1 1 260px', maxWidth:380, padding:'9px 12px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', background:'#fff', boxSizing:'border-box' }}>
-                <option value="">Selecione um colaborador...</option>
-                {rhColaboradores.map(c => <option key={c.id} value={c.id}>{c.nome} {c.sobrenome || ''}</option>)}
-              </select>
-              {horasExtrasColaboradorId && (() => {
-                const mesesDisponiveis = [...new Set(holeritesSalvos.filter(h => h.colaborador_id === horasExtrasColaboradorId).map(h => h.mes))].sort().reverse()
-                return (
-                  <select value={horasExtrasMes} onChange={e => setHorasExtrasMes(e.target.value)}
-                    style={{ padding:'9px 12px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', background:'#fff', boxSizing:'border-box' }}>
-                    <option value="">Todos os meses</option>
-                    {mesesDisponiveis.map(m => <option key={m} value={m}>{mesLabel(m)}</option>)}
-                  </select>
-                )
-              })()}
+
+            <div style={{ marginBottom:10 }}>
+              <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Selecione o nome</label>
+              <input list="lista-colaboradores-holerites" value={horasExtrasNomeDigitado}
+                onChange={e => {
+                  const digitado = e.target.value
+                  setHorasExtrasNomeDigitado(digitado)
+                  const achado = rhColaboradores.find(c => `${c.nome} ${c.sobrenome || ''}`.trim() === digitado)
+                  setHorasExtrasColaboradorId(achado ? achado.id : '')
+                }}
+                placeholder="Digite pra buscar..."
+                style={{ width:'100%', maxWidth:380, padding:'9px 12px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', background:'#fff', boxSizing:'border-box' }} />
+              <datalist id="lista-colaboradores-holerites">
+                {rhColaboradores.map(c => <option key={c.id} value={`${c.nome} ${c.sobrenome || ''}`.trim()} />)}
+              </datalist>
             </div>
 
+            {horasExtrasColaboradorId && (
+              <div style={{ marginBottom:16 }}>
+                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Selecione o período</label>
+                <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+                  <span style={{ fontSize:12, color:'#64748B' }}>De</span>
+                  <input type="month" value={horasExtrasMesDe} onChange={e => setHorasExtrasMesDe(e.target.value)}
+                    style={{ padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                  <span style={{ fontSize:12, color:'#64748B' }}>até</span>
+                  <input type="month" value={horasExtrasMesAte} onChange={e => setHorasExtrasMesAte(e.target.value)}
+                    style={{ padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                  {(horasExtrasMesDe || horasExtrasMesAte) && (
+                    <button onClick={() => { setHorasExtrasMesDe(''); setHorasExtrasMesAte('') }}
+                      style={{ padding:'7px 10px', background:'#F1F5F9', border:'1px solid #CDD8E3', borderRadius:8, fontSize:11, color:'#64748B', cursor:'pointer' }}>
+                      ✕ limpar
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {!horasExtrasColaboradorId && (
-              <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'30px 0' }}>Escolha um colaborador pra ver o histórico de holerites.</div>
+              <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'30px 0' }}>Digite o nome de um colaborador pra ver o histórico de holerites.</div>
             )}
 
             {horasExtrasColaboradorId && (() => {
               const holeritesDoColaborador = holeritesSalvos
                 .filter(h => h.colaborador_id === horasExtrasColaboradorId)
-                .filter(h => !horasExtrasMes || h.mes === horasExtrasMes)
+                .filter(h => !horasExtrasMesDe || h.mes >= horasExtrasMesDe)
+                .filter(h => !horasExtrasMesAte || h.mes <= horasExtrasMesAte)
                 .sort((a, b) => b.mes.localeCompare(a.mes))
               if (holeritesDoColaborador.length === 0) {
-                return <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'30px 0' }}>Nenhum holerite importado ainda pra esse colaborador{horasExtrasMes ? ' nesse mês' : ''}.</div>
+                return <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'30px 0' }}>Nenhum holerite importado ainda pra esse colaborador nesse período.</div>
               }
-              return holeritesDoColaborador.map(h => {
-                const rubricas = Array.isArray(h.rubricas) ? h.rubricas : []
-                return (
-                  <div key={h.id} style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:16 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:10, flexWrap:'wrap', gap:8 }}>
-                      <div style={{ fontSize:13, fontWeight:700, color:'#1A2340' }}>{h.base} — {h.mes}{h.funcao ? ` · ${h.funcao}` : ''}</div>
-                      <div style={{ fontSize:13, fontWeight:700, color:'#1A6B4A' }}>Total do mês: {fmt(h.total_liquido_mes || 0)}</div>
-                    </div>
-                    <div style={{ overflowX:'auto' }}>
-                      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-                        <thead>
-                          <tr style={{ background:'#F8FAFC', textAlign:'left' }}>
-                            {['Descrição','Referência','Vencimentos','Descontos'].map(hd => (
-                              <th key={hd} style={{ padding:'6px 8px', borderBottom:'1px solid #E0E8F0' }}>{hd}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rubricas.map((r, i) => (
-                            <tr key={i} style={{ borderBottom:'1px solid #F1F5F9' }}>
-                              <td style={{ padding:'5px 8px' }}>{r.descricao}{r.codigo ? <span style={{ color:'#94A3B8' }}> ({r.codigo})</span> : ''}</td>
-                              <td style={{ padding:'5px 8px' }}>{r.referencia}</td>
-                              <td style={{ padding:'5px 8px' }}>{r.vencimento != null ? fmt(r.vencimento) : ''}</td>
-                              <td style={{ padding:'5px 8px' }}>{r.desconto != null ? fmt(r.desconto) : ''}</td>
-                            </tr>
+              const salarioBaseAtual = holeritesDoColaborador[0]?.salario_base
+              return (
+                <>
+                  <div style={{ overflowX:'auto', border:'1px solid #E0E8F0', borderRadius:12 }}>
+                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                      <thead>
+                        <tr style={{ background:'#F8FAFC', textAlign:'left' }}>
+                          {['Mês','H.E.','Intra','Inter','Total do mês'].map(hd => (
+                            <th key={hd} style={{ padding:'8px', borderBottom:'1px solid #E0E8F0', whiteSpace:'nowrap' }}>{hd}</th>
                           ))}
-                        </tbody>
-                        <tfoot>
-                          <tr style={{ background:'#F8FAFC', fontWeight:700 }}>
-                            <td style={{ padding:'6px 8px' }} colSpan={2}>Total</td>
-                            <td style={{ padding:'6px 8px' }}>{h.total_vencimentos != null ? fmt(h.total_vencimentos) : '—'}</td>
-                            <td style={{ padding:'6px 8px' }}>{h.total_descontos != null ? fmt(h.total_descontos) : '—'}</td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                    <div style={{ display:'flex', gap:16, flexWrap:'wrap', marginTop:10, paddingTop:10, borderTop:'1px solid #F1F5F9', fontSize:12 }}>
-                      <div><span style={{ color:'#888' }}>Salário Base: </span><b>{h.salario_base != null ? fmt(h.salario_base) : '—'}</b></div>
-                      <div><span style={{ color:'#888' }}>Líquido saldo: </span><b>{fmt(h.total_liquido_saldo || 0)}</b></div>
-                      <div><span style={{ color:'#888' }}>Líquido adiantamento: </span><b>{fmt(h.total_liquido_adiantamento || 0)}</b></div>
-                    </div>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {holeritesDoColaborador.map(h => {
+                          const rubricas = Array.isArray(h.rubricas) ? h.rubricas : []
+                          const he = somaRubricas(rubricas, 'HORAS EXTRAS')
+                          const intra = somaRubricas(rubricas, 'INTRAJORNADA')
+                          const inter = somaRubricas(rubricas, 'INTER JORNADA')
+                          return (
+                            <tr key={h.id} style={{ borderBottom:'1px solid #F1F5F9' }}>
+                              <td style={{ padding:'8px', fontWeight:600, whiteSpace:'nowrap' }}>{mesLabel(h.mes)}</td>
+                              <td style={{ padding:'8px', whiteSpace:'nowrap' }}>{minutosParaHoras(he.minutos)} / {fmt(he.valor)}</td>
+                              <td style={{ padding:'8px', whiteSpace:'nowrap' }}>{minutosParaHoras(intra.minutos)} / {fmt(intra.valor)}</td>
+                              <td style={{ padding:'8px', whiteSpace:'nowrap' }}>{minutosParaHoras(inter.minutos)} / {fmt(inter.valor)}</td>
+                              <td style={{ padding:'8px', whiteSpace:'nowrap', fontWeight:700 }}>{fmt(h.total_liquido_mes || 0)}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
                   </div>
-                )
-              })
+                  <div style={{ marginTop:12, fontSize:13, color:'#1A2340' }}>
+                    <span style={{ color:'#888' }}>Salário Base: </span><b>{salarioBaseAtual != null ? fmt(salarioBaseAtual) : '—'}</b>
+                  </div>
+                </>
+              )
             })()}
           </div>
         </div>
