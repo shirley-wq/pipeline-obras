@@ -2010,6 +2010,7 @@ export default function App() {
   const [horasExtrasNomeDigitado, setHorasExtrasNomeDigitado] = useState('')
   const [horasExtrasMesDe, setHorasExtrasMesDe] = useState('')
   const [horasExtrasMesAte, setHorasExtrasMesAte] = useState('')
+  const [horasExtrasMesExpandido, setHorasExtrasMesExpandido] = useState(null)
   const [despesasModo, setDespesasModo] = useState('mes')
   const [despesasMes, setDespesasMes] = useState(new Date().getMonth() + 1)
   const [despesasAno, setDespesasAno] = useState(new Date().getFullYear())
@@ -4020,6 +4021,7 @@ export default function App() {
                   setHorasExtrasNomeDigitado(digitado)
                   const achado = rhColaboradores.find(c => `${c.nome} ${c.sobrenome || ''}`.trim() === digitado)
                   setHorasExtrasColaboradorId(achado ? achado.id : '')
+                  setHorasExtrasMesExpandido(null)
                 }}
                 placeholder="Digite pra buscar..."
                 style={{ width:'100%', maxWidth:380, padding:'9px 12px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', background:'#fff', boxSizing:'border-box' }} />
@@ -4068,7 +4070,7 @@ export default function App() {
                     <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                       <thead>
                         <tr style={{ background:'#F8FAFC', textAlign:'left' }}>
-                          {['Mês','H.E.','Intra','Inter','Total do mês'].map(hd => (
+                          {['Mês','H.E.','Intra','Inter','Total do mês',''].map(hd => (
                             <th key={hd} style={{ padding:'8px', borderBottom:'1px solid #E0E8F0', whiteSpace:'nowrap' }}>{hd}</th>
                           ))}
                         </tr>
@@ -4079,14 +4081,58 @@ export default function App() {
                           const he = somaRubricas(rubricas, 'HORAS EXTRAS')
                           const intra = somaRubricas(rubricas, 'INTRAJORNADA')
                           const inter = somaRubricas(rubricas, 'INTER JORNADA')
+                          const expandido = horasExtrasMesExpandido === h.id
                           return (
-                            <tr key={h.id} style={{ borderBottom:'1px solid #F1F5F9' }}>
+                            <React.Fragment key={h.id}>
+                            <tr onClick={() => setHorasExtrasMesExpandido(expandido ? null : h.id)} style={{ borderBottom:'1px solid #F1F5F9', cursor:'pointer', background: expandido ? '#F5F3FF' : 'transparent' }}>
                               <td style={{ padding:'8px', fontWeight:600, whiteSpace:'nowrap' }}>{mesLabel(h.mes)}</td>
                               <td style={{ padding:'8px', whiteSpace:'nowrap' }}>{minutosParaHoras(he.minutos)} / {fmt(he.valor)}</td>
                               <td style={{ padding:'8px', whiteSpace:'nowrap' }}>{minutosParaHoras(intra.minutos)} / {fmt(intra.valor)}</td>
                               <td style={{ padding:'8px', whiteSpace:'nowrap' }}>{minutosParaHoras(inter.minutos)} / {fmt(inter.valor)}</td>
                               <td style={{ padding:'8px', whiteSpace:'nowrap', fontWeight:700 }}>{fmt(h.total_liquido_mes || 0)}</td>
+                              <td style={{ padding:'8px', color:'#7C3AED', fontWeight:700, whiteSpace:'nowrap' }}>{expandido ? '▲ fechar' : '▼ ver holerite'}</td>
                             </tr>
+                            {expandido && (
+                              <tr>
+                                <td colSpan={6} style={{ padding:'10px 10px 16px', background:'#FAFAFF' }}>
+                                  <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:8 }}>{h.base} — {mesLabel(h.mes)}{h.funcao ? ` · ${h.funcao}` : ''}</div>
+                                  <div style={{ overflowX:'auto' }}>
+                                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, background:'#fff' }}>
+                                      <thead>
+                                        <tr style={{ background:'#F8FAFC', textAlign:'left' }}>
+                                          {['Descrição','Referência','Vencimentos','Descontos'].map(hd => (
+                                            <th key={hd} style={{ padding:'6px 8px', borderBottom:'1px solid #E0E8F0' }}>{hd}</th>
+                                          ))}
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {rubricas.map((r, i) => (
+                                          <tr key={i} style={{ borderBottom:'1px solid #F1F5F9' }}>
+                                            <td style={{ padding:'5px 8px' }}>{r.descricao}{r.codigo ? <span style={{ color:'#94A3B8' }}> ({r.codigo})</span> : ''}</td>
+                                            <td style={{ padding:'5px 8px' }}>{r.referencia}</td>
+                                            <td style={{ padding:'5px 8px' }}>{r.vencimento != null ? fmt(r.vencimento) : ''}</td>
+                                            <td style={{ padding:'5px 8px' }}>{r.desconto != null ? fmt(r.desconto) : ''}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                      <tfoot>
+                                        <tr style={{ background:'#F8FAFC', fontWeight:700 }}>
+                                          <td style={{ padding:'6px 8px' }} colSpan={2}>Total</td>
+                                          <td style={{ padding:'6px 8px' }}>{h.total_vencimentos != null ? fmt(h.total_vencimentos) : '—'}</td>
+                                          <td style={{ padding:'6px 8px' }}>{h.total_descontos != null ? fmt(h.total_descontos) : '—'}</td>
+                                        </tr>
+                                      </tfoot>
+                                    </table>
+                                  </div>
+                                  <div style={{ display:'flex', gap:16, flexWrap:'wrap', marginTop:10, fontSize:12 }}>
+                                    <div><span style={{ color:'#888' }}>Salário Base: </span><b>{h.salario_base != null ? fmt(h.salario_base) : '—'}</b></div>
+                                    <div><span style={{ color:'#888' }}>Líquido saldo: </span><b>{fmt(h.total_liquido_saldo || 0)}</b></div>
+                                    <div><span style={{ color:'#888' }}>Líquido adiantamento: </span><b>{fmt(h.total_liquido_adiantamento || 0)}</b></div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                            </React.Fragment>
                           )
                         })}
                       </tbody>
