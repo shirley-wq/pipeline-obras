@@ -1359,7 +1359,8 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
   const [novoEpiData, setNovoEpiData] = useState('')
   const [novoEpiValidade, setNovoEpiValidade] = useState('')
   const [novoDescontoMotivo, setNovoDescontoMotivo] = useState('MULTA')
-  const [novoDescontoMes, setNovoDescontoMes] = useState('')
+  const [novoDescontoMes, setNovoDescontoMes] = useState(mesAtualIso())
+  const [novoDescontoErro, setNovoDescontoErro] = useState('')
   const [novoDescontoValor, setNovoDescontoValor] = useState('')
   const [novoDescontoObs, setNovoDescontoObs] = useState('')
   const [novoDescontoParcelas, setNovoDescontoParcelas] = useState('1')
@@ -1632,8 +1633,24 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
                     placeholder="Nº RENAINF original (se houver)" style={{ width:180, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
                 </>
               )}
-              <input type="month" value={novoDescontoMes} onChange={e => setNovoDescontoMes(e.target.value)}
-                title="Mês da 1ª parcela" style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+              {(() => {
+                const [anoSel, mesSel] = (novoDescontoMes || mesAtualIso()).split('-')
+                const nomesMeses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+                const anoBase = new Date().getFullYear()
+                const anos = [anoBase - 1, anoBase, anoBase + 1, anoBase + 2]
+                return (
+                  <>
+                    <select value={mesSel} onChange={e => setNovoDescontoMes(`${anoSel}-${e.target.value}`)}
+                      title="Mês da 1ª parcela" style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                      {nomesMeses.map((nome, i) => <option key={nome} value={String(i + 1).padStart(2, '0')}>{nome}</option>)}
+                    </select>
+                    <select value={anoSel} onChange={e => setNovoDescontoMes(`${e.target.value}-${mesSel}`)}
+                      title="Ano da 1ª parcela" style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                      {anos.map(a => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                  </>
+                )
+              })()}
               <input value={novoDescontoValorOriginal} onChange={e => setNovoDescontoValorOriginal(e.target.value)}
                 title="Valor cheio da multa, antes do desconto - só pra registro, não é o que é parcelado"
                 placeholder="Valor original (opcional)" style={{ width:150, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
@@ -1645,7 +1662,11 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
               <input value={novoDescontoObs} onChange={e => setNovoDescontoObs(e.target.value)}
                 placeholder="Obs (opcional)" style={{ flex:1, minWidth:120, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
               <button onClick={() => {
-                if (!novoDescontoMes || !novoDescontoValor.trim()) return
+                if (!novoDescontoMes || !novoDescontoValor.trim()) {
+                  setNovoDescontoErro(!novoDescontoMes ? 'Preenche o mês (confere se o ano também foi selecionado, não só o mês)' : 'Preenche o valor')
+                  return
+                }
+                setNovoDescontoErro('')
                 const valorDigitado = novoDescontoValor.trim()
                 const numParcelas = Math.max(1, parseInt(novoDescontoParcelas) || 1)
                 const obsBase = novoDescontoObs.trim()
@@ -1681,6 +1702,7 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
                 setNovoDescontoMes(''); setNovoDescontoValorOriginal(''); setNovoDescontoValor(''); setNovoDescontoObs(''); setNovoDescontoParcelas('1'); setNovoDescontoRenainf(''); setNovoDescontoRenainfOriginal('')
               }} style={{ padding:'6px 12px', background:'#9A3412', color:'#fff', border:'none', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer' }}>+ Adicionar</button>
             </div>
+            {novoDescontoErro && <div style={{ fontSize:11, color:'#991B1B', marginTop:4 }}>⚠ {novoDescontoErro}</div>}
           </div>
 
           <div>
