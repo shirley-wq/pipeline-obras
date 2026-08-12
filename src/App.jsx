@@ -1364,6 +1364,8 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
   const [novoDescontoObs, setNovoDescontoObs] = useState('')
   const [novoDescontoParcelas, setNovoDescontoParcelas] = useState('1')
   const [novoDescontoValorOriginal, setNovoDescontoValorOriginal] = useState('')
+  const [novoDescontoRenainf, setNovoDescontoRenainf] = useState('')
+  const [novoDescontoRenainfOriginal, setNovoDescontoRenainfOriginal] = useState('')
 
   const vencimentoAso = somaAnos(c.data_aso, 1)
   const statusAso = statusVencimento(vencimentoAso)
@@ -1608,6 +1610,7 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
                   <div key={idx} style={{ display:'flex', alignItems:'center', gap:6, background:'#F0F4F8', borderRadius:6, padding:'5px 10px' }}>
                     <span style={{ fontSize:12, color:'#1A2340', flex:1 }}>
                       {rubricaLabel(d.motivo)} — {mesLabel(d.mes)} — {d.valor}{d.observacao ? ` (${d.observacao})` : ''}
+                      {d.renainf ? ` · RENAINF ${d.renainf}` : ''}{d.renainf_original ? ` (orig. ${d.renainf_original})` : ''}
                     </span>
                     <span onClick={() => onUpdate({ descontos: descontos.filter((_, i) => i !== idx) })} style={{ fontSize:12, color:'#EF4444', cursor:'pointer', fontWeight:700 }}>✕</span>
                   </div>
@@ -1619,6 +1622,16 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
                 style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', background:'#fff' }}>
                 {RUBRICAS_DESCONTO.map(r => <option key={r.motivo} value={r.motivo}>{r.codigo ? `${r.label} (${r.codigo})` : r.label}</option>)}
               </select>
+              {novoDescontoMotivo === 'MULTA' && (
+                <>
+                  <input value={novoDescontoRenainf} onChange={e => setNovoDescontoRenainf(e.target.value)}
+                    title="Número RENAINF dessa multa"
+                    placeholder="Nº RENAINF" style={{ width:130, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+                  <input value={novoDescontoRenainfOriginal} onChange={e => setNovoDescontoRenainfOriginal(e.target.value)}
+                    title="Número RENAINF da multa que originou essa (ex: multa dobrada da empresa por não indicar o condutor)"
+                    placeholder="Nº RENAINF original (se houver)" style={{ width:180, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+                </>
+              )}
               <input type="month" value={novoDescontoMes} onChange={e => setNovoDescontoMes(e.target.value)}
                 title="Mês da 1ª parcela" style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
               <input value={novoDescontoValorOriginal} onChange={e => setNovoDescontoValorOriginal(e.target.value)}
@@ -1639,8 +1652,10 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
                 const valorOriginal = novoDescontoValorOriginal.trim()
                 const prefixoOriginal = valorOriginal ? `Valor original R$ ${valorOriginal}` : ''
                 const juntaObs = (...partes) => partes.filter(Boolean).join(' — ') || null
+                const renainf = novoDescontoRenainf.trim() || null
+                const renainfOriginal = novoDescontoRenainfOriginal.trim() || null
                 if (numParcelas <= 1 || valorDigitado.includes('%')) {
-                  onUpdate({ descontos: [...descontos, { motivo: novoDescontoMotivo, mes: novoDescontoMes, valor: valorDigitado, observacao: juntaObs(prefixoOriginal, obsBase) }] })
+                  onUpdate({ descontos: [...descontos, { motivo: novoDescontoMotivo, mes: novoDescontoMes, valor: valorDigitado, observacao: juntaObs(prefixoOriginal, obsBase), renainf, renainf_original: renainfOriginal }] })
                 } else {
                   // divide o valor com desconto em centavos pra não perder/sobrar centavo
                   // por arredondamento - a última parcela absorve a diferença. O valor
@@ -1658,11 +1673,12 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
                       mes: somaMeses(novoDescontoMes, p),
                       valor: (centavos / 100).toFixed(2).replace('.', ','),
                       observacao: juntaObs(prefixoOriginal, `${numParcelas}x (parcela ${p + 1}/${numParcelas})`, obsBase),
+                      renainf, renainf_original: renainfOriginal,
                     })
                   }
                   onUpdate({ descontos: [...descontos, ...novasLinhas] })
                 }
-                setNovoDescontoMes(''); setNovoDescontoValorOriginal(''); setNovoDescontoValor(''); setNovoDescontoObs(''); setNovoDescontoParcelas('1')
+                setNovoDescontoMes(''); setNovoDescontoValorOriginal(''); setNovoDescontoValor(''); setNovoDescontoObs(''); setNovoDescontoParcelas('1'); setNovoDescontoRenainf(''); setNovoDescontoRenainfOriginal('')
               }} style={{ padding:'6px 12px', background:'#9A3412', color:'#fff', border:'none', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer' }}>+ Adicionar</button>
             </div>
           </div>
