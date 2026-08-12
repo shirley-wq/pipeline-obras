@@ -352,6 +352,14 @@ function mesLabel(iso) {
   return `${nomes[Number(m) - 1]}/${y}`
 }
 
+function somaMeses(mesIso, n) {
+  const [y, m] = mesIso.split('-').map(Number)
+  const total = (y * 12 + (m - 1)) + n
+  const novoAno = Math.floor(total / 12)
+  const novoMes = (total % 12) + 1
+  return `${novoAno}-${String(novoMes).padStart(2, '0')}`
+}
+
 function mesesDoAnoAteAgora(ano) {
   const mesAtual = mesAtualIso()
   const meses = []
@@ -1354,6 +1362,7 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
   const [novoDescontoMes, setNovoDescontoMes] = useState('')
   const [novoDescontoValor, setNovoDescontoValor] = useState('')
   const [novoDescontoObs, setNovoDescontoObs] = useState('')
+  const [novoDescontoParcelas, setNovoDescontoParcelas] = useState('1')
 
   const vencimentoAso = somaAnos(c.data_aso, 1)
   const statusAso = statusVencimento(vencimentoAso)
@@ -1610,15 +1619,41 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
                 {RUBRICAS_DESCONTO.map(r => <option key={r.motivo} value={r.motivo}>{r.codigo ? `${r.label} (${r.codigo})` : r.label}</option>)}
               </select>
               <input type="month" value={novoDescontoMes} onChange={e => setNovoDescontoMes(e.target.value)}
-                style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+                title="Mês da 1ª parcela" style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
               <input value={novoDescontoValor} onChange={e => setNovoDescontoValor(e.target.value)}
-                placeholder="Valor (ex: 116,94 ou 27,8%)" style={{ width:150, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+                placeholder="Valor total (ex: 116,94 ou 27,8%)" style={{ width:170, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+              <input type="number" min="1" value={novoDescontoParcelas} onChange={e => setNovoDescontoParcelas(e.target.value)}
+                title="Número de parcelas - divide o valor e já cria uma linha por mês" placeholder="Parcelas"
+                style={{ width:80, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
               <input value={novoDescontoObs} onChange={e => setNovoDescontoObs(e.target.value)}
                 placeholder="Obs (opcional)" style={{ flex:1, minWidth:120, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
               <button onClick={() => {
                 if (!novoDescontoMes || !novoDescontoValor.trim()) return
-                onUpdate({ descontos: [...descontos, { motivo: novoDescontoMotivo, mes: novoDescontoMes, valor: novoDescontoValor.trim(), observacao: novoDescontoObs.trim() || null }] })
-                setNovoDescontoMes(''); setNovoDescontoValor(''); setNovoDescontoObs('')
+                const valorDigitado = novoDescontoValor.trim()
+                const numParcelas = Math.max(1, parseInt(novoDescontoParcelas) || 1)
+                const obsBase = novoDescontoObs.trim()
+                if (numParcelas <= 1 || valorDigitado.includes('%')) {
+                  onUpdate({ descontos: [...descontos, { motivo: novoDescontoMotivo, mes: novoDescontoMes, valor: valorDigitado, observacao: obsBase || null }] })
+                } else {
+                  // divide o valor total em centavos pra não perder/sobrar centavo por
+                  // arredondamento - a última parcela absorve a diferença.
+                  const centavosTotais = Math.round((Number(valorDigitado.replace(',', '.')) || 0) * 100)
+                  const centavosPorParcela = Math.floor(centavosTotais / numParcelas)
+                  let restante = centavosTotais
+                  const novasLinhas = []
+                  for (let p = 0; p < numParcelas; p++) {
+                    const centavos = p === numParcelas - 1 ? restante : centavosPorParcela
+                    restante -= centavos
+                    novasLinhas.push({
+                      motivo: novoDescontoMotivo,
+                      mes: somaMeses(novoDescontoMes, p),
+                      valor: (centavos / 100).toFixed(2).replace('.', ','),
+                      observacao: `${numParcelas}x (parcela ${p + 1}/${numParcelas})${obsBase ? ` — ${obsBase}` : ''}`,
+                    })
+                  }
+                  onUpdate({ descontos: [...descontos, ...novasLinhas] })
+                }
+                setNovoDescontoMes(''); setNovoDescontoValor(''); setNovoDescontoObs(''); setNovoDescontoParcelas('1')
               }} style={{ padding:'6px 12px', background:'#9A3412', color:'#fff', border:'none', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer' }}>+ Adicionar</button>
             </div>
           </div>
@@ -1893,6 +1928,7 @@ export default function App() {
   const [novaJantaMotivo, setNovaJantaMotivo] = useState('')
   const [jantasTodas, setJantasTodas] = useState([])
   const [novoRhNomeCompleto, setNovoRhNomeCompleto] = useState('')
+  const [filtroRhNome, setFiltroRhNome] = useState('')
   const [novoRhBaseCadastrado, setNovoRhBaseCadastrado] = useState('')
   const [novoRhBaseAtua, setNovoRhBaseAtua] = useState('')
   const [pontoResultado, setPontoResultado] = useState(null)
@@ -3382,7 +3418,13 @@ export default function App() {
             </div>
           </div>
 
-          {rhColaboradores.map(c => (
+          <input value={filtroRhNome} onChange={e => setFiltroRhNome(e.target.value)}
+            placeholder="🔎 Buscar colaborador por nome..."
+            style={{ width:'100%', padding:'9px 12px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:10 }} />
+
+          {rhColaboradores
+            .filter(c => !filtroRhNome || `${c.nome} ${c.sobrenome || ''}`.toLowerCase().includes(filtroRhNome.toLowerCase()))
+            .map(c => (
             <ColaboradorRHRow key={c.id} c={c} emailsLogin={emailsLogin} perfisLogin={perfisLogin}
               onUpdate={campos => atualizarRH(c.id, campos)}
               onRemove={() => removerRH(c.id)} />
