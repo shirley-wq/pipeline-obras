@@ -1917,6 +1917,12 @@ export default function App() {
   const [filtroHoleriteMes, setFiltroHoleriteMes] = useState('')
   const [filtroHoleriteBase, setFiltroHoleriteBase] = useState('')
   const [filtroHoleriteNome, setFiltroHoleriteNome] = useState('')
+  const [modalCorrigirPC, setModalCorrigirPC] = useState(false)
+  const [corrigirPCArquivo, setCorrigirPCArquivo] = useState(null)
+  const [corrigirPCProcessando, setCorrigirPCProcessando] = useState(false)
+  const [corrigirPCErro, setCorrigirPCErro] = useState('')
+  const [corrigirPCPreview, setCorrigirPCPreview] = useState(null)
+  const [corrigirPCSalvando, setCorrigirPCSalvando] = useState(false)
   const [horasExtrasColaboradorId, setHorasExtrasColaboradorId] = useState('')
   const [horasExtrasNomeDigitado, setHorasExtrasNomeDigitado] = useState('')
   const [horasExtrasMesDe, setHorasExtrasMesDe] = useState('')
@@ -2936,12 +2942,13 @@ export default function App() {
       return [
         o.tipo, o.nome, o.local||'', o.status,
         Number(o.valor||0).toFixed(2).replace('.',','),
-        // O campo "sige" no banco guarda a SIGE de verdade pra obra normal, mas guarda
-        // o número do PC/BDN pra obra de movimentação (importado do SIGE assim desde
-        // 06/08) - não são a mesma coisa, então cada tipo sai numa coluna diferente
-        // pra não misturar os dois na mesma planilha (ver [[projeto-instalacao-atm]]).
+        // O campo "sige" no banco guarda a SIGE de verdade pra obra normal, mas pra obra
+        // de movimentação guardava (por engano, na importação de 06-07/08) o código
+        // interno do pedido no SIGE, não o número real do PC - "numero_pc" é o campo
+        // corrigido (ver "🔧 PC/BDN"). Cada tipo sai numa coluna diferente pra não
+        // misturar os dois na mesma planilha (ver [[projeto-instalacao-atm]]).
         ehMovimentacao ? '' : (o.sige||''),
-        ehMovimentacao ? (o.sige||'') : '',
+        ehMovimentacao ? (o.numero_pc || o.sige || '') : '',
         o.pedido||'', o.nf||'',
         o.inicio||'', o.termino||'',
         o.data_art ? isoToBr(o.data_art) : '',
@@ -2974,6 +2981,55 @@ export default function App() {
     URL.revokeObjectURL(url)
   }
 
+  async function processarCorrecaoPC() {
+    if (!corrigirPCArquivo) return
+    setCorrigirPCProcessando(true)
+    setCorrigirPCErro('')
+    try {
+      const buf = await corrigirPCArquivo.arrayBuffer()
+      const wb = XLSX.read(buf, { type: 'array' })
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      const linhas = XLSX.utils.sheet_to_json(sheet, { defval: '' })
+      const pcPorCodigo = {}
+      linhas.forEach(l => {
+        const codigo = String(l['Código'] || '').trim()
+        const pc = String(l['AtributosId_NdoPC'] || '').trim()
+        if (codigo && pc) pcPorCodigo[codigo] = pc
+      })
+      const encontrados = []
+      obras.forEach(o => {
+        if (!TIPOS_BDN.includes(o.tipo)) return
+        const codigo = String(o.sige || '').trim()
+        if (!codigo || !pcPorCodigo[codigo]) return
+        const novoPc = pcPorCodigo[codigo]
+        if (novoPc === (o.numero_pc || '')) return
+        encontrados.push({ id: o.id, nome: o.nome, tipo: o.tipo, sige: codigo, numeroPcAtual: o.numero_pc || '', numeroPcNovo: novoPc })
+      })
+      setCorrigirPCPreview(encontrados)
+    } catch (e) {
+      setCorrigirPCErro('Erro ao ler a planilha: ' + e.message)
+    }
+    setCorrigirPCProcessando(false)
+  }
+
+  async function confirmarCorrecaoPC() {
+    if (!corrigirPCPreview || corrigirPCPreview.length === 0) return
+    setCorrigirPCSalvando(true)
+    const linhas = corrigirPCPreview.map(c => ({ id: c.id, numero_pc: c.numeroPcNovo }))
+    const { error } = await supabase.from('pipeline_obras').upsert(linhas, { onConflict: 'id' })
+    if (error) {
+      setCorrigirPCErro('Erro ao salvar: ' + error.message)
+    } else {
+      const porId = {}
+      corrigirPCPreview.forEach(c => { porId[c.id] = c.numeroPcNovo })
+      setObras(prev => prev.map(o => porId[o.id] != null ? { ...o, numero_pc: porId[o.id] } : o))
+      setModalCorrigirPC(false)
+      setCorrigirPCArquivo(null)
+      setCorrigirPCPreview(null)
+    }
+    setCorrigirPCSalvando(false)
+  }
+
   return (
     <div style={estilo}>
       {/* Header */}
@@ -2993,6 +3049,12 @@ export default function App() {
             <button onClick={exportarCSV}
               style={{ background:'#0E4D73', border:'none', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', padding:'6px 12px', borderRadius:8 }}>
               ↓ Excel
+            </button>
+          )}
+          {papel === 'admin' && (
+            <button onClick={() => setModalCorrigirPC(true)}
+              style={{ background:'none', border:'1px solid rgba(255,255,255,.3)', color:'rgba(255,255,255,.75)', fontSize:11, fontWeight:700, cursor:'pointer', padding:'6px 10px', borderRadius:8 }}>
+              🔧 PC/BDN
             </button>
           )}
           {papel && <span style={{ fontSize:10, color:'rgba(255,255,255,.5)', textTransform:'uppercase' }}>{papel}</span>}
@@ -4200,9 +4262,9 @@ export default function App() {
                     </div>
                     <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
                       {TIPOS_BDN.includes(obra.tipo) && (
-                        obra.sige ? (
+                        (obra.numero_pc || obra.sige) ? (
                           <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#1A2340', color:'#fff' }}>
-                            {obra.rede === 'BRADESCO' ? 'BDN' : 'PC'} {obra.sige}
+                            {obra.rede === 'BRADESCO' ? 'BDN' : 'PC'} {obra.numero_pc || obra.sige}
                           </span>
                         ) : (
                           <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FEE2E2', color:'#991B1B' }}>
@@ -4409,6 +4471,67 @@ export default function App() {
 
 
       </> /* fim aba pipeline */}
+
+      {/* Modal Corrigir PC/BDN */}
+      {modalCorrigirPC && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:100, display:'flex', alignItems:'flex-end' }}
+          onClick={e => { if (e.target === e.currentTarget) { setModalCorrigirPC(false); setCorrigirPCPreview(null); setCorrigirPCArquivo(null); setCorrigirPCErro('') } }}>
+          <div style={{ background:'#fff', borderRadius:'16px 16px 0 0', padding:20, width:'100%', maxHeight:'90vh', overflowY:'auto' }}>
+            <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:6 }}>Corrigir número do PC/BDN</div>
+            <div style={{ fontSize:12, color:'#64748B', marginBottom:14 }}>
+              Sobe o relatório do SIGE Cloud (Vendas → Pedidos e Orçamentos) com as colunas "Código" e "Atributo N.º do PC". Casa pelo Código (já salvo em cada obra de movimentação) e corrige o número de PC/BDN mostrado no card - não mexe em status nem cria obra nova.
+            </div>
+            <input type="file" accept=".xlsx,.xls" onChange={e => { setCorrigirPCArquivo(e.target.files?.[0] || null); setCorrigirPCPreview(null) }}
+              style={{ width:'100%', fontSize:12, marginBottom:12 }} />
+            {corrigirPCErro && <div style={{ fontSize:12, color:'#991B1B', marginBottom:10 }}>{corrigirPCErro}</div>}
+            <button onClick={processarCorrecaoPC} disabled={corrigirPCProcessando || !corrigirPCArquivo}
+              style={{ padding:'9px 16px', background: (corrigirPCProcessando || !corrigirPCArquivo) ? '#ccc' : '#0E4D73', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer', marginBottom:14 }}>
+              {corrigirPCProcessando ? 'Lendo planilha...' : 'Processar planilha'}
+            </button>
+
+            {corrigirPCPreview && (
+              <>
+                <div style={{ fontSize:13, fontWeight:700, color:'#1A2340', marginBottom:10 }}>
+                  {corrigirPCPreview.length === 0 ? 'Nenhuma obra pra corrigir' : `${corrigirPCPreview.length} obra(s) com PC/BDN pra corrigir`}
+                </div>
+                {corrigirPCPreview.length > 0 && (
+                  <div style={{ overflowX:'auto', marginBottom:14 }}>
+                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                      <thead>
+                        <tr style={{ background:'#F8FAFC', textAlign:'left' }}>
+                          {['Obra','Código SIGE','PC/BDN atual','PC/BDN correto'].map(h => (
+                            <th key={h} style={{ padding:'6px 8px', borderBottom:'1px solid #E0E8F0' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {corrigirPCPreview.map(c => (
+                          <tr key={c.id} style={{ borderBottom:'1px solid #F1F5F9' }}>
+                            <td style={{ padding:'6px 8px' }}>{c.nome}</td>
+                            <td style={{ padding:'6px 8px' }}>{c.sige}</td>
+                            <td style={{ padding:'6px 8px', color: c.numeroPcAtual ? '#991B1B' : '#94A3B8' }}>{c.numeroPcAtual || '—'}</td>
+                            <td style={{ padding:'6px 8px', color:'#065F46', fontWeight:700 }}>{c.numeroPcNovo}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {corrigirPCPreview.length > 0 && (
+                  <button onClick={confirmarCorrecaoPC} disabled={corrigirPCSalvando}
+                    style={{ width:'100%', padding:12, background: corrigirPCSalvando ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', marginBottom:8 }}>
+                    {corrigirPCSalvando ? 'Salvando...' : `Corrigir ${corrigirPCPreview.length} obra(s)`}
+                  </button>
+                )}
+              </>
+            )}
+            <button onClick={() => { setModalCorrigirPC(false); setCorrigirPCPreview(null); setCorrigirPCArquivo(null); setCorrigirPCErro('') }}
+              style={{ width:'100%', padding:11, background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:12, fontSize:13, cursor:'pointer' }}>
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal Nova Obra */}
       {modalNovaObra && (
