@@ -1363,6 +1363,7 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
   const [novoDescontoValor, setNovoDescontoValor] = useState('')
   const [novoDescontoObs, setNovoDescontoObs] = useState('')
   const [novoDescontoParcelas, setNovoDescontoParcelas] = useState('1')
+  const [novoDescontoValorOriginal, setNovoDescontoValorOriginal] = useState('')
 
   const vencimentoAso = somaAnos(c.data_aso, 1)
   const statusAso = statusVencimento(vencimentoAso)
@@ -1620,10 +1621,13 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
               </select>
               <input type="month" value={novoDescontoMes} onChange={e => setNovoDescontoMes(e.target.value)}
                 title="Mês da 1ª parcela" style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+              <input value={novoDescontoValorOriginal} onChange={e => setNovoDescontoValorOriginal(e.target.value)}
+                title="Valor cheio da multa, antes do desconto - só pra registro, não é o que é parcelado"
+                placeholder="Valor original (opcional)" style={{ width:150, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
               <input value={novoDescontoValor} onChange={e => setNovoDescontoValor(e.target.value)}
-                placeholder="Valor total (ex: 116,94 ou 27,8%)" style={{ width:170, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+                placeholder="Valor c/ desconto (ex: 116,94 ou 27,8%)" style={{ width:190, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
               <input type="number" min="1" value={novoDescontoParcelas} onChange={e => setNovoDescontoParcelas(e.target.value)}
-                title="Número de parcelas - divide o valor e já cria uma linha por mês" placeholder="Parcelas"
+                title="Número de parcelas - divide o valor com desconto e já cria uma linha por mês" placeholder="Parcelas"
                 style={{ width:80, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
               <input value={novoDescontoObs} onChange={e => setNovoDescontoObs(e.target.value)}
                 placeholder="Obs (opcional)" style={{ flex:1, minWidth:120, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
@@ -1632,11 +1636,16 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
                 const valorDigitado = novoDescontoValor.trim()
                 const numParcelas = Math.max(1, parseInt(novoDescontoParcelas) || 1)
                 const obsBase = novoDescontoObs.trim()
+                const valorOriginal = novoDescontoValorOriginal.trim()
+                const prefixoOriginal = valorOriginal ? `Valor original R$ ${valorOriginal}` : ''
+                const juntaObs = (...partes) => partes.filter(Boolean).join(' — ') || null
                 if (numParcelas <= 1 || valorDigitado.includes('%')) {
-                  onUpdate({ descontos: [...descontos, { motivo: novoDescontoMotivo, mes: novoDescontoMes, valor: valorDigitado, observacao: obsBase || null }] })
+                  onUpdate({ descontos: [...descontos, { motivo: novoDescontoMotivo, mes: novoDescontoMes, valor: valorDigitado, observacao: juntaObs(prefixoOriginal, obsBase) }] })
                 } else {
-                  // divide o valor total em centavos pra não perder/sobrar centavo por
-                  // arredondamento - a última parcela absorve a diferença.
+                  // divide o valor com desconto em centavos pra não perder/sobrar centavo
+                  // por arredondamento - a última parcela absorve a diferença. O valor
+                  // ORIGINAL (cheio, sem desconto) só entra na observação, de registro -
+                  // quem é parcelado é sempre o valor já com desconto.
                   const centavosTotais = Math.round((Number(valorDigitado.replace(',', '.')) || 0) * 100)
                   const centavosPorParcela = Math.floor(centavosTotais / numParcelas)
                   let restante = centavosTotais
@@ -1648,12 +1657,12 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
                       motivo: novoDescontoMotivo,
                       mes: somaMeses(novoDescontoMes, p),
                       valor: (centavos / 100).toFixed(2).replace('.', ','),
-                      observacao: `${numParcelas}x (parcela ${p + 1}/${numParcelas})${obsBase ? ` — ${obsBase}` : ''}`,
+                      observacao: juntaObs(prefixoOriginal, `${numParcelas}x (parcela ${p + 1}/${numParcelas})`, obsBase),
                     })
                   }
                   onUpdate({ descontos: [...descontos, ...novasLinhas] })
                 }
-                setNovoDescontoMes(''); setNovoDescontoValor(''); setNovoDescontoObs(''); setNovoDescontoParcelas('1')
+                setNovoDescontoMes(''); setNovoDescontoValorOriginal(''); setNovoDescontoValor(''); setNovoDescontoObs(''); setNovoDescontoParcelas('1')
               }} style={{ padding:'6px 12px', background:'#9A3412', color:'#fff', border:'none', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer' }}>+ Adicionar</button>
             </div>
           </div>
