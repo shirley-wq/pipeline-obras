@@ -2852,6 +2852,7 @@ export default function App() {
       const bate = o.nome.toLowerCase().includes(b) || (o.local||'').toLowerCase().includes(b)
         || (o.cidade||'').toLowerCase().includes(b) || (o.uf||'').toLowerCase().includes(b)
         || (o.os_tecban||'').toLowerCase().includes(b) || (o.pedido||'').toLowerCase().includes(b)
+        || (o.sige||'').toLowerCase().includes(b) || (o.numero_pc||'').toLowerCase().includes(b)
       if (!bate) return false
     }
     if (filtroDe || filtroAte) {
