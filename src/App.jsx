@@ -1248,8 +1248,8 @@ function SidebarRH({ ativa, onChange, totalColaboradores, totalHolerites }) {
   const itens = [
     { id:'colaboradores', label:'Colaboradores', count: totalColaboradores },
     { id:'fechamento', label:'Fechamento de Ponto', count:null },
-    { id:'holerites', label:'Holerites', count: totalHolerites },
-    { id:'horas_extras', label:'Horas Extras', count:null },
+    { id:'holerites', label:'Pagamentos realizados', count: totalHolerites },
+    { id:'horas_extras', label:'Holerites', count:null },
   ]
   return (
     <div style={{ width:170, flexShrink:0, background:'#fff', borderRight:'1px solid #E0E8F0', minHeight:'70vh' }}>
@@ -3694,7 +3694,7 @@ export default function App() {
           <SidebarRH ativa={rhSubaba} onChange={setRhSubaba} totalColaboradores={rhColaboradores.length} totalHolerites={holeritesSalvos.length} />
           <div style={{ flex:1, minWidth:0, padding:14 }}>
           <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:16 }}>
-            <div style={{ fontSize:13, fontWeight:700, color:'#1A2340', marginBottom:10 }}>📥 Importar holerites do mês (.pdf)</div>
+            <div style={{ fontSize:13, fontWeight:700, color:'#1A2340', marginBottom:10 }}>📥 Importar pagamentos realizados do mês (.pdf)</div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
               <div>
                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Base</label>
@@ -3848,7 +3848,7 @@ export default function App() {
         <div style={{ display:'flex', alignItems:'flex-start' }}>
           <SidebarRH ativa={rhSubaba} onChange={setRhSubaba} totalColaboradores={rhColaboradores.length} totalHolerites={holeritesSalvos.length} />
           <div style={{ flex:1, minWidth:0, padding:14 }}>
-            <div style={{ fontSize:13, fontWeight:700, color:'#1A2340', marginBottom:10 }}>Horas Extras — histórico por colaborador</div>
+            <div style={{ fontSize:13, fontWeight:700, color:'#1A2340', marginBottom:10 }}>Holerites — histórico por colaborador</div>
             <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginBottom:16 }}>
               <select value={horasExtrasColaboradorId} onChange={e => { setHorasExtrasColaboradorId(e.target.value); setHorasExtrasMes('') }}
                 style={{ flex:'1 1 260px', maxWidth:380, padding:'9px 12px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', background:'#fff', boxSizing:'border-box' }}>
