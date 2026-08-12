@@ -1911,7 +1911,7 @@ export default function App() {
   const [entregaveisVistoria, setEntregaveisVistoria] = useState([])
   const [novoLembreteEtapa, setNovoLembreteEtapa] = useState('')
   const [novoLembreteTexto, setNovoLembreteTexto] = useState('')
-  const [editDados, setEditDados] = useState({ nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'' })
+  const [editDados, setEditDados] = useState({ nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'' })
   const [adesivos, setAdesivos] = useState([])
   const [vidros, setVidros] = useState([])
   const [novoVidro, setNovoVidro] = useState('')
@@ -2720,6 +2720,7 @@ export default function App() {
       uf: editDados.uf || null,
       valor: editDados.valor !== '' ? parseFloat(String(editDados.valor).replace(',', '.')) || 0 : null,
       sige: editDados.sige || null,
+      numero_pc: editDados.numero_pc || null,
       pedido: editDados.pedido || null,
       nf: editDados.nf || null,
       os_tecban: editDados.os_tecban || null,
@@ -2791,7 +2792,7 @@ export default function App() {
     setItensEspeciais([])
     setBiomboFila('')
     setPortaGiratoria('')
-    setEditDados({ nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'' })
+    setEditDados({ nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'' })
     setDataCadastroModal('')
     setDataVistoria('')
     setColabsVistoria([])
@@ -4512,7 +4513,7 @@ export default function App() {
                         setItensEspeciais(Array.isArray(obra.itens_especiais) ? obra.itens_especiais : [])
                         setBiomboFila(obra.biombo_fila != null ? String(obra.biombo_fila) : '')
                         setPortaGiratoria(obra.porta_giratoria != null ? String(obra.porta_giratoria) : '')
-                        setEditDados({ nome: obra.nome||'', endereco: obra.endereco||'', cidade: obra.cidade||'', uf: obra.uf||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', pedido: obra.pedido||'', nf: obra.nf||'', os_tecban: obra.os_tecban||'', pedido_valor: obra.pedido_valor!=null ? String(obra.pedido_valor) : '', pedido_os: obra.pedido_os||'', pedido_cnpj: obra.pedido_cnpj||'' })
+                        setEditDados({ nome: obra.nome||'', endereco: obra.endereco||'', cidade: obra.cidade||'', uf: obra.uf||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', numero_pc: obra.numero_pc||'', pedido: obra.pedido||'', nf: obra.nf||'', os_tecban: obra.os_tecban||'', pedido_valor: obra.pedido_valor!=null ? String(obra.pedido_valor) : '', pedido_os: obra.pedido_os||'', pedido_cnpj: obra.pedido_cnpj||'' })
                         setDataCadastroModal(obra.data_cadastro || '')
                         setDataVistoria(obra.data_vistoria || '')
                         const listaVistoria = Array.isArray(obra.colaboradores_vistoria) ? obra.colaboradores_vistoria : []
@@ -4764,7 +4765,7 @@ export default function App() {
                     style={{ width:'100%', padding:'8px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', textTransform:'uppercase' }} />
                 </div>
               </div>
-              <div style={{ display:'grid', gridTemplateColumns: podeVerValores ? '1fr 1fr 1fr 1fr 1fr' : '1fr 1fr 1fr 1fr', gap:8 }}>
+              <div style={{ display:'grid', gridTemplateColumns: `repeat(${(podeVerValores?1:0) + (TIPOS_BDN.includes(modal.tipo)?1:0) + 4}, 1fr)`, gap:8 }}>
                 {podeVerValores && (
                 <div>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Valor (R$)</label>
@@ -4777,6 +4778,13 @@ export default function App() {
                   <input value={editDados.sige} onChange={e => setEditDados(d => ({...d, sige:e.target.value}))}
                     style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                 </div>
+                {TIPOS_BDN.includes(modal.tipo) && (
+                <div>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>PC/BDN</label>
+                  <input value={editDados.numero_pc} onChange={e => setEditDados(d => ({...d, numero_pc:e.target.value}))}
+                    style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+                )}
                 <div>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>OS Tecban</label>
                   <input value={editDados.os_tecban} onChange={e => setEditDados(d => ({...d, os_tecban:e.target.value}))}
