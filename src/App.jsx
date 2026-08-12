@@ -1367,6 +1367,7 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
   const [novoDescontoValorOriginal, setNovoDescontoValorOriginal] = useState('')
   const [novoDescontoRenainf, setNovoDescontoRenainf] = useState('')
   const [novoDescontoRenainfOriginal, setNovoDescontoRenainfOriginal] = useState('')
+  const [ocultarMultasDesconto, setOcultarMultasDesconto] = useState(false)
 
   const vencimentoAso = somaAnos(c.data_aso, 1)
   const statusAso = statusVencimento(vencimentoAso)
@@ -1604,20 +1605,34 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
           </div>
 
           <div>
-            <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>💰 Descontos/benefícios ({descontos.length})</label>
-            {descontos.length > 0 && (
-              <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:6 }}>
-                {descontos.map((d, idx) => (
-                  <div key={idx} style={{ display:'flex', alignItems:'center', gap:6, background:'#F0F4F8', borderRadius:6, padding:'5px 10px' }}>
-                    <span style={{ fontSize:12, color:'#1A2340', flex:1 }}>
-                      {rubricaLabel(d.motivo)} — {mesLabel(d.mes)} — {d.valor}{d.observacao ? ` (${d.observacao})` : ''}
-                      {d.renainf ? ` · RENAINF ${d.renainf}` : ''}{d.renainf_original ? ` (orig. ${d.renainf_original})` : ''}
-                    </span>
-                    <span onClick={() => onUpdate({ descontos: descontos.filter((_, i) => i !== idx) })} style={{ fontSize:12, color:'#EF4444', cursor:'pointer', fontWeight:700 }}>✕</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:6, marginBottom:5 }}>
+              <label style={{ fontSize:10, color:'#888', textTransform:'uppercase' }}>💰 Descontos/benefícios ({descontos.length})</label>
+              <label style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'#64748B', cursor:'pointer' }}>
+                <input type="checkbox" checked={ocultarMultasDesconto} onChange={e => setOcultarMultasDesconto(e.target.checked)} />
+                Ocultar multas
+              </label>
+            </div>
+            {descontos.length > 0 && (() => {
+              const descontosVisiveis = descontos
+                .map((d, idx) => ({ d, idx }))
+                .filter(({ d }) => !ocultarMultasDesconto || d.motivo !== 'MULTA')
+              if (descontosVisiveis.length === 0) {
+                return <div style={{ fontSize:11, color:'#94A3B8', marginBottom:6 }}>Só tem multa lançada, e está oculta.</div>
+              }
+              return (
+                <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:6 }}>
+                  {descontosVisiveis.map(({ d, idx }) => (
+                    <div key={idx} style={{ display:'flex', alignItems:'center', gap:6, background:'#F0F4F8', borderRadius:6, padding:'5px 10px' }}>
+                      <span style={{ fontSize:12, color:'#1A2340', flex:1 }}>
+                        {rubricaLabel(d.motivo)} — {mesLabel(d.mes)} — {d.valor}{d.observacao ? ` (${d.observacao})` : ''}
+                        {d.renainf ? ` · RENAINF ${d.renainf}` : ''}{d.renainf_original ? ` (orig. ${d.renainf_original})` : ''}
+                      </span>
+                      <span onClick={() => onUpdate({ descontos: descontos.filter((_, i) => i !== idx) })} style={{ fontSize:12, color:'#EF4444', cursor:'pointer', fontWeight:700 }}>✕</span>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
             <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
               <select value={novoDescontoMotivo} onChange={e => setNovoDescontoMotivo(e.target.value)}
                 style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340', background:'#fff' }}>
