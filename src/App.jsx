@@ -2928,14 +2928,21 @@ export default function App() {
   const despesasPorObraLista = Object.values(despesasPorObraMap).sort((a, b) => b.total - a.total)
 
   function exportarCSV() {
-    const cab = ['Tipo','Nome','Local','Status','Valor','SIGE','Pedido','NF','Início','Término','ART pronta','Em negociação','Observação','Post-its Régua','Data Entrada Pipeline','Dias no Pipeline','Vidros','Divisórias','Itens Especiais','Biombo de Fila','Porta Giratória','Atualizado por','Atualizado em']
+    const cab = ['Tipo','Nome','Local','Status','Valor','SIGE','PC/BDN','Pedido','NF','Início','Término','ART pronta','Em negociação','Observação','Post-its Régua','Data Entrada Pipeline','Dias no Pipeline','Vidros','Divisórias','Itens Especiais','Biombo de Fila','Porta Giratória','Atualizado por','Atualizado em']
     const esc = v => { const s = String(v ?? ''); return (s.includes(';') || s.includes('"') || s.includes('\n')) ? `"${s.replace(/"/g,'""')}"` : s }
     const linhas = obrasFiltradas.map(o => {
       const d = diasNoPipeline(o.data_cadastro)
+      const ehMovimentacao = TIPOS_BDN.includes(o.tipo)
       return [
         o.tipo, o.nome, o.local||'', o.status,
         Number(o.valor||0).toFixed(2).replace('.',','),
-        o.sige||'', o.pedido||'', o.nf||'',
+        // O campo "sige" no banco guarda a SIGE de verdade pra obra normal, mas guarda
+        // o número do PC/BDN pra obra de movimentação (importado do SIGE assim desde
+        // 06/08) - não são a mesma coisa, então cada tipo sai numa coluna diferente
+        // pra não misturar os dois na mesma planilha (ver [[projeto-instalacao-atm]]).
+        ehMovimentacao ? '' : (o.sige||''),
+        ehMovimentacao ? (o.sige||'') : '',
+        o.pedido||'', o.nf||'',
         o.inicio||'', o.termino||'',
         o.data_art ? isoToBr(o.data_art) : '',
         o.em_negociacao ? 'Sim' : '',
