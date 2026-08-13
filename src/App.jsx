@@ -3168,13 +3168,23 @@ export default function App() {
   async function confirmarCorrecaoPC() {
     if (!corrigirPCPreview || corrigirPCPreview.length === 0) return
     setCorrigirPCSalvando(true)
-    const linhas = corrigirPCPreview.map(c => ({ id: c.id, numero_pc: c.numeroPcNovo }))
-    const { error } = await supabase.from('pipeline_obras').upsert(linhas, { onConflict: 'id' })
-    if (error) {
-      setCorrigirPCErro('Erro ao salvar: ' + error.message)
+    const TAMANHO_LOTE = 20
+    let erroGeral = null
+    const corrigidos = []
+    for (let i = 0; i < corrigirPCPreview.length; i += TAMANHO_LOTE) {
+      const lote = corrigirPCPreview.slice(i, i + TAMANHO_LOTE)
+      const resultados = await Promise.all(lote.map(c =>
+        supabase.from('pipeline_obras').update({ numero_pc: c.numeroPcNovo }).eq('id', c.id)
+      ))
+      const comErro = resultados.find(r => r.error)
+      if (comErro) { erroGeral = comErro.error; break }
+      corrigidos.push(...lote)
+    }
+    if (erroGeral) {
+      setCorrigirPCErro(`Erro ao salvar (${corrigidos.length} de ${corrigirPCPreview.length} já corrigidas antes do erro): ` + erroGeral.message)
     } else {
       const porId = {}
-      corrigirPCPreview.forEach(c => { porId[c.id] = c.numeroPcNovo })
+      corrigidos.forEach(c => { porId[c.id] = c.numeroPcNovo })
       setObras(prev => prev.map(o => porId[o.id] != null ? { ...o, numero_pc: porId[o.id] } : o))
       setModalCorrigirPC(false)
       setCorrigirPCArquivo(null)
