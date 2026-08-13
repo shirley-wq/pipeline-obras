@@ -1178,6 +1178,52 @@ const ETAPAS_BDN_BRADESCO = ['OS ABERTA', 'VISTORIA', 'AGENDAMENTO', 'OPERAÇÃO
 // transformação da agência em si - podem coexistir na mesma agência, com OS/contrato separados).
 const TIPOS_BDN = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM', 'REMANEJAMENTO ATM', 'SINALIZAÇÃO ATM', 'MANUTENÇÃO ATM']
 
+// ===== Importação de obras novas de movimentação a partir do relatório "ReportPersonalizado" do SIGE =====
+// (alinhado com a Shirley em 2026-08-12, mesma família de regras da importação de 06-07/08)
+const REDE_24H_VARIANTES_SIGE = ['BANCO24HORAS', 'BANCXO24HORAS', 'B24HS', 'BANCO24OHRAS', 'BRANCO24HORAS', 'BANC24HORAS', 'B24HORAS', 'BANCO 24 HORAS']
+function normalizaRedeImportacaoSige(bruto) {
+  const s = String(bruto || '').toUpperCase().trim()
+  if (!s) return null
+  if (REDE_24H_VARIANTES_SIGE.includes(s)) return 'BANCO24HORAS'
+  if (s === 'AGINBANK') return 'AGIBANK'
+  return s
+}
+// null = exclui (OBRAS/PINTURA/INFRA), undefined = não reconhecido (exclui e reporta separado).
+// "VISTORIA" isolada vira INSTALAÇÃO ATM (decisão da Shirley 2026-08-12 - a fase de vistoria tem
+// Código de SIGE próprio, separado da obra de movimentação; tratar como instalação evita duplicar
+// depois quando a movimentação de verdade também virar obra).
+function classificaTipoMovimentacaoSige(bruto) {
+  const s = String(bruto || '').toUpperCase()
+  if (s.includes('VISTOR')) return 'INSTALAÇÃO ATM'
+  if (s.includes('OBRA')) return null
+  if (s.includes('PINTURA')) return null
+  if (s.includes('INFRA') || s.includes('ELETR') || s.includes('ELÉTR')) return null
+  if (s.includes('DESATIV')) return 'DESATIVAÇÃO ATM'
+  if (s.includes('SUBST') || s.includes('SUSBT') || s.includes('SUBSIT')) return 'SUBSTITUIÇÃO ATM'
+  if (s.includes('REMANEJ')) return 'REMANEJAMENTO ATM'
+  if (s.includes('SINALIZ')) return 'SINALIZAÇÃO ATM'
+  if (s.includes('MANUTEN')) return 'MANUTENÇÃO ATM'
+  if (s.includes('INSTAL') || s.includes('INSTA') || s.includes('REINSTAL')) return 'INSTALAÇÃO ATM'
+  return undefined
+}
+const STATUS_MOVIMENTACAO_NAO_BRADESCO_SIGE = {
+  'BOOK DE VISTORIA ENVIADO': 'BOOK FOTOGRÁFICO', 'EMITIR NF': 'EMITIR NF', 'RM ENVIADA': 'RM ENVIADA',
+  'AGENDADO': 'AGENDAMENTO', 'ELABORAR RM': 'ELABORAR RM', 'AGUARDANDO AGENDAMENTO': 'OS ABERTA',
+  'PEDIDO ERRADO PEDIMOS CORREÇÃO': 'AGUARDANDO OS TECBAN', 'AGUARDANDO N DA ORDEM': 'AGUARDANDO OS TECBAN',
+  'ORÇAMENTO ENVIADO AGUARDANDO APROVAÇÃO': 'OS ABERTA', 'FATURADO': 'NF EMITIDO',
+}
+const STATUS_MOVIMENTACAO_BRADESCO_SIGE = {
+  'BOOK DE VISTORIA ENVIADO': 'VISTORIA', 'EMITIR NF': 'EMITIR NF', 'RM ENVIADA': 'RM ENVIADA',
+  'AGENDADO': 'AGENDAMENTO', 'ELABORAR RM': 'ELABORAR RM', 'AGUARDANDO AGENDAMENTO': 'OS ABERTA',
+  'PEDIDO ERRADO PEDIMOS CORREÇÃO': 'AGUARDANDO PEDIDO', 'AGUARDANDO N DA ORDEM': 'AGUARDANDO OS',
+  'ORÇAMENTO ENVIADO AGUARDANDO APROVAÇÃO': 'OS ABERTA', 'FATURADO': 'NF EMITIDO',
+}
+function excelSerialParaIso(serial) {
+  const n = Number(serial)
+  if (!n || isNaN(n)) return null
+  return new Date((n - 25569) * 86400 * 1000).toISOString().slice(0, 10)
+}
+
 const STATUS_ETAPA1_DONE = ['EM ANDAMENTO','VISTORIA REALIZADA ELABORAR BOOK E ORÇAMENTO','BOOK E ORÇAMENTOS ENVIADOS','ORÇAMENTO APROVADO/REPROVADO','OBRA EMITIR ART','DCM E TERMOS ENTREGUES AO CAMPO','TERMOS E DCMS ASSINADOS','BDNS, MOBILIÁRIOS E EQUIPAMENTO REMOVIDOS','FOTOS DO AMBIENTE VAZIO','ELABORAR QRCODE OU BOOK DE CONCLUSÃO','ELABORAR BOOK','BOOK PENDENTE','BOOK DE CONCLUSÃO','QR CODE','AGUARDANDO OS TECBAN','ELABORAR RM','RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM','EMITIR NF','NF EMITIDO','Em andamento','Conclusão','Faturamento']
 const STATUS_ETAPA2_DONE = ['AGUARDANDO OS TECBAN','ELABORAR RM','RM ENVIADA','RM ENVIADA (ART)','RM PRONTA AGUARDANDO ORDEM','EMITIR NF','NF EMITIDO','Conclusão','Faturamento']
 const STATUS_ETAPA3_DONE = ['NF EMITIDO','Faturamento']
@@ -2021,6 +2067,12 @@ export default function App() {
   const [corrigirPCErro, setCorrigirPCErro] = useState('')
   const [corrigirPCPreview, setCorrigirPCPreview] = useState(null)
   const [corrigirPCSalvando, setCorrigirPCSalvando] = useState(false)
+  const [modalImportarNovas, setModalImportarNovas] = useState(false)
+  const [importarNovasArquivo, setImportarNovasArquivo] = useState(null)
+  const [importarNovasProcessando, setImportarNovasProcessando] = useState(false)
+  const [importarNovasErro, setImportarNovasErro] = useState('')
+  const [importarNovasPreview, setImportarNovasPreview] = useState(null)
+  const [importarNovasSalvando, setImportarNovasSalvando] = useState(false)
   const [horasExtrasColaboradorId, setHorasExtrasColaboradorId] = useState('')
   const [horasExtrasNomeDigitado, setHorasExtrasNomeDigitado] = useState('')
   const [horasExtrasMesDe, setHorasExtrasMesDe] = useState('')
@@ -3131,6 +3183,92 @@ export default function App() {
     setCorrigirPCSalvando(false)
   }
 
+  async function processarImportacaoNovas() {
+    if (!importarNovasArquivo) return
+    setImportarNovasProcessando(true)
+    setImportarNovasErro('')
+    try {
+      const buf = await importarNovasArquivo.arrayBuffer()
+      const wb = XLSX.read(buf, { type: 'array' })
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      const linhasPlanilha = XLSX.utils.sheet_to_json(sheet, { defval: '' })
+      const sigesExistentes = new Set(obras.map(o => (o.sige || '').trim()).filter(Boolean))
+      const naoClassificados = {}
+      let excluidosPorTipo = 0
+      const candidatos = []
+      linhasPlanilha.forEach(l => {
+        const codigo = String(l['Código'] || '').trim()
+        if (!codigo || sigesExistentes.has(codigo)) return
+        const tipo = classificaTipoMovimentacaoSige(l['AtributosId_TIPODESERVICO'])
+        if (tipo === null) { excluidosPorTipo++; return }
+        if (tipo === undefined) {
+          const chave = String(l['AtributosId_TIPODESERVICO'] || '(vazio)').trim()
+          naoClassificados[chave] = (naoClassificados[chave] || 0) + 1
+          return
+        }
+        const rede = normalizaRedeImportacaoSige(l['AtributosId_REDE'])
+        const ehBradesco = rede === 'BRADESCO'
+        const statusBruto = String(l['Status'] || '').trim().toUpperCase()
+        const mapa = ehBradesco ? STATUS_MOVIMENTACAO_BRADESCO_SIGE : STATUS_MOVIMENTACAO_NAO_BRADESCO_SIGE
+        const status = mapa[statusBruto] || 'OS ABERTA'
+
+        let cidade = String(l['AtributosId_CIDADE'] || '').trim()
+        const uf = String(l['AtributosId_UF'] || '').trim()
+        cidade = cidade.replace(new RegExp(`\\s*-\\s*${uf}$`, 'i'), '').trim()
+        let nome = String(l['AtributosId_NomedoPC'] || '').trim()
+        if (!nome || nome === 'NA' || nome === 'ND') nome = cidade || codigo
+
+        const pedidoBruto = String(l['AtributosId_PedidoTB'] || '').trim()
+        const pedido = /^\d+$/.test(pedidoBruto) ? pedidoBruto : null
+        const nfBruto = String(l['AtributosId_NF'] || '').trim()
+        const nf = /^\d+$/.test(nfBruto) ? nfBruto : null
+        const osTecban = String(l['AtributosId_OrdemdeservicosTB'] || '').trim() || null
+        const valor = Number(l['Valor Total']) || 0
+        const dataCadastro = excelSerialParaIso(l['Data']) || excelSerialParaIso(l['AtributosId_DATAINICIO']) || new Date().toISOString().slice(0, 10)
+        const redeOriginal = String(l['AtributosId_REDE'] || '').trim()
+
+        candidatos.push({
+          tipo, rede, status, nome, cidade, uf, sige: codigo, pedido, nf, os_tecban: osTecban, valor, data_cadastro: dataCadastro,
+          obs: `Importado do relatório SIGE (${new Date().toLocaleDateString('pt-BR')}) - tipo original: ${l['AtributosId_TIPODESERVICO'] || '—'} - status original: ${l['Status'] || '—'}${rede !== redeOriginal ? ` - rede original: ${redeOriginal}` : ''}`,
+        })
+        sigesExistentes.add(codigo)
+      })
+      setImportarNovasPreview({ candidatos, excluidosPorTipo, naoClassificados })
+    } catch (e) {
+      setImportarNovasErro('Erro ao ler a planilha: ' + e.message)
+    }
+    setImportarNovasProcessando(false)
+  }
+
+  async function confirmarImportacaoNovas() {
+    if (!importarNovasPreview || importarNovasPreview.candidatos.length === 0) return
+    setImportarNovasSalvando(true)
+    const linhas = importarNovasPreview.candidatos.map(c => ({
+      tipo: c.tipo, nome: c.nome, local: montaLocal(c.cidade, c.uf), cidade: c.cidade || null, uf: c.uf || null,
+      valor: c.valor, sige: c.sige, pedido: c.pedido, nf: c.nf, os_tecban: c.os_tecban, status: c.status, rede: c.rede,
+      data_cadastro: c.data_cadastro, obs: c.obs, criado_por: usuario?.email || null, atualizado_por: usuario?.email || null,
+      atualizado_em: new Date().toISOString(),
+    }))
+    const TAMANHO_LOTE = 200
+    let erroGeral = null
+    const inseridos = []
+    for (let i = 0; i < linhas.length; i += TAMANHO_LOTE) {
+      const lote = linhas.slice(i, i + TAMANHO_LOTE)
+      const { data, error } = await supabase.from('pipeline_obras').insert(lote).select()
+      if (error) { erroGeral = error; break }
+      inseridos.push(...(data || []))
+    }
+    if (erroGeral) {
+      setImportarNovasErro(`Erro ao salvar (${inseridos.length} de ${linhas.length} já inseridas antes do erro): ` + erroGeral.message)
+    } else {
+      setObras(prev => ordenaObras([...prev, ...inseridos]))
+      setModalImportarNovas(false)
+      setImportarNovasArquivo(null)
+      setImportarNovasPreview(null)
+    }
+    setImportarNovasSalvando(false)
+  }
+
   return (
     <div style={estilo}>
       {/* Header */}
@@ -3156,6 +3294,12 @@ export default function App() {
             <button onClick={() => setModalCorrigirPC(true)}
               style={{ background:'none', border:'1px solid rgba(255,255,255,.3)', color:'rgba(255,255,255,.75)', fontSize:11, fontWeight:700, cursor:'pointer', padding:'6px 10px', borderRadius:8 }}>
               🔧 PC/BDN
+            </button>
+          )}
+          {papel === 'admin' && (
+            <button onClick={() => setModalImportarNovas(true)}
+              style={{ background:'none', border:'1px solid rgba(255,255,255,.3)', color:'rgba(255,255,255,.75)', fontSize:11, fontWeight:700, cursor:'pointer', padding:'6px 10px', borderRadius:8 }}>
+              📥 Importar novas
             </button>
           )}
           {papel && <span style={{ fontSize:10, color:'rgba(255,255,255,.5)', textTransform:'uppercase' }}>{papel}</span>}
@@ -4696,6 +4840,75 @@ export default function App() {
               </>
             )}
             <button onClick={() => { setModalCorrigirPC(false); setCorrigirPCPreview(null); setCorrigirPCArquivo(null); setCorrigirPCErro('') }}
+              style={{ width:'100%', padding:11, background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:12, fontSize:13, cursor:'pointer' }}>
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Importar Novas Obras (SIGE) */}
+      {modalImportarNovas && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:100, display:'flex', alignItems:'flex-end' }}
+          onClick={e => { if (e.target === e.currentTarget) { setModalImportarNovas(false); setImportarNovasPreview(null); setImportarNovasArquivo(null); setImportarNovasErro('') } }}>
+          <div style={{ background:'#fff', borderRadius:'16px 16px 0 0', padding:20, width:'100%', maxHeight:'90vh', overflowY:'auto' }}>
+            <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:6 }}>Importar novas obras do SIGE</div>
+            <div style={{ fontSize:12, color:'#64748B', marginBottom:14 }}>
+              Sobe o relatório do SIGE Cloud (ReportPersonalizado). Obras cujo Código já existir no Pipeline são ignoradas (não duplica). Cria como movimentação ATM/BDN (Banco24Horas, Bradesco, Banconordeste, Banrisul), tipo "VISTORIA" entra como INSTALAÇÃO ATM. Obras/Pintura/Infra elétrica e linhas com tipo de serviço não reconhecido são descartadas.
+            </div>
+            <input type="file" accept=".xlsx,.xls" onChange={e => { setImportarNovasArquivo(e.target.files?.[0] || null); setImportarNovasPreview(null) }}
+              style={{ width:'100%', fontSize:12, marginBottom:12 }} />
+            {importarNovasErro && <div style={{ fontSize:12, color:'#991B1B', marginBottom:10 }}>{importarNovasErro}</div>}
+            <button onClick={processarImportacaoNovas} disabled={importarNovasProcessando || !importarNovasArquivo}
+              style={{ padding:'9px 16px', background: (importarNovasProcessando || !importarNovasArquivo) ? '#ccc' : '#0E4D73', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer', marginBottom:14 }}>
+              {importarNovasProcessando ? 'Lendo planilha...' : 'Processar planilha'}
+            </button>
+
+            {importarNovasPreview && (
+              <>
+                <div style={{ fontSize:13, fontWeight:700, color:'#1A2340', marginBottom:6 }}>
+                  {importarNovasPreview.candidatos.length === 0 ? 'Nenhuma obra nova pra importar' : `${importarNovasPreview.candidatos.length} obra(s) nova(s) pra criar`}
+                </div>
+                <div style={{ fontSize:11, color:'#94A3B8', marginBottom:10 }}>
+                  {importarNovasPreview.excluidosPorTipo} linha(s) descartada(s) por tipo (Obras/Pintura/Infra elétrica).
+                  {Object.keys(importarNovasPreview.naoClassificados).length > 0 && (
+                    <> {Object.values(importarNovasPreview.naoClassificados).reduce((a,b)=>a+b,0)} linha(s) com tipo de serviço não reconhecido, descartada(s): {Object.entries(importarNovasPreview.naoClassificados).map(([k,v]) => `${k} (${v})`).join(', ')}.</>
+                  )}
+                </div>
+                {importarNovasPreview.candidatos.length > 0 && (
+                  <div style={{ overflowX:'auto', marginBottom:14 }}>
+                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                      <thead>
+                        <tr style={{ background:'#F8FAFC', textAlign:'left' }}>
+                          {['Tipo','Rede','Nome','Local','Status','Código SIGE'].map(h => (
+                            <th key={h} style={{ padding:'6px 8px', borderBottom:'1px solid #E0E8F0' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importarNovasPreview.candidatos.map(c => (
+                          <tr key={c.sige} style={{ borderBottom:'1px solid #F1F5F9' }}>
+                            <td style={{ padding:'6px 8px' }}>{c.tipo}</td>
+                            <td style={{ padding:'6px 8px' }}>{c.rede || '—'}</td>
+                            <td style={{ padding:'6px 8px' }}>{c.nome}</td>
+                            <td style={{ padding:'6px 8px' }}>{c.cidade}{c.uf ? '-'+c.uf : ''}</td>
+                            <td style={{ padding:'6px 8px' }}>{c.status}</td>
+                            <td style={{ padding:'6px 8px' }}>{c.sige}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {importarNovasPreview.candidatos.length > 0 && (
+                  <button onClick={confirmarImportacaoNovas} disabled={importarNovasSalvando}
+                    style={{ width:'100%', padding:12, background: importarNovasSalvando ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', marginBottom:8 }}>
+                    {importarNovasSalvando ? 'Criando...' : `Criar ${importarNovasPreview.candidatos.length} obra(s)`}
+                  </button>
+                )}
+              </>
+            )}
+            <button onClick={() => { setModalImportarNovas(false); setImportarNovasPreview(null); setImportarNovasArquivo(null); setImportarNovasErro('') }}
               style={{ width:'100%', padding:11, background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:12, fontSize:13, cursor:'pointer' }}>
               Fechar
             </button>
