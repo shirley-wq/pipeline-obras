@@ -3223,12 +3223,13 @@ export default function App() {
         const nfBruto = String(l['AtributosId_NF'] || '').trim()
         const nf = /^\d+$/.test(nfBruto) ? nfBruto : null
         const osTecban = String(l['AtributosId_OrdemdeservicosTB'] || '').trim() || null
+        const numeroPc = String(l['AtributosId_NdoPC'] || '').trim() || null
         const valor = Number(l['Valor Total']) || 0
         const dataCadastro = excelSerialParaIso(l['Data']) || excelSerialParaIso(l['AtributosId_DATAINICIO']) || new Date().toISOString().slice(0, 10)
         const redeOriginal = String(l['AtributosId_REDE'] || '').trim()
 
         candidatos.push({
-          tipo, rede, status, nome, cidade, uf, sige: codigo, pedido, nf, os_tecban: osTecban, valor, data_cadastro: dataCadastro,
+          tipo, rede, status, nome, cidade, uf, sige: codigo, pedido, nf, os_tecban: osTecban, numero_pc: numeroPc, valor, data_cadastro: dataCadastro,
           obs: `Importado do relatório SIGE (${new Date().toLocaleDateString('pt-BR')}) - tipo original: ${l['AtributosId_TIPODESERVICO'] || '—'} - status original: ${l['Status'] || '—'}${rede !== redeOriginal ? ` - rede original: ${redeOriginal}` : ''}`,
         })
         sigesExistentes.add(codigo)
@@ -3245,7 +3246,7 @@ export default function App() {
     setImportarNovasSalvando(true)
     const linhas = importarNovasPreview.candidatos.map(c => ({
       tipo: c.tipo, nome: c.nome, local: montaLocal(c.cidade, c.uf), cidade: c.cidade || null, uf: c.uf || null,
-      valor: c.valor, sige: c.sige, pedido: c.pedido, nf: c.nf, os_tecban: c.os_tecban, status: c.status, rede: c.rede,
+      valor: c.valor, sige: c.sige, pedido: c.pedido, nf: c.nf, os_tecban: c.os_tecban, numero_pc: c.numero_pc, status: c.status, rede: c.rede,
       data_cadastro: c.data_cadastro, obs: c.obs, criado_por: usuario?.email || null, atualizado_por: usuario?.email || null,
       atualizado_em: new Date().toISOString(),
     }))
@@ -4880,7 +4881,7 @@ export default function App() {
                     <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                       <thead>
                         <tr style={{ background:'#F8FAFC', textAlign:'left' }}>
-                          {['Tipo','Rede','Nome','Local','Status','Código SIGE'].map(h => (
+                          {['Tipo','Rede','Nome','Local','Status','Código SIGE','PC/BDN'].map(h => (
                             <th key={h} style={{ padding:'6px 8px', borderBottom:'1px solid #E0E8F0' }}>{h}</th>
                           ))}
                         </tr>
@@ -4894,6 +4895,7 @@ export default function App() {
                             <td style={{ padding:'6px 8px' }}>{c.cidade}{c.uf ? '-'+c.uf : ''}</td>
                             <td style={{ padding:'6px 8px' }}>{c.status}</td>
                             <td style={{ padding:'6px 8px' }}>{c.sige}</td>
+                            <td style={{ padding:'6px 8px' }}>{c.numero_pc || '—'}</td>
                           </tr>
                         ))}
                       </tbody>
