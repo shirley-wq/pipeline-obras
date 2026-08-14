@@ -2000,7 +2000,8 @@ export default function App() {
   const [arsVerificado, setArsVerificado] = useState(false)
   const [ecNome, setEcNome] = useState('')
   const [ecTelefone, setEcTelefone] = useState('')
-  const [dataHoraInicioObra, setDataHoraInicioObra] = useState('')
+  const [dataInicioObraTexto, setDataInicioObraTexto] = useState('')
+  const [horaInicioObraTexto, setHoraInicioObraTexto] = useState('')
   const [segurancaItens, setSegurancaItens] = useState([])
   const [segurancaItensCampo, setSegurancaItensCampo] = useState([])
   const [barreiraDissuasao, setBarreiraDissuasao] = useState(false)
@@ -2872,7 +2873,8 @@ export default function App() {
       campos.ars_verificado = arsVerificado
       campos.ec_nome = ecNome || null
       campos.ec_telefone = ecTelefone || null
-      campos.data_hora_inicio_obra = dataHoraInicioObra || null
+      campos.data_inicio_obra_texto = dataInicioObraTexto.trim() || null
+      campos.hora_inicio_obra_texto = horaInicioObraTexto.trim() || null
       campos.seguranca_itens = segurancaItens.length > 0 ? segurancaItens : null
       campos.seguranca_itens_campo = segurancaItensCampo.length > 0 ? segurancaItensCampo : null
       campos.barreira_dissuasao = barreiraDissuasao
@@ -2924,7 +2926,8 @@ export default function App() {
     setArsVerificado(false)
     setEcNome('')
     setEcTelefone('')
-    setDataHoraInicioObra('')
+    setDataInicioObraTexto('')
+    setHoraInicioObraTexto('')
     setSegurancaItens([])
     setSegurancaItensCampo([])
     setBarreiraDissuasao(false)
@@ -3029,7 +3032,7 @@ export default function App() {
   const vistoriaCompleta = (Boolean(dataVistoria) && (colabsVistoria.length > 0 || (terceirizadoVistoria && terceirizadoVistoriaTexto.trim() !== '')))
     || (modal?.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal?.tipo))
   const atividadesCobertas = new Set()
-  registrosOperacaoCampo.forEach(r => (r.atividades || []).forEach(a => { if (a.status) atividadesCobertas.add(a.atividade) }))
+  registrosOperacaoCampo.forEach(r => (r.atividades || []).forEach(a => { if (typeof a.feita === 'boolean') atividadesCobertas.add(a.atividade) }))
   const operacaoCampoCompleta = ATIVIDADES_OPERACAO_CAMPO.every(a => atividadesCobertas.has(a))
 
   const estilo = { fontFamily:'system-ui,sans-serif', minHeight:'100vh', background:'#F0F4F8' }
@@ -4834,7 +4837,8 @@ export default function App() {
                         setArsVerificado(obra.ars_verificado || false)
                         setEcNome(obra.ec_nome || '')
                         setEcTelefone(obra.ec_telefone || '')
-                        setDataHoraInicioObra(obra.data_hora_inicio_obra || '')
+                        setDataInicioObraTexto(obra.data_inicio_obra_texto || '')
+                        setHoraInicioObraTexto(obra.hora_inicio_obra_texto || '')
                         setSegurancaItens(Array.isArray(obra.seguranca_itens) ? obra.seguranca_itens : [])
                         setSegurancaItensCampo(Array.isArray(obra.seguranca_itens_campo) ? obra.seguranca_itens_campo : [])
                         setBarreiraDissuasao(obra.barreira_dissuasao || false)
@@ -5326,13 +5330,19 @@ export default function App() {
               </div>
               <div style={{ marginBottom:12 }}>
                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data e hora de início da obra (confirmada com o cliente)</label>
-                <input type="datetime-local" value={dataHoraInicioObra} onChange={e => setDataHoraInicioObra(e.target.value)}
-                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                  <input value={dataInicioObraTexto} onChange={e => setDataInicioObraTexto(e.target.value)}
+                    placeholder="DD/MM/AAAA"
+                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                  <input value={horaInicioObraTexto} onChange={e => setHoraInicioObraTexto(e.target.value)}
+                    placeholder="HH:MM"
+                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
                 <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>A OS da Tecban sugere uma data/hora, mas o que vale aqui é a data confirmada com o cliente final (EC) — não usar a data do relatório SIGE.</div>
               </div>
               <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:6 }}>Critérios de segurança — o que o ARS indica x o que foi realizado em campo</div>
               <div style={{ marginBottom:12, overflowX:'auto' }}>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 70px 70px', gap:4, alignItems:'center', minWidth:280 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'minmax(160px, 260px) 60px 60px', gap:4, alignItems:'center', maxWidth:400 }}>
                   <div></div>
                   <div style={{ fontSize:10, color:'#4A7FC1', fontWeight:700, textAlign:'center' }}>ARS</div>
                   <div style={{ fontSize:10, color:'#4A7FC1', fontWeight:700, textAlign:'center' }}>Campo</div>
@@ -5396,8 +5406,8 @@ export default function App() {
                       </div>
                       <div style={{ marginTop:6, display:'flex', flexDirection:'column', gap:4 }}>
                         {(r.atividades||[]).map((a, ai) => (
-                          <div key={ai} style={{ fontSize:12, color: a.status === 'OK' ? '#065F46' : '#991B1B' }}>
-                            {a.status === 'OK' ? '✓' : '✗'} {a.atividade}{a.status === 'IMPEDIMENTO' && a.motivo ? ` — ${a.motivo}` : ''}
+                          <div key={ai} style={{ fontSize:12, color: a.feita ? '#065F46' : '#991B1B' }}>
+                            {a.feita ? '✓ Feita' : '✗ Não feita'} — {a.atividade}{a.impedimento && a.motivo ? ` (com desvio: ${a.motivo})` : (a.impedimento ? ' (com desvio)' : '')}
                           </div>
                         ))}
                       </div>
@@ -5427,7 +5437,7 @@ export default function App() {
                           <input type="checkbox" checked={marcado}
                             onChange={e => setNovoRegistroAtividades(prev => {
                               const next = { ...prev }
-                              if (e.target.checked) next[atividade] = { status:'', motivo:'' }
+                              if (e.target.checked) next[atividade] = { feita: null, impedimento: false, motivo:'' }
                               else delete next[atividade]
                               return next
                             })} />
@@ -5435,15 +5445,21 @@ export default function App() {
                         </label>
                         {marcado && (
                           <div style={{ marginTop:8, marginLeft:26 }}>
-                            <div style={{ display:'flex', gap:8, marginBottom:6 }}>
-                              {['OK', 'IMPEDIMENTO'].map(st => (
-                                <span key={st} onClick={() => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], status: st } }))}
-                                  style={{ fontSize:11, fontWeight:700, padding:'4px 10px', borderRadius:6, cursor:'pointer', background: dados.status === st ? (st === 'OK' ? '#D1FAE5' : '#FEE2E2') : '#F1F5F9', color: dados.status === st ? (st === 'OK' ? '#065F46' : '#991B1B') : '#64748B' }}>
-                                  {st === 'OK' ? '✓ OK' : '✗ Impedimento'}
+                            <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>A atividade foi concluída?</div>
+                            <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+                              {[{ v:true, l:'✓ Sim' }, { v:false, l:'✗ Não' }].map(op => (
+                                <span key={String(op.v)} onClick={() => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], feita: op.v } }))}
+                                  style={{ fontSize:11, fontWeight:700, padding:'4px 10px', borderRadius:6, cursor:'pointer', background: dados.feita === op.v ? (op.v ? '#D1FAE5' : '#FEE2E2') : '#F1F5F9', color: dados.feita === op.v ? (op.v ? '#065F46' : '#991B1B') : '#64748B' }}>
+                                  {op.l}
                                 </span>
                               ))}
                             </div>
-                            {dados.status === 'IMPEDIMENTO' && (
+                            <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginBottom:6 }}>
+                              <input type="checkbox" checked={dados.impedimento || false}
+                                onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], impedimento: e.target.checked } }))} />
+                              <span style={{ fontSize:12, color:'#1A2340' }}>Teve impedimento/desvio do que estava previsto (mesmo que a atividade tenha sido concluída de outro jeito)</span>
+                            </label>
+                            {dados.impedimento && (
                               atividade === 'Base' ? (
                                 <select value={dados.motivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], motivo: e.target.value } }))}
                                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
@@ -5464,10 +5480,10 @@ export default function App() {
                 </div>
                 {(() => {
                   const marcadas = Object.entries(novoRegistroAtividades)
-                  const valida = marcadas.length > 0 && marcadas.every(([, d]) => d.status === 'OK' || (d.status === 'IMPEDIMENTO' && d.motivo && d.motivo.trim() !== ''))
+                  const valida = marcadas.length > 0 && marcadas.every(([, d]) => (d.feita === true || d.feita === false) && (!d.impedimento || (d.motivo && d.motivo.trim() !== '')))
                   return (
                     <button onClick={() => {
-                      const atividades = marcadas.map(([atividade, d]) => ({ atividade, status: d.status, motivo: d.motivo || '' }))
+                      const atividades = marcadas.map(([atividade, d]) => ({ atividade, feita: d.feita, impedimento: !!d.impedimento, motivo: d.impedimento ? (d.motivo || '') : '' }))
                       const equipe = [...novoRegistroEquipe, ...(novoRegistroTerceirizado ? [TERCEIRIZADO_PREFIXO + (novoRegistroTerceirizadoTexto.trim() || '(não informado)')] : [])]
                       setRegistrosOperacaoCampo(prev => [...prev, { data: novoRegistroData || null, equipe, atividades }])
                       setNovoRegistroData('')
@@ -5654,11 +5670,13 @@ export default function App() {
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
                 <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Datas da obra</div>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
+                  {!(modal.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal.tipo)) && (
                   <div>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Início</label>
                     <input type="date" value={dataObra.inicio} disabled={!vistoriaCompleta} onChange={e => setDataObra(d => ({...d, inicio: e.target.value}))}
                       style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', background: vistoriaCompleta ? '#fff' : '#F1F5F9', cursor: vistoriaCompleta ? 'text' : 'not-allowed' }} />
                   </div>
+                  )}
                   <div>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Término</label>
                     <input type="date" value={dataObra.termino} onChange={e => setDataObra(d => ({...d, termino: e.target.value}))}
@@ -5671,10 +5689,12 @@ export default function App() {
                   </div>
                 </div>
                 <div style={{ marginBottom:10 }}>
+                  {!(modal.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal.tipo)) && (
                   <SeletorEquipe titulo="Quem foi na obra" selecionados={colabsObra} onChangeSelecionados={setColabsObra}
                     terceirizado={terceirizadoObra} onChangeTerceirizado={setTerceirizadoObra}
                     terceirizadoTexto={terceirizadoObraTexto} onChangeTerceirizadoTexto={setTerceirizadoObraTexto}
                     bloqueado={!vistoriaCompleta} mensagemBloqueio='Preencha a data da vistoria e quem foi antes de liberar esta etapa' />
+                  )}
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:10 }}>
                     <div>
                       <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Responsável do escritório</label>
