@@ -2800,6 +2800,93 @@ export default function App() {
     setMenuAberto(null)
   }
 
+  function exportarRelatorioCliente() {
+    if (!modal) return
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+
+    doc.setFontSize(14)
+    doc.setFont(undefined, 'bold')
+    doc.text('GRUPO PG — RELATÓRIO AO CLIENTE', 14, 16)
+    doc.setFontSize(10)
+    doc.setFont(undefined, 'normal')
+    doc.text(`${modal.nome}  |  ${modal.tipo}${editDados.numero_pc ? `  |  PC ${editDados.numero_pc}` : ''}`, 14, 23)
+    const enderecoLinha = [editDados.endereco, [editDados.cidade, editDados.uf].filter(Boolean).join('-')].filter(Boolean).join(', ')
+    doc.text(enderecoLinha || '—', 14, 28)
+
+    let y = 36
+    doc.setFontSize(11)
+    doc.setFont(undefined, 'bold')
+    doc.text('Consulta ARS e agendamento', 14, y)
+    y += 5
+    doc.setFontSize(9)
+    doc.setFont(undefined, 'normal')
+    doc.text(`Contato do EC: ${ecNome || '—'}${ecTelefone ? ` (${ecTelefone})` : ''}`, 14, y); y += 5
+    doc.text(`Início confirmado com o cliente: ${dataInicioObraTexto || '—'} ${horaInicioObraTexto || ''}`, 14, y); y += 5
+    doc.text(`Agendamento confirmado: ${agendamentoConfirmado ? 'Sim' : 'Não'}`, 14, y); y += 7
+
+    const itensTabela = ITENS_SEGURANCA_BANCO24H.map(item => [
+      item, segurancaItens.includes(item) ? 'X' : '', segurancaItensCampo.includes(item) ? 'X' : '',
+    ])
+    itensTabela.push(['Tem barreira de dissuasão', barreiraDissuasao ? 'X' : '', barreiraDissuasaoCampo ? 'X' : ''])
+    autoTable(doc, {
+      startY: y,
+      head: [['Critério de segurança', 'ARS', 'Campo']],
+      body: itensTabela,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 1.5 },
+      headStyles: { fillColor: [45, 58, 140], textColor: 255, fontStyle: 'bold' },
+      columnStyles: { 1: { halign: 'center', cellWidth: 18 }, 2: { halign: 'center', cellWidth: 18 } },
+    })
+    y = doc.lastAutoTable.finalY + 5
+    if (autorizacaoMudanca.trim()) {
+      doc.setFontSize(9)
+      doc.text(`Mudança autorizada por: ${autorizacaoMudanca}`, 14, y)
+      y += 7
+    }
+
+    doc.setFontSize(11)
+    doc.setFont(undefined, 'bold')
+    doc.text('O que foi feito no local', 14, y)
+    y += 3
+
+    const linhasVisitas = []
+    registrosOperacaoCampo.forEach(r => {
+      (r.atividades || []).forEach(a => {
+        let detalhe = a.impedimento && a.motivo ? `Desvio: ${a.motivo}` : (a.impedimento ? 'Com desvio' : '')
+        if (a.atividade === 'Habilitação') {
+          const extras = []
+          if (a.dimerFinalizado === false) extras.push(`Dimer não finalizado${a.dimerMotivo ? ` (${a.dimerMotivo})` : ''}`)
+          if (a.alarme253Finalizado === false) extras.push(`Alarme 253 não finalizado${a.alarme253Motivo ? ` (${a.alarme253Motivo})` : ''}`)
+          if (a.cgrNome) extras.push(`CGR: ${a.cgrNome}`)
+          detalhe = [detalhe, ...extras].filter(Boolean).join(' — ')
+        }
+        linhasVisitas.push([
+          r.data ? isoToBr(r.data) : '—',
+          Array.isArray(r.equipe) ? r.equipe.join(', ') : '',
+          a.atividade,
+          a.feita ? 'Concluída' : 'Não concluída',
+          detalhe,
+        ])
+      })
+    })
+    autoTable(doc, {
+      startY: y,
+      head: [['Data', 'Equipe', 'Atividade', 'Situação', 'Observações/Dificuldades']],
+      body: linhasVisitas.length > 0 ? linhasVisitas : [['—', '—', '—', '—', 'Nenhuma visita registrada']],
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 1.5 },
+      headStyles: { fillColor: [45, 58, 140], textColor: 255, fontStyle: 'bold' },
+      columnStyles: { 4: { cellWidth: 70 } },
+    })
+
+    y = doc.lastAutoTable.finalY + 10
+    doc.setFontSize(8)
+    doc.setTextColor(120)
+    doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')} por ${usuario?.email || ''}`, 14, y)
+
+    doc.save(`Relatorio_Cliente_${modal.nome.replace(/[^\w]+/g, '_')}.pdf`)
+  }
+
   async function salvarStatus() {
     if (!novoStatus) return
     setSalvando(true)
@@ -3167,13 +3254,12 @@ export default function App() {
 
   function exportarCSV() {
     const cab = ['Tipo','Nome','Local','Status','Valor','SIGE','PC/BDN','Pedido','NF','Início','Término','ART pronta','Em negociação','Observação','Post-its Régua','Data Entrada Pipeline','Dias no Pipeline','Vidros','Divisórias','Itens Especiais','Biombo de Fila','Porta Giratória','Atualizado por','Atualizado em']
-    const esc = v => { const s = String(v ?? ''); return (s.includes(';') || s.includes('"') || s.includes('\n')) ? `"${s.replace(/"/g,'""')}"` : s }
-    const linhas = obrasFiltradas.map(o => {
+    const linhasObras = obrasFiltradas.map(o => {
       const d = diasNoPipeline(o.data_cadastro)
       const ehMovimentacao = TIPOS_BDN.includes(o.tipo)
       return [
         o.tipo, o.nome, o.local||'', o.status,
-        Number(o.valor||0).toFixed(2).replace('.',','),
+        Number(o.valor||0),
         // O campo "sige" no banco guarda a SIGE de verdade pra obra normal, mas pra obra
         // de movimentação guardava (por engano, na importação de 06-07/08) o código
         // interno do pedido no SIGE, não o número real do PC - "numero_pc" é o campo
@@ -3190,7 +3276,7 @@ export default function App() {
           ? o.lembretes.map(l => `Etapa ${l.etapa}: ${l.texto}${l.autor ? ` (${l.autor})` : ''}`).join(' | ')
           : '',
         o.data_cadastro ? isoToBr(o.data_cadastro) : '',
-        d !== null ? String(d) : '',
+        d !== null ? d : '',
         Array.isArray(o.vidros) && o.vidros.length > 0 ? o.vidros.join(' | ') : '',
         Array.isArray(o.divisorias) && o.divisorias.length > 0 ? o.divisorias.map(d => `${d.tipo} ${d.m2}m²`).join(' | ') : '',
         Array.isArray(o.itens_especiais) && o.itens_especiais.length > 0 ? o.itens_especiais.join(' | ') : '',
@@ -3198,19 +3284,68 @@ export default function App() {
         o.porta_giratoria != null ? String(o.porta_giratoria) : '',
         o.atualizado_por||'',
         o.atualizado_em ? new Date(o.atualizado_em).toLocaleString('pt-BR') : ''
-      ].map(esc).join(';')
+      ]
     })
-    const csv = '﻿' + [cab.join(';'), ...linhas].join('\n')
-    const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
+    const wsObras = XLSXStyle.utils.aoa_to_sheet([cab, ...linhasObras])
+    wsObras['!cols'] = cab.map(() => ({ wch: 16 }))
+
+    // Obras Banco24Horas (as 4 atividades sem vistoria) que tenham dado entrada de ARS
+    const obrasB24h = obrasFiltradas.filter(o => o.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(o.tipo))
+
+    const cabArs = ['Obra','PC','Status','Entrou no ARS','Contato EC - nome','Contato EC - telefone','Data início (confirmada)','Hora início (confirmada)','ARS solicitado','Campo executado','Barreira dissuasão (ARS)','Barreira dissuasão (Campo)','Quem autorizou a mudança','Agendamento confirmado']
+    const linhasArs = obrasB24h.map(o => [
+      o.nome, o.numero_pc || '', o.status,
+      o.ars_verificado ? 'Sim' : 'Não',
+      o.ec_nome || '', o.ec_telefone || '',
+      o.data_inicio_obra_texto || '', o.hora_inicio_obra_texto || '',
+      Array.isArray(o.seguranca_itens) ? o.seguranca_itens.join(' | ') : '',
+      Array.isArray(o.seguranca_itens_campo) ? o.seguranca_itens_campo.join(' | ') : '',
+      o.barreira_dissuasao ? 'Sim' : 'Não',
+      o.barreira_dissuasao_campo ? 'Sim' : 'Não',
+      o.autorizacao_mudanca || '',
+      o.agendamento_confirmado ? 'Sim' : 'Não',
+    ])
+    const wsArs = XLSXStyle.utils.aoa_to_sheet([cabArs, ...linhasArs])
+    wsArs['!cols'] = cabArs.map(() => ({ wch: 20 }))
+
+    const cabDia = ['Obra','PC','Data da visita','Equipe','Atividade','Feita','Impedimento/Desvio','Motivo','Dimer finalizado','Motivo Dimer','Alarme 253 finalizado','Motivo Alarme 253','Quem atendeu no CGR']
+    const linhasDia = []
+    obrasB24h.forEach(o => {
+      const registros = Array.isArray(o.registros_operacao_campo) ? o.registros_operacao_campo : []
+      registros.forEach(r => {
+        (r.atividades || []).forEach(a => {
+          linhasDia.push([
+            o.nome, o.numero_pc || '',
+            r.data ? isoToBr(r.data) : '',
+            Array.isArray(r.equipe) ? r.equipe.join(', ') : '',
+            a.atividade, a.feita ? 'Sim' : 'Não', a.impedimento ? 'Sim' : 'Não', a.motivo || '',
+            a.atividade === 'Habilitação' ? (a.dimerFinalizado ? 'Sim' : 'Não') : '',
+            a.atividade === 'Habilitação' ? (a.dimerMotivo || '') : '',
+            a.atividade === 'Habilitação' ? (a.alarme253Finalizado ? 'Sim' : 'Não') : '',
+            a.atividade === 'Habilitação' ? (a.alarme253Motivo || '') : '',
+            a.atividade === 'Habilitação' ? (a.cgrNome || '') : '',
+          ])
+        })
+      })
+    })
+    const wsDia = XLSXStyle.utils.aoa_to_sheet([cabDia, ...linhasDia])
+    wsDia['!cols'] = cabDia.map(() => ({ wch: 20 }))
+
+    const estiloHeader = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '2D3A8C' } } }
+    ;[[wsObras, cab], [wsArs, cabArs], [wsDia, cabDia]].forEach(([ws, cabecalho]) => {
+      cabecalho.forEach((_, col) => {
+        const ref = XLSX.utils.encode_cell({ r: 0, c: col })
+        if (ws[ref]) ws[ref].s = estiloHeader
+      })
+    })
+
+    const wb = XLSXStyle.utils.book_new()
+    XLSXStyle.utils.book_append_sheet(wb, wsObras, 'Pipeline')
+    XLSXStyle.utils.book_append_sheet(wb, wsArs, 'Banco24Horas - ARS')
+    XLSXStyle.utils.book_append_sheet(wb, wsDia, 'Banco24Horas - Dia da obra')
     const d = new Date()
-    a.download = `pipeline-${d.getDate().toString().padStart(2,'0')}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getFullYear()}.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    const nomeArquivo = `pipeline-${d.getDate().toString().padStart(2,'0')}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getFullYear()}.xlsx`
+    XLSXStyle.writeFile(wb, nomeArquivo)
   }
 
   async function processarCorrecaoPC() {
@@ -5577,6 +5712,10 @@ export default function App() {
                 Cobertura das 5 atividades: {ATIVIDADES_OPERACAO_CAMPO.filter(a => atividadesCobertas.has(a)).length}/{ATIVIDADES_OPERACAO_CAMPO.length}
                 {!operacaoCampoCompleta && ' — precisa de todas as 5 pra liberar "Relatório ao Cliente"'}
               </div>
+              <button onClick={exportarRelatorioCliente}
+                style={{ width:'100%', marginTop:10, padding:10, background:'#0E4D73', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                📄 Gerar PDF do relatório ao cliente
+              </button>
             </div>
             )}
 
