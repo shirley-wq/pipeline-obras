@@ -1177,6 +1177,9 @@ const ETAPAS_BDN_BRADESCO = ['OS ABERTA', 'VISTORIA', 'AGENDAMENTO', 'OPERAÇÃO
 // Tipos de obra que são "movimentação de BDN" (não confundir com TRANSF UN/DESC PA, que são a
 // transformação da agência em si - podem coexistir na mesma agência, com OS/contrato separados).
 const TIPOS_BDN = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM', 'REMANEJAMENTO ATM', 'SINALIZAÇÃO ATM', 'MANUTENÇÃO ATM']
+// Instalação, Desativação, Substituição (troca) e Remanejamento de Banco24Horas não têm fase de
+// vistoria no processo real (Shirley, 2026-08-13) - diferente de Bradesco, que tem vistoria própria.
+const SEM_VISTORIA_BANCO24H = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM', 'REMANEJAMENTO ATM']
 
 // ===== Importação de obras novas de movimentação a partir do relatório "ReportPersonalizado" do SIGE =====
 // (alinhado com a Shirley em 2026-08-12, mesma família de regras da importação de 06-07/08)
@@ -5072,6 +5075,13 @@ export default function App() {
 
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
               <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Dados da obra</div>
+              {modal.rede === 'BANCO24HORAS' && (
+              <div style={{ marginBottom:10 }}>
+                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Número do PC</label>
+                <input value={editDados.numero_pc} onChange={e => setEditDados(d => ({...d, numero_pc:e.target.value}))}
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+              </div>
+              )}
               <div style={{ marginBottom:10 }}>
                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Nome</label>
                 <input value={editDados.nome} onChange={e => setEditDados(d => ({...d, nome:e.target.value}))}
@@ -5095,7 +5105,7 @@ export default function App() {
                     style={{ width:'100%', padding:'8px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', textTransform:'uppercase' }} />
                 </div>
               </div>
-              <div style={{ display:'grid', gridTemplateColumns: `repeat(${(podeVerValores?1:0) + (TIPOS_BDN.includes(modal.tipo)?1:0) + 4}, 1fr)`, gap:8 }}>
+              <div style={{ display:'grid', gridTemplateColumns: `repeat(${(podeVerValores?1:0) + (TIPOS_BDN.includes(modal.tipo) && modal.rede !== 'BANCO24HORAS'?1:0) + 4}, 1fr)`, gap:8 }}>
                 {podeVerValores && (
                 <div>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Valor (R$)</label>
@@ -5108,7 +5118,7 @@ export default function App() {
                   <input value={editDados.sige} onChange={e => setEditDados(d => ({...d, sige:e.target.value}))}
                     style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                 </div>
-                {TIPOS_BDN.includes(modal.tipo) && (
+                {TIPOS_BDN.includes(modal.tipo) && modal.rede !== 'BANCO24HORAS' && (
                 <div>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>PC/BDN</label>
                   <input value={editDados.numero_pc} onChange={e => setEditDados(d => ({...d, numero_pc:e.target.value}))}
@@ -5180,6 +5190,8 @@ export default function App() {
               </div>
             )}
 
+            {!(modal.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal.tipo)) && (
+            <>
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
               <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data da vistoria</label>
               <input type="date" value={dataVistoria} onChange={e => setDataVistoria(e.target.value)}
@@ -5205,6 +5217,8 @@ export default function App() {
                 ))}
               </div>
             </div>
+            </>
+            )}
 
             {modal.tipo === 'TRANSF UN' && (
               <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
