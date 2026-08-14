@@ -2794,6 +2794,14 @@ export default function App() {
     if (['ELABORAR RM', 'ENVIAR RM', 'RM ENVIADA'].includes(novoStatus) && pedidoPreenchido) {
       statusFinal = 'EMITIR NF'
     }
+    // Dados da obra completos (PC até OS Tecban) numa obra ainda na 1ª etapa - avança sozinho pra
+    // próxima etapa da régua, sem precisar clicar manual (Shirley, 2026-08-14).
+    if (novoStatus === 'OS ABERTA' && TIPOS_BDN.includes(modal.tipo)
+      && [editDados.numero_pc, editDados.nome, editDados.endereco, editDados.cidade, editDados.uf, editDados.sige, editDados.os_tecban].every(v => (v || '').toString().trim() !== '')
+      && editDados.valor !== '') {
+      const etapas = getEtapas(modal.rede, modal.tipo)
+      statusFinal = etapas[1] || statusFinal
+    }
     const campos = {
       status: statusFinal,
       obs: novaObs || modal.obs || null,
