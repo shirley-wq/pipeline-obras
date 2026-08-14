@@ -2002,7 +2002,10 @@ export default function App() {
   const [ecTelefone, setEcTelefone] = useState('')
   const [dataHoraInicioObra, setDataHoraInicioObra] = useState('')
   const [segurancaItens, setSegurancaItens] = useState([])
+  const [segurancaItensCampo, setSegurancaItensCampo] = useState([])
   const [barreiraDissuasao, setBarreiraDissuasao] = useState(false)
+  const [barreiraDissuasaoCampo, setBarreiraDissuasaoCampo] = useState(false)
+  const [autorizacaoMudanca, setAutorizacaoMudanca] = useState('')
   const [agendamentoConfirmado, setAgendamentoConfirmado] = useState(false)
   const [agendamentoData, setAgendamentoData] = useState('')
   const [registrosOperacaoCampo, setRegistrosOperacaoCampo] = useState([])
@@ -2871,7 +2874,10 @@ export default function App() {
       campos.ec_telefone = ecTelefone || null
       campos.data_hora_inicio_obra = dataHoraInicioObra || null
       campos.seguranca_itens = segurancaItens.length > 0 ? segurancaItens : null
+      campos.seguranca_itens_campo = segurancaItensCampo.length > 0 ? segurancaItensCampo : null
       campos.barreira_dissuasao = barreiraDissuasao
+      campos.barreira_dissuasao_campo = barreiraDissuasaoCampo
+      campos.autorizacao_mudanca = autorizacaoMudanca || null
       campos.agendamento_confirmado = agendamentoConfirmado
       campos.agendamento_data = agendamentoData || null
       campos.registros_operacao_campo = registrosOperacaoCampo.length > 0 ? registrosOperacaoCampo : null
@@ -2920,7 +2926,10 @@ export default function App() {
     setEcTelefone('')
     setDataHoraInicioObra('')
     setSegurancaItens([])
+    setSegurancaItensCampo([])
     setBarreiraDissuasao(false)
+    setBarreiraDissuasaoCampo(false)
+    setAutorizacaoMudanca('')
     setAgendamentoConfirmado(false)
     setAgendamentoData('')
     setRegistrosOperacaoCampo([])
@@ -4827,7 +4836,10 @@ export default function App() {
                         setEcTelefone(obra.ec_telefone || '')
                         setDataHoraInicioObra(obra.data_hora_inicio_obra || '')
                         setSegurancaItens(Array.isArray(obra.seguranca_itens) ? obra.seguranca_itens : [])
+                        setSegurancaItensCampo(Array.isArray(obra.seguranca_itens_campo) ? obra.seguranca_itens_campo : [])
                         setBarreiraDissuasao(obra.barreira_dissuasao || false)
+                        setBarreiraDissuasaoCampo(obra.barreira_dissuasao_campo || false)
+                        setAutorizacaoMudanca(obra.autorizacao_mudanca || '')
                         setAgendamentoConfirmado(obra.agendamento_confirmado || false)
                         setAgendamentoData(obra.agendamento_data || '')
                         setRegistrosOperacaoCampo(Array.isArray(obra.registros_operacao_campo) ? obra.registros_operacao_campo : [])
@@ -5318,22 +5330,43 @@ export default function App() {
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                 <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>A OS da Tecban sugere uma data/hora, mas o que vale aqui é a data confirmada com o cliente final (EC) — não usar a data do relatório SIGE.</div>
               </div>
-              <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:6 }}>O que o ARS indica (pode marcar mais de um)</div>
-              <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:12 }}>
-                {ITENS_SEGURANCA_BANCO24H.map(item => (
-                  <label key={item} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
-                    <input type="checkbox" checked={segurancaItens.includes(item)}
-                      onChange={e => setSegurancaItens(prev => e.target.checked ? [...prev, item] : prev.filter(i => i !== item))} />
-                    <span style={{ fontSize:13, color: segurancaItens.includes(item) ? '#1E40AF' : '#1A2340', fontWeight: segurancaItens.includes(item) ? 600 : 400 }}>
-                      {item}
-                    </span>
-                  </label>
-                ))}
+              <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:6 }}>Critérios de segurança — o que o ARS indica x o que foi realizado em campo</div>
+              <div style={{ marginBottom:12, overflowX:'auto' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 70px 70px', gap:4, alignItems:'center', minWidth:280 }}>
+                  <div></div>
+                  <div style={{ fontSize:10, color:'#4A7FC1', fontWeight:700, textAlign:'center' }}>ARS</div>
+                  <div style={{ fontSize:10, color:'#4A7FC1', fontWeight:700, textAlign:'center' }}>Campo</div>
+                  {[...ITENS_SEGURANCA_BANCO24H, 'Tem barreira de dissuasão'].map(item => {
+                    const ehBarreira = item === 'Tem barreira de dissuasão'
+                    const arsMarcado = ehBarreira ? barreiraDissuasao : segurancaItens.includes(item)
+                    const campoMarcado = ehBarreira ? barreiraDissuasaoCampo : segurancaItensCampo.includes(item)
+                    return (
+                      <React.Fragment key={item}>
+                        <span style={{ fontSize:13, color: (arsMarcado || campoMarcado) ? '#1E40AF' : '#1A2340', fontWeight: (arsMarcado || campoMarcado) ? 600 : 400 }}>{item}</span>
+                        <div style={{ textAlign:'center' }}>
+                          <input type="checkbox" checked={arsMarcado} onChange={e => {
+                            if (ehBarreira) setBarreiraDissuasao(e.target.checked)
+                            else setSegurancaItens(prev => e.target.checked ? [...prev, item] : prev.filter(i => i !== item))
+                          }} />
+                        </div>
+                        <div style={{ textAlign:'center' }}>
+                          <input type="checkbox" checked={campoMarcado} onChange={e => {
+                            if (ehBarreira) setBarreiraDissuasaoCampo(e.target.checked)
+                            else setSegurancaItensCampo(prev => e.target.checked ? [...prev, item] : prev.filter(i => i !== item))
+                          }} />
+                        </div>
+                      </React.Fragment>
+                    )
+                  })}
+                </div>
               </div>
-              <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginBottom:12 }}>
-                <input type="checkbox" checked={barreiraDissuasao} onChange={e => setBarreiraDissuasao(e.target.checked)} />
-                <span style={{ fontSize:13, color:'#1A2340', fontWeight:600 }}>Tem barreira de dissuasão</span>
-              </label>
+              <div style={{ marginBottom:12 }}>
+                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Quem autorizou a mudança? Nome completo e data e hora do e-mail</label>
+                <input value={autorizacaoMudanca} onChange={e => setAutorizacaoMudanca(e.target.value)}
+                  placeholder="Ex: João Silva, 14/08/2026 09:30"
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Preencher só quando o que foi realizado em campo é diferente do que o ARS indicava.</div>
+              </div>
               <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginBottom:8 }}>
                 <input type="checkbox" checked={agendamentoConfirmado} onChange={e => setAgendamentoConfirmado(e.target.checked)} />
                 <span style={{ fontSize:13, color:'#1A2340', fontWeight:600 }}>Agendamento confirmado com o EC</span>
