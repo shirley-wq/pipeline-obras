@@ -1180,6 +1180,9 @@ const TIPOS_BDN = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM'
 // Instalação, Desativação, Substituição (troca) e Remanejamento de Banco24Horas não têm fase de
 // vistoria no processo real (Shirley, 2026-08-13) - diferente de Bradesco, que tem vistoria própria.
 const SEM_VISTORIA_BANCO24H = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM', 'REMANEJAMENTO ATM']
+// Itens do ARS que descrevem onde/como a máquina fica fixada - mais de um pode se aplicar
+// ao mesmo tempo (ex: "encostada em pilar" + "fixação química").
+const ITENS_SEGURANCA_BANCO24H = ['Máquina encostada em parede de alvenaria', 'Encostada em pilar', 'Em cima de viga', 'Fixação concretada', 'Fixação química', 'Fixação projeto T']
 
 // ===== Importação de obras novas de movimentação a partir do relatório "ReportPersonalizado" do SIGE =====
 // (alinhado com a Shirley em 2026-08-12, mesma família de regras da importação de 06-07/08)
@@ -1989,6 +1992,13 @@ export default function App() {
   const [colabsVistoria, setColabsVistoria] = useState([])
   const [terceirizadoVistoria, setTerceirizadoVistoria] = useState(false)
   const [terceirizadoVistoriaTexto, setTerceirizadoVistoriaTexto] = useState('')
+  const [arsVerificado, setArsVerificado] = useState(false)
+  const [ecNome, setEcNome] = useState('')
+  const [ecTelefone, setEcTelefone] = useState('')
+  const [segurancaItens, setSegurancaItens] = useState([])
+  const [barreiraDissuasao, setBarreiraDissuasao] = useState(false)
+  const [agendamentoConfirmado, setAgendamentoConfirmado] = useState(false)
+  const [agendamentoData, setAgendamentoData] = useState('')
   const [dataObraInicio, setDataObraInicio] = useState('')
   const [colabsObra, setColabsObra] = useState([])
   const [terceirizadoObra, setTerceirizadoObra] = useState(false)
@@ -2835,6 +2845,15 @@ export default function App() {
     campos.entregaveis_vistoria = entregaveisVistoria.length > 0 ? entregaveisVistoria : null
     campos.data_vistoria = dataVistoria || null
     campos.colaboradores_vistoria = listaVistoria.length > 0 ? listaVistoria : null
+    if (modal.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal.tipo)) {
+      campos.ars_verificado = arsVerificado
+      campos.ec_nome = ecNome || null
+      campos.ec_telefone = ecTelefone || null
+      campos.seguranca_itens = segurancaItens.length > 0 ? segurancaItens : null
+      campos.barreira_dissuasao = barreiraDissuasao
+      campos.agendamento_confirmado = agendamentoConfirmado
+      campos.agendamento_data = agendamentoData || null
+    }
     campos.data_obra_inicio = modal.tipo === 'TRANSF UN' ? (dataObraInicio || null) : (dataObra.inicio || null)
     const listaObra = [...colabsObra, ...(terceirizadoObra ? [TERCEIRIZADO_PREFIXO + (terceirizadoObraTexto.trim() || '(não informado)')] : [])]
     campos.colaboradores_obra = listaObra.length > 0 ? listaObra : null
@@ -2874,6 +2893,13 @@ export default function App() {
     setColabsVistoria([])
     setTerceirizadoVistoria(false)
     setTerceirizadoVistoriaTexto('')
+    setArsVerificado(false)
+    setEcNome('')
+    setEcTelefone('')
+    setSegurancaItens([])
+    setBarreiraDissuasao(false)
+    setAgendamentoConfirmado(false)
+    setAgendamentoData('')
     setDataObraInicio('')
     setColabsObra([])
     setTerceirizadoObra(false)
@@ -2962,7 +2988,8 @@ export default function App() {
     }
   }
 
-  const vistoriaCompleta = Boolean(dataVistoria) && (colabsVistoria.length > 0 || (terceirizadoVistoria && terceirizadoVistoriaTexto.trim() !== ''))
+  const vistoriaCompleta = (Boolean(dataVistoria) && (colabsVistoria.length > 0 || (terceirizadoVistoria && terceirizadoVistoriaTexto.trim() !== '')))
+    || (modal?.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal?.tipo))
 
   const estilo = { fontFamily:'system-ui,sans-serif', minHeight:'100vh', background:'#F0F4F8' }
   const inp = { width:'100%', padding:'11px 12px', fontSize:14, border:'1px solid #B5D4F4', borderRadius:10, background:'#fff', color:'#1A2340', outline:'none', boxSizing:'border-box', marginBottom:12 }
@@ -4763,6 +4790,13 @@ export default function App() {
                         setColabsVistoria(listaVistoria.filter(c => !c.startsWith(TERCEIRIZADO_PREFIXO)))
                         setTerceirizadoVistoria(!!terceiroVistoria)
                         setTerceirizadoVistoriaTexto(terceiroVistoria ? terceiroVistoria.slice(TERCEIRIZADO_PREFIXO.length) : '')
+                        setArsVerificado(obra.ars_verificado || false)
+                        setEcNome(obra.ec_nome || '')
+                        setEcTelefone(obra.ec_telefone || '')
+                        setSegurancaItens(Array.isArray(obra.seguranca_itens) ? obra.seguranca_itens : [])
+                        setBarreiraDissuasao(obra.barreira_dissuasao || false)
+                        setAgendamentoConfirmado(obra.agendamento_confirmado || false)
+                        setAgendamentoData(obra.agendamento_data || '')
                         setDataObraInicio(obra.data_obra_inicio || '')
                         const listaObra = Array.isArray(obra.colaboradores_obra) ? obra.colaboradores_obra : []
                         const terceiroObra = listaObra.find(c => c.startsWith(TERCEIRIZADO_PREFIXO))
@@ -5218,6 +5252,55 @@ export default function App() {
               </div>
             </div>
             </>
+            )}
+
+            {modal.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal.tipo) && (
+            <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
+              <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>📑 Consulta ARS e agendamento</div>
+              <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginBottom:10 }}>
+                <input type="checkbox" checked={arsVerificado} onChange={e => setArsVerificado(e.target.checked)} />
+                <span style={{ fontSize:13, color:'#1A2340', fontWeight:600 }}>Entrou no ARS e conferiu as informações</span>
+              </label>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:12 }}>
+                <div>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Contato do EC — nome</label>
+                  <input value={ecNome} onChange={e => setEcNome(e.target.value)}
+                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Contato do EC — telefone</label>
+                  <input value={ecTelefone} onChange={e => setEcTelefone(e.target.value)}
+                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+              </div>
+              <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:6 }}>O que o ARS indica (pode marcar mais de um)</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:12 }}>
+                {ITENS_SEGURANCA_BANCO24H.map(item => (
+                  <label key={item} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+                    <input type="checkbox" checked={segurancaItens.includes(item)}
+                      onChange={e => setSegurancaItens(prev => e.target.checked ? [...prev, item] : prev.filter(i => i !== item))} />
+                    <span style={{ fontSize:13, color: segurancaItens.includes(item) ? '#1E40AF' : '#1A2340', fontWeight: segurancaItens.includes(item) ? 600 : 400 }}>
+                      {item}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginBottom:12 }}>
+                <input type="checkbox" checked={barreiraDissuasao} onChange={e => setBarreiraDissuasao(e.target.checked)} />
+                <span style={{ fontSize:13, color:'#1A2340', fontWeight:600 }}>Tem barreira de dissuasão</span>
+              </label>
+              <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginBottom:8 }}>
+                <input type="checkbox" checked={agendamentoConfirmado} onChange={e => setAgendamentoConfirmado(e.target.checked)} />
+                <span style={{ fontSize:13, color:'#1A2340', fontWeight:600 }}>Agendamento confirmado com o EC</span>
+              </label>
+              {agendamentoConfirmado && (
+                <div>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data agendada</label>
+                  <input type="date" value={agendamentoData} onChange={e => setAgendamentoData(e.target.value)}
+                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+              )}
+            </div>
             )}
 
             {modal.tipo === 'TRANSF UN' && (
