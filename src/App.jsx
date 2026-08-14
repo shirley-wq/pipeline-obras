@@ -1187,7 +1187,7 @@ const ITENS_SEGURANCA_BANCO24H = ['Máquina encostada em parede de alvenaria', '
 const ATIVIDADES_OPERACAO_CAMPO = ['Base', 'Instalação', 'Habilitação', 'Construção de parede', 'Instalação de sinalização']
 // Motivos de impedimento pra Base já definidos (Shirley, 2026-08-13). Motivos das outras atividades
 // ainda não foram levantados - usar texto livre até ela trazer a lista fechada.
-const MOTIVOS_IMPEDIMENTO_BASE = ['Não autorizado o tipo de fixação', 'Local incompatível — laje', 'Local incompatível — interfere elétrica ou hidráulica']
+const MOTIVOS_IMPEDIMENTO_BASE = ['Não autorizado o tipo de fixação', 'Local incompatível — laje', 'Local incompatível — interfere elétrica ou hidráulica', 'Piso em concreto armado usinado']
 
 // ===== Importação de obras novas de movimentação a partir do relatório "ReportPersonalizado" do SIGE =====
 // (alinhado com a Shirley em 2026-08-12, mesma família de regras da importação de 06-07/08)
@@ -5232,6 +5232,27 @@ export default function App() {
               </div>
             </div>
 
+            <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                <div>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Responsável do escritório *</label>
+                  <select value={responsavelEscritorio} onChange={e => setResponsavelEscritorio(e.target.value)}
+                    style={{ width:'100%', padding:'8px 6px', border: !responsavelEscritorio.trim() ? '1px solid #DC2626' : '1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
+                    <option value="">—</option>
+                    {COLABORADORES.map(nome => <option key={nome} value={nome}>{nome}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Auxiliar do escritório</label>
+                  <select value={auxiliarEscritorio} onChange={e => setAuxiliarEscritorio(e.target.value)}
+                    style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
+                    <option value="">—</option>
+                    {COLABORADORES.map(nome => <option key={nome} value={nome}>{nome}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+
             {podeVerValores && (
               <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:12, padding:14, marginBottom:16 }}>
                 <div style={{ fontSize:12, color:'#9A3412', fontWeight:700, marginBottom:10 }}>📥 Conferência do pedido de faturamento</div>
@@ -5401,6 +5422,11 @@ export default function App() {
                         {(r.atividades||[]).map((a, ai) => (
                           <div key={ai} style={{ fontSize:12, color: a.feita ? '#065F46' : '#991B1B' }}>
                             {a.feita ? '✓ Feita' : '✗ Não feita'} — {a.atividade}{a.impedimento && a.motivo ? ` (com desvio: ${a.motivo})` : (a.impedimento ? ' (com desvio)' : '')}
+                            {a.atividade === 'Habilitação' && (
+                              <div style={{ fontSize:11, color:'#64748B', marginTop:2 }}>
+                                Dimer: {a.dimerFinalizado ? 'finalizado' : `não finalizado${a.dimerMotivo ? ` (${a.dimerMotivo})` : ''}`} · Alarme 253: {a.alarme253Finalizado ? 'finalizado' : `não finalizado${a.alarme253Motivo ? ` (${a.alarme253Motivo})` : ''}`}{a.cgrNome ? ` · CGR: ${a.cgrNome}` : ''}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -5413,8 +5439,9 @@ export default function App() {
                 <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, marginBottom:8 }}>+ Nova visita</div>
                 <div style={{ marginBottom:8 }}>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data</label>
-                  <input type="date" value={novoRegistroData} onChange={e => setNovoRegistroData(e.target.value)}
+                  <input type="date" value={novoRegistroData || (/^\d{2}\/\d{2}\/\d{4}$/.test(dataInicioObraTexto.trim()) ? brToIso(dataInicioObraTexto.trim()) : '')} onChange={e => setNovoRegistroData(e.target.value)}
                     style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                  <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Preenchido a partir da data de início da obra confirmada — ajuste se essa visita for em outro dia.</div>
                 </div>
                 <SeletorEquipe titulo="Quem foi na obra" selecionados={novoRegistroEquipe} onChangeSelecionados={setNovoRegistroEquipe}
                   terceirizado={novoRegistroTerceirizado} onChangeTerceirizado={setNovoRegistroTerceirizado}
@@ -5465,6 +5492,41 @@ export default function App() {
                                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                               )
                             )}
+                            {atividade === 'Habilitação' && (
+                              <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #E0E8F0' }}>
+                                <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>Dimer foi finalizado?</div>
+                                <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+                                  {[{ v:true, l:'✓ Sim' }, { v:false, l:'✗ Não' }].map(op => (
+                                    <span key={String(op.v)} onClick={() => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], dimerFinalizado: op.v } }))}
+                                      style={{ fontSize:11, fontWeight:700, padding:'4px 10px', borderRadius:6, cursor:'pointer', background: dados.dimerFinalizado === op.v ? (op.v ? '#D1FAE5' : '#FEE2E2') : '#F1F5F9', color: dados.dimerFinalizado === op.v ? (op.v ? '#065F46' : '#991B1B') : '#64748B' }}>
+                                      {op.l}
+                                    </span>
+                                  ))}
+                                </div>
+                                {dados.dimerFinalizado === false && (
+                                  <input value={dados.dimerMotivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], dimerMotivo: e.target.value } }))}
+                                    placeholder="Motivo do Dimer não finalizado (lista fechada ainda não definida)"
+                                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', marginBottom:10 }} />
+                                )}
+                                <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>Alarme 253 foi finalizado?</div>
+                                <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+                                  {[{ v:true, l:'✓ Sim' }, { v:false, l:'✗ Não' }].map(op => (
+                                    <span key={String(op.v)} onClick={() => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], alarme253Finalizado: op.v } }))}
+                                      style={{ fontSize:11, fontWeight:700, padding:'4px 10px', borderRadius:6, cursor:'pointer', background: dados.alarme253Finalizado === op.v ? (op.v ? '#D1FAE5' : '#FEE2E2') : '#F1F5F9', color: dados.alarme253Finalizado === op.v ? (op.v ? '#065F46' : '#991B1B') : '#64748B' }}>
+                                      {op.l}
+                                    </span>
+                                  ))}
+                                </div>
+                                {dados.alarme253Finalizado === false && (
+                                  <input value={dados.alarme253Motivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], alarme253Motivo: e.target.value } }))}
+                                    placeholder="Motivo do Alarme 253 não finalizado (lista fechada ainda não definida)"
+                                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', marginBottom:10 }} />
+                                )}
+                                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Nome de quem atendeu a equipe no CGR</label>
+                                <input value={dados.cgrNome || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], cgrNome: e.target.value } }))}
+                                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -5473,12 +5535,30 @@ export default function App() {
                 </div>
                 {(() => {
                   const marcadas = Object.entries(novoRegistroAtividades)
-                  const valida = marcadas.length > 0 && marcadas.every(([, d]) => (d.feita === true || d.feita === false) && (!d.impedimento || (d.motivo && d.motivo.trim() !== '')))
+                  const valida = marcadas.length > 0 && marcadas.every(([atividade, d]) => {
+                    const basico = (d.feita === true || d.feita === false) && (!d.impedimento || (d.motivo && d.motivo.trim() !== ''))
+                    if (!basico) return false
+                    if (atividade === 'Habilitação') {
+                      if (d.dimerFinalizado !== true && d.dimerFinalizado !== false) return false
+                      if (d.dimerFinalizado === false && !(d.dimerMotivo && d.dimerMotivo.trim() !== '')) return false
+                      if (d.alarme253Finalizado !== true && d.alarme253Finalizado !== false) return false
+                      if (d.alarme253Finalizado === false && !(d.alarme253Motivo && d.alarme253Motivo.trim() !== '')) return false
+                    }
+                    return true
+                  })
                   return (
                     <button onClick={() => {
-                      const atividades = marcadas.map(([atividade, d]) => ({ atividade, feita: d.feita, impedimento: !!d.impedimento, motivo: d.impedimento ? (d.motivo || '') : '' }))
+                      const atividades = marcadas.map(([atividade, d]) => ({
+                        atividade, feita: d.feita, impedimento: !!d.impedimento, motivo: d.impedimento ? (d.motivo || '') : '',
+                        ...(atividade === 'Habilitação' ? {
+                          dimerFinalizado: d.dimerFinalizado, dimerMotivo: d.dimerFinalizado === false ? (d.dimerMotivo || '') : '',
+                          alarme253Finalizado: d.alarme253Finalizado, alarme253Motivo: d.alarme253Finalizado === false ? (d.alarme253Motivo || '') : '',
+                          cgrNome: d.cgrNome || '',
+                        } : {}),
+                      }))
                       const equipe = [...novoRegistroEquipe, ...(novoRegistroTerceirizado ? [TERCEIRIZADO_PREFIXO + (novoRegistroTerceirizadoTexto.trim() || '(não informado)')] : [])]
-                      setRegistrosOperacaoCampo(prev => [...prev, { data: novoRegistroData || null, equipe, atividades }])
+                      const dataVisita = novoRegistroData || (/^\d{2}\/\d{2}\/\d{4}$/.test(dataInicioObraTexto.trim()) ? brToIso(dataInicioObraTexto.trim()) : '')
+                      setRegistrosOperacaoCampo(prev => [...prev, { data: dataVisita || null, equipe, atividades }])
                       setNovoRegistroData('')
                       setNovoRegistroEquipe([])
                       setNovoRegistroTerceirizado(false)
@@ -5509,24 +5589,6 @@ export default function App() {
                   terceirizado={terceirizadoObra} onChangeTerceirizado={setTerceirizadoObra}
                   terceirizadoTexto={terceirizadoObraTexto} onChangeTerceirizadoTexto={setTerceirizadoObraTexto}
                   bloqueado={!vistoriaCompleta} mensagemBloqueio='Preencha a data da vistoria e quem foi antes de liberar esta etapa' />
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:10 }}>
-                  <div>
-                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Responsável do escritório</label>
-                    <select value={responsavelEscritorio} onChange={e => setResponsavelEscritorio(e.target.value)}
-                      style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
-                      <option value="">—</option>
-                      {COLABORADORES.map(nome => <option key={nome} value={nome}>{nome}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Auxiliar do escritório</label>
-                    <select value={auxiliarEscritorio} onChange={e => setAuxiliarEscritorio(e.target.value)}
-                      style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
-                      <option value="">—</option>
-                      {COLABORADORES.map(nome => <option key={nome} value={nome}>{nome}</option>)}
-                    </select>
-                  </div>
-                </div>
               </div>
             )}
 
@@ -5670,16 +5732,20 @@ export default function App() {
                       style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', background: vistoriaCompleta ? '#fff' : '#F1F5F9', cursor: vistoriaCompleta ? 'text' : 'not-allowed' }} />
                   </div>
                   )}
+                  {modal.rede !== 'BANCO24HORAS' && (
                   <div>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Término</label>
                     <input type="date" value={dataObra.termino} onChange={e => setDataObra(d => ({...d, termino: e.target.value}))}
                       style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                   </div>
+                  )}
+                  {modal.rede !== 'BANCO24HORAS' && (
                   <div>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>ART pronta em</label>
                     <input type="date" value={dataArt} onChange={e => setDataArt(e.target.value)}
                       style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                   </div>
+                  )}
                 </div>
                 <div style={{ marginBottom:10 }}>
                   {!(modal.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal.tipo)) && (
@@ -5688,24 +5754,6 @@ export default function App() {
                     terceirizadoTexto={terceirizadoObraTexto} onChangeTerceirizadoTexto={setTerceirizadoObraTexto}
                     bloqueado={!vistoriaCompleta} mensagemBloqueio='Preencha a data da vistoria e quem foi antes de liberar esta etapa' />
                   )}
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:10 }}>
-                    <div>
-                      <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Responsável do escritório</label>
-                      <select value={responsavelEscritorio} onChange={e => setResponsavelEscritorio(e.target.value)}
-                        style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
-                        <option value="">—</option>
-                        {COLABORADORES.map(nome => <option key={nome} value={nome}>{nome}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Auxiliar do escritório</label>
-                      <select value={auxiliarEscritorio} onChange={e => setAuxiliarEscritorio(e.target.value)}
-                        style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
-                        <option value="">—</option>
-                        {COLABORADORES.map(nome => <option key={nome} value={nome}>{nome}</option>)}
-                      </select>
-                    </div>
-                  </div>
                 </div>
                 <div onClick={() => setEmNegociacao(v => !v)}
                   style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'10px 12px', borderRadius:10,
@@ -5952,10 +6000,15 @@ export default function App() {
                 </button>
               </div>
             </div>
-            <button onClick={salvarStatus} disabled={!novoStatus || salvando || (novoStatus === 'RM ENVIADA' && !editDados.os_tecban.trim())}
-              style={{ width:'100%', padding:13, background: (!novoStatus||salvando||(novoStatus === 'RM ENVIADA' && !editDados.os_tecban.trim())) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor: (!novoStatus||salvando) ? 'default' : 'pointer' }}>
+            <button onClick={salvarStatus} disabled={!novoStatus || salvando || !responsavelEscritorio.trim() || (novoStatus === 'RM ENVIADA' && !editDados.os_tecban.trim())}
+              style={{ width:'100%', padding:13, background: (!novoStatus||salvando||!responsavelEscritorio.trim()||(novoStatus === 'RM ENVIADA' && !editDados.os_tecban.trim())) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor: (!novoStatus||salvando) ? 'default' : 'pointer' }}>
               {salvando ? 'Salvando...' : 'Salvar'}
             </button>
+            {!responsavelEscritorio.trim() && (
+              <div style={{ fontSize:11, color:'#92400E', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'6px 10px', marginTop:8 }}>
+                🔒 Preencha o "Responsável do escritório" pra liberar o salvamento.
+              </div>
+            )}
             <button onClick={() => setModal(null)}
               style={{ width:'100%', padding:11, background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:12, fontSize:13, cursor:'pointer', marginTop:8 }}>
               Cancelar
