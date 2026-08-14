@@ -2012,7 +2012,7 @@ export default function App() {
   const [salvandoBulk, setSalvandoBulk] = useState(false)
   const [modalNovaObra, setModalNovaObra] = useState(false)
   const [menuAberto, setMenuAberto] = useState(null)
-  const [novaObra, setNovaObra] = useState({ tipo:'', rede:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0] })
+  const [novaObra, setNovaObra] = useState({ tipo:'', rede:'', numero_pc:'', numero_pa:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0] })
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [erroLogin, setErroLogin] = useState('')
@@ -2732,9 +2732,14 @@ export default function App() {
     }
     setSalvando(true)
     const ehBDN = TIPOS_BDN.includes(novaObra.tipo)
+    const numeroPaDigitado = novaObra.numero_pa.trim()
+    const obsComPA = numeroPaDigitado
+      ? `PA: ${numeroPaDigitado}${novaObra.obs ? '\n' + novaObra.obs : ''}`
+      : (novaObra.obs || null)
     const { data, error } = await supabase.from('pipeline_obras').insert({
       tipo: novaObra.tipo,
       rede: ehBDN ? novaObra.rede : null,
+      numero_pc: ehBDN ? (novaObra.numero_pc.trim() || null) : null,
       nome: novaObra.nome,
       local: montaLocal(novaObra.cidade, novaObra.uf),
       endereco: novaObra.endereco || null,
@@ -2744,7 +2749,7 @@ export default function App() {
       sige: novaObra.sige || null,
       pedido: novaObra.pedido || null,
       nf: novaObra.nf || null,
-      obs: novaObra.obs || null,
+      obs: obsComPA,
       status: ehBDN ? getEtapas(novaObra.rede, novaObra.tipo)[0] : 'VISTORIA',
       data_cadastro: novaObra.data_cadastro || new Date().toISOString().split('T')[0],
       criado_por: usuario.email,
@@ -2756,7 +2761,7 @@ export default function App() {
     }
     setSalvando(false)
     setModalNovaObra(false)
-    setNovaObra({ tipo:'', rede:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0] })
+    setNovaObra({ tipo:'', rede:'', numero_pc:'', numero_pa:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0] })
   }
 
   async function excluirObra(id) {
@@ -4936,7 +4941,6 @@ export default function App() {
             <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:16 }}>Nova Obra</div>
             {[
               { label:'Tipo *', field:'tipo', type:'select', options:['TRANSF UN','TRANSF EN','TRANSF PAE','DESC. PA','DESC. PAB','ENCER. AG','REFORMA','TB FORTE','LINK'] },
-              { label:'Nome da obra *', field:'nome', type:'text', placeholder:'Ex: BR_UN 1234 - NOME-USP' },
             ].map(f => (
               <div key={f.field} style={{ marginBottom:12 }}>
                 <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>{f.label}</label>
@@ -4977,24 +4981,46 @@ export default function App() {
                 <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Define a régua de status: Bradesco tem processo próprio (com vistoria e espera pelo pedido); as demais seguem o processo Banco24Horas.</div>
               </div>
             )}
+            {novaObra.rede === 'BANCO24HORAS' && (
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:12 }}>
+                <div>
+                  <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Número do PC *</label>
+                  <input value={novaObra.numero_pc} onChange={e => setNovaObra(p => ({...p, numero_pc:e.target.value}))}
+                    placeholder="Ex: 12345"
+                    style={{ width:'100%', padding:'10px 12px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Número do PA *</label>
+                  <input value={novaObra.numero_pa} onChange={e => setNovaObra(p => ({...p, numero_pa:e.target.value}))}
+                    placeholder="Ex: 6789"
+                    style={{ width:'100%', padding:'10px 12px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+              </div>
+            )}
+            <div style={{ marginBottom:12 }}>
+              <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Nome da obra *</label>
+              <input value={novaObra.nome} onChange={e => setNovaObra(p => ({...p, nome:e.target.value}))}
+                placeholder="Ex: BR_UN 1234 - NOME-USP"
+                style={{ width:'100%', padding:'10px 12px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+            </div>
             <div style={{ display:'grid', gridTemplateColumns:'2fr 1.3fr 0.6fr', gap:8, marginBottom:12 }}>
               <div>
-                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Endereço</label>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Endereço{novaObra.rede === 'BANCO24HORAS' ? ' *' : ''}</label>
                 <input value={novaObra.endereco} onChange={e => setNovaObra(p => ({...p, endereco:e.target.value}))}
                   placeholder="Rua, número, CEP"
                   style={{ width:'100%', padding:'10px 8px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
               </div>
               <div>
-                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Cidade</label>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Cidade{novaObra.rede === 'BANCO24HORAS' ? ' *' : ''}</label>
                 <input value={novaObra.cidade} onChange={e => setNovaObra(p => ({...p, cidade:e.target.value}))}
                   placeholder="Ex: São Paulo"
                   style={{ width:'100%', padding:'10px 8px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
               </div>
               <div>
-                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>UF</label>
-                <input value={novaObra.uf} maxLength={2} onChange={e => setNovaObra(p => ({...p, uf:e.target.value.toUpperCase()}))}
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>UF{novaObra.rede === 'BANCO24HORAS' ? ' *' : ''}</label>
+                <input value={novaObra.uf} maxLength={2} onChange={e => setNovaObra(p => ({...p, uf:e.target.value.toUpperCase().replace(/[^A-Z]/g, '')}))}
                   placeholder="SP"
-                  style={{ width:'100%', padding:'10px 8px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:12, color:'#1A2340', boxSizing:'border-box', textTransform:'uppercase' }} />
+                  style={{ width:'100%', padding:'10px 8px', border: (novaObra.uf && novaObra.uf.length !== 2) ? '1px solid #DC2626' : '1px solid #CDD8E3', borderRadius:10, fontSize:12, color:'#1A2340', boxSizing:'border-box', textTransform:'uppercase' }} />
               </div>
             </div>
             {[
@@ -5024,8 +5050,8 @@ export default function App() {
                 style={{ width:'100%', padding:'10px 12px', border:'1px solid #BFDBFE', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
               <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Padrão: hoje. Ajuste se a demanda chegou em outra data.</div>
             </div>
-            <button onClick={salvarNovaObra} disabled={!novaObra.tipo || !novaObra.nome || (TIPOS_BDN.includes(novaObra.tipo) && !novaObra.rede) || salvando}
-              style={{ width:'100%', padding:13, background: (!novaObra.tipo||!novaObra.nome||(TIPOS_BDN.includes(novaObra.tipo) && !novaObra.rede)||salvando) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor:'pointer', marginBottom:8 }}>
+            <button onClick={salvarNovaObra} disabled={!novaObra.tipo || !novaObra.nome || (TIPOS_BDN.includes(novaObra.tipo) && !novaObra.rede) || (novaObra.rede === 'BANCO24HORAS' && (!novaObra.numero_pc.trim() || !novaObra.numero_pa.trim() || !novaObra.endereco.trim() || !novaObra.cidade.trim() || novaObra.uf.trim().length !== 2)) || salvando}
+              style={{ width:'100%', padding:13, background: (!novaObra.tipo||!novaObra.nome||(TIPOS_BDN.includes(novaObra.tipo) && !novaObra.rede)||(novaObra.rede === 'BANCO24HORAS' && (!novaObra.numero_pc.trim() || !novaObra.numero_pa.trim() || !novaObra.endereco.trim() || !novaObra.cidade.trim() || novaObra.uf.trim().length !== 2))||salvando) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor:'pointer', marginBottom:8 }}>
               {salvando ? 'Salvando...' : 'Criar Obra'}
             </button>
             <button onClick={() => setModalNovaObra(false)}
