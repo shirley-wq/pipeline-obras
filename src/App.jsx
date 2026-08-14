@@ -5381,13 +5381,6 @@ export default function App() {
                 <input type="checkbox" checked={agendamentoConfirmado} onChange={e => setAgendamentoConfirmado(e.target.checked)} />
                 <span style={{ fontSize:13, color:'#1A2340', fontWeight:600 }}>Agendamento confirmado com o EC</span>
               </label>
-              {agendamentoConfirmado && (
-                <div>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data agendada</label>
-                  <input type="date" value={agendamentoData} onChange={e => setAgendamentoData(e.target.value)}
-                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
-                </div>
-              )}
             </div>
             )}
 
