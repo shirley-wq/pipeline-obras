@@ -1182,12 +1182,25 @@ const TIPOS_BDN = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM'
 const SEM_VISTORIA_BANCO24H = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM', 'REMANEJAMENTO ATM']
 // Itens do ARS que descrevem onde/como a máquina fica fixada - mais de um pode se aplicar
 // ao mesmo tempo (ex: "encostada em pilar" + "fixação química").
-const ITENS_SEGURANCA_BANCO24H = ['Máquina encostada em parede de alvenaria', 'Encostada em pilar', 'Em cima de viga', 'Fixação concretada', 'Fixação química', 'Fixação projeto T']
+const ITENS_SEGURANCA_BANCO24H = ['Máquina encostada em parede de alvenaria', 'Encostada em pilar', 'Em cima de viga', 'Fixação concretada', 'Fixação química', 'Fixação projeto T', 'Construção de meia parede']
 // Atividades possíveis no dia da obra (rede Banco24Horas) - podem acontecer em visitas separadas.
 const ATIVIDADES_OPERACAO_CAMPO = ['Base', 'Instalação', 'Habilitação', 'Construção de parede', 'Instalação de sinalização']
 // Motivos de impedimento pra Base já definidos (Shirley, 2026-08-13). Motivos das outras atividades
 // ainda não foram levantados - usar texto livre até ela trazer a lista fechada.
 const MOTIVOS_IMPEDIMENTO_BASE = ['Não autorizado o tipo de fixação', 'Local incompatível — laje', 'Local incompatível — interfere elétrica ou hidráulica', 'Piso em concreto armado usinado']
+// Lista de defeitos de equipamento encontrados na Habilitação e não resolvidos em campo
+// (Shirley, 2026-08-18) - ainda vai crescer, lista aberta por enquanto.
+const DEFEITOS_EQUIPAMENTO_HABILITACAO = ['Falha na atualização do módulo pagador', 'Finger off']
+
+// Envio do relatório da obra pra Tecban (Shirley, 2026-08-18, endereço ajustado no mesmo dia pra
+// Implantacao.B24horas em vez de gestaopagamentos2026 - esse é o endereço que a Shirley pediu pra
+// usar pro relatório individual por obra, mesmo endereço que o Fabio já usa pro report diário).
+const EMAIL_RM_TECBAN = 'Implantacao.B24horas@tecban.com.br'
+const EMAIL_CC_OPERACAO_GRUPOPG = 'operacao@grupopg.com.br'
+const APPS_SCRIPT_RELATORIO_URL = 'https://script.google.com/macros/s/AKfycbzxp855GA1oWW_p8tXOba7O7wtEuN7AO31rON7zAKAKrmmbpGDWiAINqIHDFRw0eQHyuw/exec'
+const APPS_SCRIPT_RELATORIO_SECRET = 'pg-tecban-report-2026-x7q2m9'
+// Fase de teste - só quem está nessa lista vê o botão de enviar (Shirley, 2026-08-18).
+const EMAILS_ENVIO_RELATORIO = ['shirley@grupopg.com.br', 'fabioesteves@grupopg.com.br']
 
 // ===== Importação de obras novas de movimentação a partir do relatório "ReportPersonalizado" do SIGE =====
 // (alinhado com a Shirley em 2026-08-12, mesma família de regras da importação de 06-07/08)
@@ -2007,7 +2020,6 @@ export default function App() {
   const [barreiraDissuasao, setBarreiraDissuasao] = useState(false)
   const [barreiraDissuasaoCampo, setBarreiraDissuasaoCampo] = useState(false)
   const [autorizacaoMudanca, setAutorizacaoMudanca] = useState('')
-  const [agendamentoConfirmado, setAgendamentoConfirmado] = useState(false)
   const [agendamentoData, setAgendamentoData] = useState('')
   const [registrosOperacaoCampo, setRegistrosOperacaoCampo] = useState([])
   const [novoRegistroData, setNovoRegistroData] = useState('')
@@ -2015,6 +2027,10 @@ export default function App() {
   const [novoRegistroTerceirizado, setNovoRegistroTerceirizado] = useState(false)
   const [novoRegistroTerceirizadoTexto, setNovoRegistroTerceirizadoTexto] = useState('')
   const [novoRegistroAtividades, setNovoRegistroAtividades] = useState({})
+  const [mostrarEnvioRelatorio, setMostrarEnvioRelatorio] = useState(false)
+  const [fotosRelatorio, setFotosRelatorio] = useState([])
+  const [enviandoRelatorio, setEnviandoRelatorio] = useState(false)
+  const [erroEnvioRelatorio, setErroEnvioRelatorio] = useState('')
   const [dataObraInicio, setDataObraInicio] = useState('')
   const [colabsObra, setColabsObra] = useState([])
   const [terceirizadoObra, setTerceirizadoObra] = useState(false)
@@ -2800,8 +2816,8 @@ export default function App() {
     setMenuAberto(null)
   }
 
-  function exportarRelatorioCliente() {
-    if (!modal) return
+  function montaRelatorioClientePDF() {
+    if (!modal) return null
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
     doc.setFontSize(14)
@@ -2822,7 +2838,6 @@ export default function App() {
     doc.setFont(undefined, 'normal')
     doc.text(`Contato do EC: ${ecNome || '—'}${ecTelefone ? ` (${ecTelefone})` : ''}`, 14, y); y += 5
     doc.text(`Início confirmado com o cliente: ${dataInicioObraTexto || '—'} ${horaInicioObraTexto || ''}`, 14, y); y += 5
-    doc.text(`Agendamento confirmado: ${agendamentoConfirmado ? 'Sim' : 'Não'}`, 14, y); y += 7
 
     const itensTabela = ITENS_SEGURANCA_BANCO24H.map(item => [
       item, segurancaItens.includes(item) ? 'X' : '', segurancaItensCampo.includes(item) ? 'X' : '',
@@ -2830,12 +2845,12 @@ export default function App() {
     itensTabela.push(['Tem barreira de dissuasão', barreiraDissuasao ? 'X' : '', barreiraDissuasaoCampo ? 'X' : ''])
     autoTable(doc, {
       startY: y,
-      head: [['Critério de segurança', 'ARS', 'Campo']],
+      head: [['Critério de segurança', 'Solicitação no ARS', 'Executado em campo']],
       body: itensTabela,
       theme: 'grid',
       styles: { fontSize: 8, cellPadding: 1.5 },
       headStyles: { fillColor: [45, 58, 140], textColor: 255, fontStyle: 'bold' },
-      columnStyles: { 1: { halign: 'center', cellWidth: 18 }, 2: { halign: 'center', cellWidth: 18 } },
+      columnStyles: { 1: { halign: 'center', cellWidth: 26 }, 2: { halign: 'center', cellWidth: 26 } },
     })
     y = doc.lastAutoTable.finalY + 5
     if (autorizacaoMudanca.trim()) {
@@ -2855,9 +2870,10 @@ export default function App() {
         let detalhe = a.impedimento && a.motivo ? `Desvio: ${a.motivo}` : (a.impedimento ? 'Com desvio' : '')
         if (a.atividade === 'Habilitação') {
           const extras = []
-          if (a.dimerFinalizado === false) extras.push(`Dimer não finalizado${a.dimerMotivo ? ` (${a.dimerMotivo})` : ''}`)
-          if (a.alarme253Finalizado === false) extras.push(`Alarme 253 não finalizado${a.alarme253Motivo ? ` (${a.alarme253Motivo})` : ''}`)
+          if (!a.dimerFinalizado) extras.push(`Dimer não finalizado${a.dimerMotivo ? ` (${a.dimerMotivo})` : ''}`)
+          if (!a.alarme253Finalizado) extras.push(`Alarme 253 não finalizado${a.alarme253Motivo ? ` (${a.alarme253Motivo})` : ''}`)
           if (a.cgrNome) extras.push(`CGR: ${a.cgrNome}`)
+          if (Array.isArray(a.defeitosEquipamento) && a.defeitosEquipamento.length > 0) extras.push(`Defeito de equipamento: ${a.defeitosEquipamento.join(', ')}`)
           detalhe = [detalhe, ...extras].filter(Boolean).join(' — ')
         }
         linhasVisitas.push([
@@ -2884,7 +2900,82 @@ export default function App() {
     doc.setTextColor(120)
     doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')} por ${usuario?.email || ''}`, 14, y)
 
+    return doc
+  }
+
+  function exportarRelatorioCliente() {
+    const doc = montaRelatorioClientePDF()
+    if (!doc) return
     doc.save(`Relatorio_Cliente_${modal.nome.replace(/[^\w]+/g, '_')}.pdf`)
+  }
+
+  function arquivoParaBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result).split(',')[1] || '')
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+
+  async function handleAdicionarFotosRelatorio(fileList) {
+    const arquivos = Array.from(fileList || [])
+    const novas = await Promise.all(arquivos.map(async file => ({
+      filename: file.name,
+      mimeType: file.type || 'image/jpeg',
+      base64: await arquivoParaBase64(file),
+    })))
+    setFotosRelatorio(prev => [...prev, ...novas])
+  }
+
+  function montaAssuntoRelatorioTecban() {
+    const ordem = (editDados.os_tecban || modal?.os_tecban || '').trim() || '(sem OS)'
+    const tipoCodigo = (modal?.tipo || '').replace(/\s*ATM\s*$/i, '').trim().toUpperCase()
+    return `B24H_${ordem}_${tipoCodigo}`
+  }
+
+  function montaCorpoRelatorioTecban() {
+    if (!modal) return ''
+    const localTexto = [editDados.cidade, editDados.uf].filter(Boolean).join('/')
+    return `Prezados,\n\nNossa equipe esteve no local para a atividade de ${modal.tipo}${editDados.numero_pc ? ` (PC ${editDados.numero_pc})` : ''} - ${modal.nome}${localTexto ? `, em ${localTexto}` : ''}. A obra foi concluída até onde compete à nossa atuação.\n\nSegue em anexo o relatório com os detalhes do que foi realizado no local.\n\nEm breve enviaremos o book fotográfico e o encaminhamento para cobrança.\n\nAtenciosamente,\nGrupo PG`
+  }
+
+  async function enviarRelatorioTecban() {
+    const doc = montaRelatorioClientePDF()
+    if (!doc) return
+    setEnviandoRelatorio(true)
+    setErroEnvioRelatorio('')
+    try {
+      const pdfBase64 = doc.output('datauristring').split(',')[1] || ''
+      const assunto = montaAssuntoRelatorioTecban()
+      const resp = await fetch(APPS_SCRIPT_RELATORIO_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          secret: APPS_SCRIPT_RELATORIO_SECRET,
+          to: EMAIL_RM_TECBAN,
+          cc: EMAIL_CC_OPERACAO_GRUPOPG,
+          subject: assunto,
+          body: montaCorpoRelatorioTecban(),
+          pdfBase64,
+          pdfFilename: `Relatorio_Cliente_${modal.nome.replace(/[^\w]+/g, '_')}.pdf`,
+          fotos: fotosRelatorio,
+        }),
+      })
+      const resultado = await resp.json()
+      if (!resultado.ok) throw new Error(resultado.error || 'Falha no envio')
+      await supabase.from('pipeline_obras').update({
+        relatorio_enviado_em: new Date().toISOString(),
+        relatorio_enviado_por: usuario.email,
+      }).eq('id', modal.id)
+      setMostrarEnvioRelatorio(false)
+      setFotosRelatorio([])
+      alert('Relatório enviado para a Tecban com sucesso.')
+    } catch (err) {
+      setErroEnvioRelatorio('Não foi possível enviar: ' + err.message)
+    } finally {
+      setEnviandoRelatorio(false)
+    }
   }
 
   async function salvarStatus() {
@@ -2967,7 +3058,6 @@ export default function App() {
       campos.barreira_dissuasao = barreiraDissuasao
       campos.barreira_dissuasao_campo = barreiraDissuasaoCampo
       campos.autorizacao_mudanca = autorizacaoMudanca || null
-      campos.agendamento_confirmado = agendamentoConfirmado
       campos.agendamento_data = agendamentoData || null
       campos.registros_operacao_campo = registrosOperacaoCampo.length > 0 ? registrosOperacaoCampo : null
     }
@@ -3292,7 +3382,7 @@ export default function App() {
     // Obras Banco24Horas (as 4 atividades sem vistoria) que tenham dado entrada de ARS
     const obrasB24h = obrasFiltradas.filter(o => o.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(o.tipo))
 
-    const cabArs = ['Obra','PC','Status','Entrou no ARS','Contato EC - nome','Contato EC - telefone','Data início (confirmada)','Hora início (confirmada)','ARS solicitado','Campo executado','Barreira dissuasão (ARS)','Barreira dissuasão (Campo)','Quem autorizou a mudança','Agendamento confirmado']
+    const cabArs = ['Obra','PC','Status','Entrou no ARS','Contato EC - nome','Contato EC - telefone','Data início (confirmada)','Hora início (confirmada)','ARS solicitado','Campo executado','Barreira dissuasão (ARS)','Barreira dissuasão (Campo)','Quem autorizou a mudança']
     const linhasArs = obrasB24h.map(o => [
       o.nome, o.numero_pc || '', o.status,
       o.ars_verificado ? 'Sim' : 'Não',
@@ -3303,12 +3393,11 @@ export default function App() {
       o.barreira_dissuasao ? 'Sim' : 'Não',
       o.barreira_dissuasao_campo ? 'Sim' : 'Não',
       o.autorizacao_mudanca || '',
-      o.agendamento_confirmado ? 'Sim' : 'Não',
     ])
     const wsArs = XLSXStyle.utils.aoa_to_sheet([cabArs, ...linhasArs])
     wsArs['!cols'] = cabArs.map(() => ({ wch: 20 }))
 
-    const cabDia = ['Obra','PC','Data da visita','Equipe','Atividade','Feita','Impedimento/Desvio','Motivo','Dimer finalizado','Motivo Dimer','Alarme 253 finalizado','Motivo Alarme 253','Quem atendeu no CGR']
+    const cabDia = ['Obra','PC','Data da visita','Equipe','Atividade','Feita','Impedimento/Desvio','Motivo','Dimer finalizado','Motivo Dimer','Alarme 253 finalizado','Motivo Alarme 253','Quem atendeu no CGR','Defeito de equipamento não resolvido']
     const linhasDia = []
     obrasB24h.forEach(o => {
       const registros = Array.isArray(o.registros_operacao_campo) ? o.registros_operacao_campo : []
@@ -3324,6 +3413,7 @@ export default function App() {
             a.atividade === 'Habilitação' ? (a.alarme253Finalizado ? 'Sim' : 'Não') : '',
             a.atividade === 'Habilitação' ? (a.alarme253Motivo || '') : '',
             a.atividade === 'Habilitação' ? (a.cgrNome || '') : '',
+            a.atividade === 'Habilitação' && Array.isArray(a.defeitosEquipamento) ? a.defeitosEquipamento.join(', ') : '',
           ])
         })
       })
@@ -4979,7 +5069,6 @@ export default function App() {
                         setBarreiraDissuasao(obra.barreira_dissuasao || false)
                         setBarreiraDissuasaoCampo(obra.barreira_dissuasao_campo || false)
                         setAutorizacaoMudanca(obra.autorizacao_mudanca || '')
-                        setAgendamentoConfirmado(obra.agendamento_confirmado || false)
                         setAgendamentoData(obra.agendamento_data || '')
                         setRegistrosOperacaoCampo(Array.isArray(obra.registros_operacao_campo) ? obra.registros_operacao_campo : [])
                         setNovoRegistroData('')
@@ -4987,6 +5076,9 @@ export default function App() {
                         setNovoRegistroTerceirizado(false)
                         setNovoRegistroTerceirizadoTexto('')
                         setNovoRegistroAtividades({})
+                        setMostrarEnvioRelatorio(false)
+                        setFotosRelatorio([])
+                        setErroEnvioRelatorio('')
                         setDataObraInicio(obra.data_obra_inicio || '')
                         const listaObra = Array.isArray(obra.colaboradores_obra) ? obra.colaboradores_obra : []
                         const terceiroObra = listaObra.find(c => c.startsWith(TERCEIRIZADO_PREFIXO))
@@ -5498,10 +5590,10 @@ export default function App() {
               </div>
               <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:6 }}>Critérios de segurança — o que o ARS indica x o que foi realizado em campo</div>
               <div style={{ marginBottom:12, overflowX:'auto' }}>
-                <div style={{ display:'grid', gridTemplateColumns:'minmax(160px, 260px) 60px 60px', gap:4, alignItems:'center', maxWidth:400 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'minmax(160px, 260px) 100px 100px', gap:4, alignItems:'center', maxWidth:480 }}>
                   <div></div>
-                  <div style={{ fontSize:10, color:'#4A7FC1', fontWeight:700, textAlign:'center' }}>ARS</div>
-                  <div style={{ fontSize:10, color:'#4A7FC1', fontWeight:700, textAlign:'center' }}>Campo</div>
+                  <div style={{ fontSize:10, color:'#4A7FC1', fontWeight:700, textAlign:'center', lineHeight:1.2 }}>Solicitação no ARS</div>
+                  <div style={{ fontSize:10, color:'#4A7FC1', fontWeight:700, textAlign:'center', lineHeight:1.2 }}>Executado em campo</div>
                   {[...ITENS_SEGURANCA_BANCO24H, 'Tem barreira de dissuasão'].map(item => {
                     const ehBarreira = item === 'Tem barreira de dissuasão'
                     const arsMarcado = ehBarreira ? barreiraDissuasao : segurancaItens.includes(item)
@@ -5533,10 +5625,6 @@ export default function App() {
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                 <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Preencher só quando o que foi realizado em campo é diferente do que o ARS indicava.</div>
               </div>
-              <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginBottom:8 }}>
-                <input type="checkbox" checked={agendamentoConfirmado} onChange={e => setAgendamentoConfirmado(e.target.checked)} />
-                <span style={{ fontSize:13, color:'#1A2340', fontWeight:600 }}>Agendamento confirmado com o EC</span>
-              </label>
             </div>
             )}
 
@@ -5559,7 +5647,7 @@ export default function App() {
                             {a.feita ? '✓ Feita' : '✗ Não feita'} — {a.atividade}{a.impedimento && a.motivo ? ` (com desvio: ${a.motivo})` : (a.impedimento ? ' (com desvio)' : '')}
                             {a.atividade === 'Habilitação' && (
                               <div style={{ fontSize:11, color:'#64748B', marginTop:2 }}>
-                                Dimer: {a.dimerFinalizado ? 'finalizado' : `não finalizado${a.dimerMotivo ? ` (${a.dimerMotivo})` : ''}`} · Alarme 253: {a.alarme253Finalizado ? 'finalizado' : `não finalizado${a.alarme253Motivo ? ` (${a.alarme253Motivo})` : ''}`}{a.cgrNome ? ` · CGR: ${a.cgrNome}` : ''}
+                                Dimer: {a.dimerFinalizado ? 'finalizado' : `não finalizado${a.dimerMotivo ? ` (${a.dimerMotivo})` : ''}`} · Alarme 253: {a.alarme253Finalizado ? 'finalizado' : `não finalizado${a.alarme253Motivo ? ` (${a.alarme253Motivo})` : ''}`}{a.cgrNome ? ` · CGR: ${a.cgrNome}` : ''}{Array.isArray(a.defeitosEquipamento) && a.defeitosEquipamento.length > 0 ? ` · Defeito: ${a.defeitosEquipamento.join(', ')}` : ''}
                               </div>
                             )}
                           </div>
@@ -5657,6 +5745,20 @@ export default function App() {
                                     placeholder="Motivo do Alarme 253 não finalizado (lista fechada ainda não definida)"
                                     style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', marginBottom:10 }} />
                                 )}
+                                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:4 }}>Defeito de equipamento encontrado e não resolvido em campo (opcional)</label>
+                                <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:10 }}>
+                                  {DEFEITOS_EQUIPAMENTO_HABILITACAO.map(defeito => (
+                                    <label key={defeito} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+                                      <input type="checkbox" checked={(dados.defeitosEquipamento || []).includes(defeito)}
+                                        onChange={e => setNovoRegistroAtividades(prev => {
+                                          const atual = prev[atividade]?.defeitosEquipamento || []
+                                          const proximo = e.target.checked ? [...atual, defeito] : atual.filter(d => d !== defeito)
+                                          return { ...prev, [atividade]: { ...prev[atividade], defeitosEquipamento: proximo } }
+                                        })} />
+                                      <span style={{ fontSize:12, color:'#1A2340' }}>{defeito}</span>
+                                    </label>
+                                  ))}
+                                </div>
                                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Nome de quem atendeu a equipe no CGR</label>
                                 <input value={dados.cgrNome || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], cgrNome: e.target.value } }))}
                                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
@@ -5689,6 +5791,7 @@ export default function App() {
                           dimerFinalizado: d.dimerFinalizado, dimerMotivo: d.dimerFinalizado === false ? (d.dimerMotivo || '') : '',
                           alarme253Finalizado: d.alarme253Finalizado, alarme253Motivo: d.alarme253Finalizado === false ? (d.alarme253Motivo || '') : '',
                           cgrNome: d.cgrNome || '',
+                          defeitosEquipamento: d.defeitosEquipamento || [],
                         } : {}),
                       }))
                       const equipe = [...novoRegistroEquipe, ...(novoRegistroTerceirizado ? [TERCEIRIZADO_PREFIXO + (novoRegistroTerceirizadoTexto.trim() || '(não informado)')] : [])]
@@ -5712,10 +5815,63 @@ export default function App() {
                 Cobertura das 5 atividades: {ATIVIDADES_OPERACAO_CAMPO.filter(a => atividadesCobertas.has(a)).length}/{ATIVIDADES_OPERACAO_CAMPO.length}
                 {!operacaoCampoCompleta && ' — precisa de todas as 5 pra liberar "Relatório ao Cliente"'}
               </div>
-              <button onClick={exportarRelatorioCliente}
-                style={{ width:'100%', marginTop:10, padding:10, background:'#0E4D73', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+              <button onClick={exportarRelatorioCliente} disabled={!operacaoCampoCompleta}
+                style={{ width:'100%', marginTop:10, padding:10, background: !operacaoCampoCompleta ? '#ccc' : '#0E4D73', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: !operacaoCampoCompleta ? 'default' : 'pointer' }}>
                 📄 Gerar PDF do relatório ao cliente
               </button>
+
+              {modal.relatorio_enviado_em && (
+                <div style={{ fontSize:11, color:'#64748B', marginTop:8 }}>
+                  Último envio pra Tecban: {new Date(modal.relatorio_enviado_em).toLocaleString('pt-BR')} por {modal.relatorio_enviado_por}
+                </div>
+              )}
+
+              {EMAILS_ENVIO_RELATORIO.includes(usuario?.email) && (
+                <button onClick={() => { setMostrarEnvioRelatorio(true); setErroEnvioRelatorio('') }}
+                  disabled={!operacaoCampoCompleta}
+                  style={{ width:'100%', marginTop:8, padding:10, background: !operacaoCampoCompleta ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: !operacaoCampoCompleta ? 'default' : 'pointer' }}>
+                  📧 Enviar relatório para a Tecban
+                </button>
+              )}
+
+              {mostrarEnvioRelatorio && (
+                <div style={{ marginTop:10, background:'#fff', border:'1px solid #CDD8E3', borderRadius:8, padding:12 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:8 }}>Revisar antes de enviar</div>
+                  <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Para:</strong> {EMAIL_RM_TECBAN}</div>
+                  <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Cc:</strong> {EMAIL_CC_OPERACAO_GRUPOPG}</div>
+                  <div style={{ fontSize:12, color:'#374151', marginBottom:8 }}><strong>Assunto:</strong> {montaAssuntoRelatorioTecban()}</div>
+                  <div style={{ fontSize:12, color:'#374151', marginBottom:8 }}>Anexo: PDF do relatório ao cliente{fotosRelatorio.length > 0 ? ` + ${fotosRelatorio.length} foto(s)` : ''}</div>
+                  <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>Texto do e-mail</div>
+                  <div style={{ fontSize:12, color:'#374151', whiteSpace:'pre-wrap', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, padding:10, marginBottom:10 }}>{montaCorpoRelatorioTecban()}</div>
+
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:4 }}>Anexar foto(s) recebida(s) no WhatsApp (opcional)</label>
+                  <input type="file" accept="image/*" multiple onChange={e => handleAdicionarFotosRelatorio(e.target.files)}
+                    style={{ marginBottom:8, fontSize:12 }} />
+                  {fotosRelatorio.length > 0 && (
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:8 }}>
+                      {fotosRelatorio.map((f, i) => (
+                        <span key={i} style={{ fontSize:11, background:'#F1F5F9', padding:'4px 8px', borderRadius:6, display:'flex', alignItems:'center', gap:6 }}>
+                          {f.filename}
+                          <span onClick={() => setFotosRelatorio(prev => prev.filter((_, idx) => idx !== i))} style={{ color:'#DC2626', cursor:'pointer', fontWeight:700 }}>×</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {erroEnvioRelatorio && <div style={{ fontSize:12, color:'#DC2626', marginBottom:8 }}>{erroEnvioRelatorio}</div>}
+
+                  <div style={{ display:'flex', gap:8 }}>
+                    <button onClick={() => { setMostrarEnvioRelatorio(false); setErroEnvioRelatorio('') }} disabled={enviandoRelatorio}
+                      style={{ flex:1, padding:10, background:'#F1F5F9', color:'#1A2340', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                      Cancelar
+                    </button>
+                    <button onClick={enviarRelatorioTecban} disabled={enviandoRelatorio}
+                      style={{ flex:1, padding:10, background: enviandoRelatorio ? '#94A3B8' : '#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: enviandoRelatorio ? 'default' : 'pointer' }}>
+                      {enviandoRelatorio ? 'Enviando...' : 'Confirmar envio'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             )}
 
@@ -5860,7 +6016,7 @@ export default function App() {
               </div>
             )}
 
-            {modal.tipo !== 'TRANSF UN' && (
+            {modal.tipo !== 'TRANSF UN' && !(modal.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal.tipo)) && (
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
                 <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Datas da obra</div>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
