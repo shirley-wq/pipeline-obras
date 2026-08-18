@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import * as XLSXStyle from 'xlsx-js-style'
 import jsPDF from 'jspdf'
@@ -1201,6 +1201,12 @@ const APPS_SCRIPT_RELATORIO_URL = 'https://script.google.com/macros/s/AKfycbzxp8
 const APPS_SCRIPT_RELATORIO_SECRET = 'pg-tecban-report-2026-x7q2m9'
 // Fase de teste - só quem está nessa lista vê o botão de enviar (Shirley, 2026-08-18).
 const EMAILS_ENVIO_RELATORIO = ['shirley@grupopg.com.br', 'fabioesteves@grupopg.com.br']
+// Totalizadores de valor (R$) no topo do dashboard restritos a essas 3 pessoas (Shirley,
+// 2026-08-18) - mais restrito que podeVerValores, que continua valendo pras outras telas
+// (Disponível pra Faturar, Histórico, Despesas, valor por obra).
+const EMAILS_VER_VALORES_TOPO = ['shirley@grupopg.com.br', 'aline.roza@grupopg.com.br', 'leandro@grupopg.com.br']
+// Cores dos cards do "Cenário por estado" no dashboard (2026-08-18) - só decoração, cicla por estado.
+const CENARIO_CORES = ['#2D3A8C', '#0F766E', '#C2410C', '#7C3AED', '#0369A1', '#BE185D', '#4D7C0F']
 
 // ===== Importação de obras novas de movimentação a partir do relatório "ReportPersonalizado" do SIGE =====
 // (alinhado com a Shirley em 2026-08-12, mesma família de regras da importação de 06-07/08)
@@ -1975,6 +1981,7 @@ export default function App() {
   const [mostrarCenario, setMostrarCenario] = useState(true)
   const [rhSubaba, setRhSubaba] = useState('colaboradores')
   const [filtroCenarioUF, setFiltroCenarioUF] = useState('')
+  const cenarioScrollRef = useRef(null)
   const [filtroStatus, setFiltroStatus] = useState('')
   const [busca, setBusca] = useState('')
   const [filtroDe, setFiltroDe] = useState('')
@@ -3307,8 +3314,15 @@ export default function App() {
   const cenarioPorUFMap = {}
   obrasAtivas.forEach(o => {
     const estado = estadoDaObra(o)
-    if (!cenarioPorUFMap[estado]) cenarioPorUFMap[estado] = { uf: estado, obras: 0, movimentacao: 0 }
-    if (TIPOS_BDN.includes(o.tipo)) cenarioPorUFMap[estado].movimentacao++
+    if (!cenarioPorUFMap[estado]) cenarioPorUFMap[estado] = { uf: estado, obras: 0, movimentacao: 0, instalacao: 0, desativacao: 0, manutencao: 0 }
+    if (TIPOS_BDN.includes(o.tipo)) {
+      cenarioPorUFMap[estado].movimentacao++
+      // Instalação = máquina entrando; Desativação = máquina saindo/trocando de lugar;
+      // Manutenção = intervenção sem entrar/sair máquina (inclui sinalização).
+      if (o.tipo === 'INSTALAÇÃO ATM') cenarioPorUFMap[estado].instalacao++
+      else if (['DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM', 'REMANEJAMENTO ATM'].includes(o.tipo)) cenarioPorUFMap[estado].desativacao++
+      else cenarioPorUFMap[estado].manutencao++
+    }
     else cenarioPorUFMap[estado].obras++
   })
   const cenarioPorUF = Object.values(cenarioPorUFMap).sort((a, b) => (b.obras + b.movimentacao) - (a.obras + a.movimentacao))
@@ -3623,12 +3637,12 @@ export default function App() {
       </div>
 
       {/* Totalizadores */}
-      <div style={{ background:'#2D3A8C', padding:'12px 16px', display:'grid', gridTemplateColumns: podeVerValores ? 'repeat(4,1fr)' : 'repeat(2,1fr)', gap:8 }}>
+      <div style={{ background:'#2D3A8C', padding:'12px 16px', display:'grid', gridTemplateColumns: EMAILS_VER_VALORES_TOPO.includes(usuario?.email) ? 'repeat(4,1fr)' : 'repeat(2,1fr)', gap:8 }}>
         {[
-          ...(podeVerValores ? [{ n: 'R$' + (totalValor/1000).toFixed(0) + 'k', l:'Em Andamento' }] : []),
+          ...(EMAILS_VER_VALORES_TOPO.includes(usuario?.email) ? [{ n: 'R$' + (totalValor/1000).toFixed(0) + 'k', l:'Em Andamento' }] : []),
           { n: emAndamento, l:'Execução' },
           { n: pendencias, l:'Pendências', alert: pendencias > 0 },
-          ...(podeVerValores ? [{ n: 'R$' + (totalFaturar/1000).toFixed(0) + 'k', l:'A Faturar', highlight: obrasFaturar.length > 0 }] : []),
+          ...(EMAILS_VER_VALORES_TOPO.includes(usuario?.email) ? [{ n: 'R$' + (totalFaturar/1000).toFixed(0) + 'k', l:'A Faturar', highlight: obrasFaturar.length > 0 }] : []),
         ].map((t,i) => (
           <div key={i} style={{ background:'rgba(255,255,255,.1)', borderRadius:10, padding:'10px 8px', textAlign:'center' }}>
             <div style={{ fontSize:20, fontWeight:700, color: t.alert ? '#FCA5A5' : t.highlight ? '#FDE68A' : '#fff' }}>{t.n}</div>
@@ -4802,39 +4816,56 @@ export default function App() {
                 </div>
               ))}
             </div>
-            <div style={{ border:'1px solid #E0E8F0', borderRadius:10, overflow:'hidden' }}>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', background:'#1A2340', padding:'8px 10px' }}>
-                {['Estado','Obras','Movimentação','Total'].map(h => (
-                  <div key={h} style={{ fontSize:10, fontWeight:700, color:'#fff', textTransform:'uppercase' }}>{h}</div>
-                ))}
-              </div>
-              {cenarioPorUF.length === 0 && (
-                <div style={{ padding:12, fontSize:12, color:'#888', textAlign:'center' }}>Nenhuma obra em execução</div>
-              )}
-              {cenarioPorUF.map((c, i) => {
-                const selecionado = filtroCenarioUF === c.uf
-                return (
-                  <div key={c.uf} onClick={() => setFiltroCenarioUF(v => v === c.uf ? '' : c.uf)}
-                    style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', padding:'8px 10px', cursor:'pointer',
-                      background: selecionado ? '#EEF2FF' : (i % 2 ? '#F8FAFC' : '#fff'),
-                      borderTop: selecionado ? '1px solid #C7D2FE' : '1px solid #F0F4F8',
-                      borderLeft: selecionado ? '3px solid #2D3A8C' : '3px solid transparent' }}>
-                    <div style={{ fontSize:12, fontWeight:700, color:'#1A2340' }}>{c.uf}</div>
-                    <div style={{ fontSize:12, color:'#2D3A8C' }}>{c.obras}</div>
-                    <div style={{ fontSize:12, color:'#0F766E' }}>{c.movimentacao}</div>
-                    <div style={{ fontSize:12, fontWeight:700, color:'#1A2340' }}>{c.obras + c.movimentacao}</div>
-                  </div>
-                )
-              })}
-              {cenarioPorUF.length > 0 && (
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', padding:'8px 10px', background:'#EEF2FF', borderTop:'1.5px solid #C7D2FE' }}>
-                  <div style={{ fontSize:12, fontWeight:700, color:'#1A2340' }}>TOTAL</div>
-                  <div style={{ fontSize:12, fontWeight:700, color:'#2D3A8C' }}>{cenarioTotalObras}</div>
-                  <div style={{ fontSize:12, fontWeight:700, color:'#0F766E' }}>{cenarioTotalMovimentacao}</div>
-                  <div style={{ fontSize:12, fontWeight:700, color:'#1A2340' }}>{cenarioTotalObras + cenarioTotalMovimentacao}</div>
+            {cenarioPorUF.length === 0 ? (
+              <div style={{ padding:12, fontSize:12, color:'#888', textAlign:'center', border:'1px solid #E0E8F0', borderRadius:10 }}>Nenhuma obra em execução</div>
+            ) : (
+              <div>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+                  <button onClick={() => cenarioScrollRef.current?.scrollBy({ left: -240, behavior:'smooth' })}
+                    style={{ border:'none', background:'#1A2340', color:'#fff', borderRadius:8, width:28, height:28, cursor:'pointer', fontSize:14, flexShrink:0 }}>◀</button>
+                  <div style={{ flex:1, textAlign:'center', background:'#1A2340', color:'#fff', borderRadius:8, padding:'6px 10px', fontSize:12, fontWeight:700, letterSpacing:1, textTransform:'uppercase' }}>Hoje</div>
+                  <button onClick={() => cenarioScrollRef.current?.scrollBy({ left: 240, behavior:'smooth' })}
+                    style={{ border:'none', background:'#1A2340', color:'#fff', borderRadius:8, width:28, height:28, cursor:'pointer', fontSize:14, flexShrink:0 }}>▶</button>
                 </div>
-              )}
-            </div>
+                <div ref={cenarioScrollRef} style={{ display:'flex', gap:10, overflowX:'auto', paddingBottom:6, scrollSnapType:'x proximity' }}>
+                  {cenarioPorUF.map((c, i) => {
+                    const selecionado = filtroCenarioUF === c.uf
+                    const cor = CENARIO_CORES[i % CENARIO_CORES.length]
+                    return (
+                      <div key={c.uf} onClick={() => setFiltroCenarioUF(v => v === c.uf ? '' : c.uf)}
+                        style={{ flex:'0 0 200px', scrollSnapAlign:'start', cursor:'pointer', borderRadius:14, overflow:'hidden',
+                          border: selecionado ? '2px solid #1A2340' : '2px solid transparent' }}>
+                        <div style={{ background:cor, padding:'10px 12px' }}>
+                          <div style={{ fontSize:14, fontWeight:700, color:'#fff', textAlign:'center', marginBottom:8 }}>{c.uf}</div>
+                          {[
+                            { l:'Instalação', v:c.instalacao },
+                            { l:'Desativação', v:c.desativacao },
+                            { l:'Manutenção', v:c.manutencao },
+                            { l:'Obra', v:c.obras },
+                          ].filter(row => row.v > 0).map(row => (
+                            <div key={row.l} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                              <span style={{ fontSize:10, color:'#fff', width:70, flexShrink:0 }}>{row.l.toUpperCase()}</span>
+                              <span style={{ fontSize:11, fontWeight:700, color:cor, background:'#fff', borderRadius:5, padding:'1px 6px', minWidth:18, textAlign:'center' }}>{row.v}</span>
+                            </div>
+                          ))}
+                          {c.instalacao + c.desativacao + c.manutencao + c.obras === 0 && (
+                            <div style={{ fontSize:10, color:'rgba(255,255,255,.7)', textAlign:'center' }}>—</div>
+                          )}
+                        </div>
+                        <div style={{ background: selecionado ? '#EEF2FF' : '#F8FAFC', padding:'6px 12px' }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#2D3A8C', fontWeight:600 }}>
+                            <span>OBRA</span><span>{c.obras}</span>
+                          </div>
+                          <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#0F766E', fontWeight:600 }}>
+                            <span>MOVIMENTAÇÃO</span><span>{c.movimentacao}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
