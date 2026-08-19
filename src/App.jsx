@@ -2770,14 +2770,26 @@ export default function App() {
   }
 
   async function carregarObras() {
-    const { data, error } = await supabase.rpc('pipeline_obras_seguro')
-    if (error) {
-      console.error('Erro ao carregar obras:', error)
-      return
+    // O Supabase/PostgREST corta em 1000 linhas por padrão - com a tabela passando de 1000 obras
+    // (Shirley, 2026-08-19: BTG FLUMINENSE FOOTBALL CLUB existia no banco mas nunca aparecia no app,
+    // pq ficava depois do corte), precisa paginar com .range() até a página vir vazia/incompleta.
+    const TAMANHO_PAGINA = 1000
+    let todas = []
+    let pagina = 0
+    while (true) {
+      const { data, error } = await supabase.rpc('pipeline_obras_seguro')
+        .range(pagina * TAMANHO_PAGINA, pagina * TAMANHO_PAGINA + TAMANHO_PAGINA - 1)
+      if (error) {
+        console.error('Erro ao carregar obras:', error)
+        return
+      }
+      todas = todas.concat(data || [])
+      if (!data || data.length < TAMANHO_PAGINA) break
+      pagina++
     }
     // RPC pode voltar vazia por permissão de papel (ex: rh), não só por a tabela estar realmente vazia.
     // Por isso o reimport da base semente nunca é automático — só via botão manual (ver importarDadosIniciais).
-    setObras(ordenaObras(data || []))
+    setObras(ordenaObras(todas))
   }
 
   async function importarDadosIniciais() {
