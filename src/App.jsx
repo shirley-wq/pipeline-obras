@@ -1211,9 +1211,6 @@ const ATIVIDADES_OPERACAO_CAMPO = [...ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS, 'V
 // Motivos de impedimento pra Base já definidos (Shirley, 2026-08-13). Motivos das outras atividades
 // ainda não foram levantados - usar texto livre até ela trazer a lista fechada.
 const MOTIVOS_IMPEDIMENTO_BASE = ['Não autorizado o tipo de fixação', 'Local incompatível — laje', 'Local incompatível — interfere elétrica ou hidráulica', 'Piso em concreto armado usinado']
-// Lista de defeitos de equipamento encontrados na Habilitação e não resolvidos em campo
-// (Shirley, 2026-08-18) - ainda vai crescer, lista aberta por enquanto.
-const DEFEITOS_EQUIPAMENTO_HABILITACAO = ['Falha na atualização do módulo pagador', 'Finger off']
 
 // Envio do relatório da obra pra Tecban (Shirley, 2026-08-18, endereço ajustado no mesmo dia pra
 // Implantacao.B24horas em vez de gestaopagamentos2026 - esse é o endereço que a Shirley pediu pra
@@ -2917,7 +2914,6 @@ export default function App() {
           if (!a.dimerFinalizado) extras.push(`Dimer não finalizado${a.dimerMotivo ? ` (${a.dimerMotivo})` : ''}`)
           if (!a.alarme253Finalizado) extras.push(`Alarme 253 não finalizado${a.alarme253Motivo ? ` (${a.alarme253Motivo})` : ''}`)
           if (a.cgrNome) extras.push(`CGR: ${a.cgrNome}`)
-          if (Array.isArray(a.defeitosEquipamento) && a.defeitosEquipamento.length > 0) extras.push(`Defeito de equipamento: ${a.defeitosEquipamento.join(', ')}`)
           detalhe = [detalhe, ...extras].filter(Boolean).join(' — ')
         }
         if (a.atividade === 'Outros' && a.descricao) detalhe = [detalhe, a.descricao].filter(Boolean).join(' — ')
@@ -3477,7 +3473,7 @@ export default function App() {
     const wsArs = XLSXStyle.utils.aoa_to_sheet([cabArs, ...linhasArs])
     wsArs['!cols'] = cabArs.map(() => ({ wch: 20 }))
 
-    const cabDia = ['Obra','PC','Data da visita','Equipe','Atividade','Feita','Impedimento/Desvio','Motivo','Descrição (Outros)','Dimer finalizado','Motivo Dimer','Alarme 253 finalizado','Motivo Alarme 253','Quem atendeu no CGR','Defeito de equipamento não resolvido']
+    const cabDia = ['Obra','PC','Data da visita','Equipe','Atividade','Feita','Impedimento/Desvio','Motivo','Descrição (Outros)','Dimer finalizado','Motivo Dimer','Alarme 253 finalizado','Motivo Alarme 253','Quem atendeu no CGR']
     const linhasDia = []
     obrasB24h.forEach(o => {
       const registros = Array.isArray(o.registros_operacao_campo) ? o.registros_operacao_campo : []
@@ -3494,7 +3490,6 @@ export default function App() {
             a.atividade === 'Habilitação' ? (a.alarme253Finalizado ? 'Sim' : 'Não') : '',
             a.atividade === 'Habilitação' ? (a.alarme253Motivo || '') : '',
             a.atividade === 'Habilitação' ? (a.cgrNome || '') : '',
-            a.atividade === 'Habilitação' && Array.isArray(a.defeitosEquipamento) ? a.defeitosEquipamento.join(', ') : '',
           ])
         })
       })
@@ -5748,7 +5743,7 @@ export default function App() {
                             {a.feita === true ? '✓ Feita' : a.feita === false ? '✗ Não feita' : '⏳ Planejada'} — {a.atividade}{a.impedimento && a.motivo ? ` (com desvio: ${a.motivo})` : (a.impedimento ? ' (com desvio)' : '')}
                             {a.atividade === 'Habilitação' && a.feita !== null && a.feita !== undefined && (
                               <div style={{ fontSize:11, color:'#64748B', marginTop:2 }}>
-                                Dimer: {a.dimerFinalizado ? 'finalizado' : `não finalizado${a.dimerMotivo ? ` (${a.dimerMotivo})` : ''}`} · Alarme 253: {a.alarme253Finalizado ? 'finalizado' : `não finalizado${a.alarme253Motivo ? ` (${a.alarme253Motivo})` : ''}`}{a.cgrNome ? ` · CGR: ${a.cgrNome}` : ''}{Array.isArray(a.defeitosEquipamento) && a.defeitosEquipamento.length > 0 ? ` · Defeito: ${a.defeitosEquipamento.join(', ')}` : ''}
+                                Dimer: {a.dimerFinalizado ? 'finalizado' : `não finalizado${a.dimerMotivo ? ` (${a.dimerMotivo})` : ''}`} · Alarme 253: {a.alarme253Finalizado ? 'finalizado' : `não finalizado${a.alarme253Motivo ? ` (${a.alarme253Motivo})` : ''}`}{a.cgrNome ? ` · CGR: ${a.cgrNome}` : ''}
                               </div>
                             )}
                             {a.atividade === 'Outros' && a.descricao && (
@@ -5870,20 +5865,6 @@ export default function App() {
                                     placeholder="Motivo do Alarme 253 não finalizado (lista fechada ainda não definida)"
                                     style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', marginBottom:10 }} />
                                 )}
-                                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:4 }}>Defeito de equipamento encontrado e não resolvido em campo (opcional)</label>
-                                <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:10 }}>
-                                  {DEFEITOS_EQUIPAMENTO_HABILITACAO.map(defeito => (
-                                    <label key={defeito} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
-                                      <input type="checkbox" checked={(dados.defeitosEquipamento || []).includes(defeito)}
-                                        onChange={e => setNovoRegistroAtividades(prev => {
-                                          const atual = prev[atividade]?.defeitosEquipamento || []
-                                          const proximo = e.target.checked ? [...atual, defeito] : atual.filter(d => d !== defeito)
-                                          return { ...prev, [atividade]: { ...prev[atividade], defeitosEquipamento: proximo } }
-                                        })} />
-                                      <span style={{ fontSize:12, color:'#1A2340' }}>{defeito}</span>
-                                    </label>
-                                  ))}
-                                </div>
                                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Nome de quem atendeu a equipe no CGR</label>
                                 <input value={dados.cgrNome || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], cgrNome: e.target.value } }))}
                                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
@@ -5929,7 +5910,6 @@ export default function App() {
                           dimerFinalizado: d.dimerFinalizado, dimerMotivo: d.dimerFinalizado === false ? (d.dimerMotivo || '') : '',
                           alarme253Finalizado: d.alarme253Finalizado, alarme253Motivo: d.alarme253Finalizado === false ? (d.alarme253Motivo || '') : '',
                           cgrNome: d.cgrNome || '',
-                          defeitosEquipamento: d.defeitosEquipamento || [],
                         } : {}),
                       }))
                       const equipe = [...novoRegistroEquipe, ...(novoRegistroTerceirizado ? [TERCEIRIZADO_PREFIXO + (novoRegistroTerceirizadoTexto.trim() || '(não informado)')] : [])]
