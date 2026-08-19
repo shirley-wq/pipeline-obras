@@ -3014,7 +3014,16 @@ export default function App() {
   async function salvarStatus() {
     if (!novoStatus) return
     setSalvando(true)
-    let statusFinal = novoStatus === 'RM ENVIADA' ? 'EMITIR NF' : novoStatus
+    // "RM Enviada" pula pra próxima etapa da régua daquele tipo/rede, não direto pra EMITIR NF -
+    // em Banco24Horas/AgiBank/Crefisa e Bradesco existe "Aguardando OS Tecban"/"Aguardando pedido"
+    // DEPOIS do RM enviado, que precisa ser respeitado. Só cai em EMITIR NF quando RM Enviada já é a
+    // última etapa da régua daquele tipo (TRANSF UN/DESC PA/PAB), como sempre foi (Shirley, 2026-08-19).
+    let statusFinal = novoStatus
+    if (novoStatus === 'RM ENVIADA') {
+      const etapasRegua = getEtapas(modal.rede, modal.tipo)
+      const idxRmEnviada = etapasRegua.indexOf('RM ENVIADA')
+      statusFinal = (idxRmEnviada >= 0 && etapasRegua[idxRmEnviada + 1]) ? etapasRegua[idxRmEnviada + 1] : 'EMITIR NF'
+    }
     // Se o pedido da Tecban chegou (campo Pedido preenchido) numa obra que já estava em etapa
     // avançada (elaborando/enviando RM), considera pronta pra faturar - pula direto pra EMITIR NF.
     const pedidoPreenchido = !!(editDados.pedido && editDados.pedido.trim())
