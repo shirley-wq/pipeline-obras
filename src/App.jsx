@@ -1211,6 +1211,28 @@ const REDES_OPERACAO_CAMPO = ['BANCO24HORAS', 'AGIBANK', 'CREFISA']
 function temTelaOperacaoCampo(rede, tipo) {
   return REDES_OPERACAO_CAMPO.includes(rede) && SEM_VISTORIA_BANCO24H.includes(tipo)
 }
+// Eventos de uma obra pra um dia especifico do Cenario - usado tanto pra montar os cards por
+// estado quanto pra filtrar a lista de baixo quando um card e clicado (Shirley, 2026-08-19: antes o
+// clique no card so filtrava por estado, ignorando o dia selecionado, e mostrava a pipeline inteira
+// daquele estado - pendencias de qualquer dia - em vez de so o previsto pra aquele dia).
+function eventosCenarioObra(o, dia) {
+  const ehBDN = TIPOS_BDN.includes(o.tipo)
+  const tipoCurto = (o.tipo || '').replace(/\s*ATM\s*$/i, '').trim()
+  const dataExec = (o.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(o.tipo))
+    ? paraIsoDataObraTexto(o.data_inicio_obra_texto)
+    : (o.data_obra_inicio || null)
+  const eventos = []
+  if (o.data_vistoria === dia) eventos.push({ categoria: ehBDN ? `Vistoria de ${tipoCurto}` : 'Vistoria', familia: ehBDN ? 'movimentacao' : 'obra' })
+  if (dataExec === dia) eventos.push({ categoria: ehBDN ? tipoCurto : 'Obra', familia: ehBDN ? 'movimentacao' : 'obra' })
+  if (temTelaOperacaoCampo(o.rede, o.tipo)) {
+    const registros = Array.isArray(o.registros_operacao_campo) ? o.registros_operacao_campo : []
+    registros.forEach(r => {
+      if (r.data !== dia) return
+      ;(r.atividades || []).forEach(a => eventos.push({ categoria: `Visita: ${a.atividade}`, familia: 'movimentacao' }))
+    })
+  }
+  return eventos
+}
 // Itens do ARS que descrevem onde/como a máquina fica fixada - mais de um pode se aplicar
 // ao mesmo tempo (ex: "encostada em pilar" + "fixação química").
 const ITENS_SEGURANCA_BANCO24H = ['Máquina encostada em parede de alvenaria', 'Encostada em pilar', 'Em cima de viga', 'Fixação concretada', 'Fixação química', 'Fixação projeto T', 'Construção de meia parede']
@@ -3322,7 +3344,9 @@ export default function App() {
     if (filtroRede && o.rede !== filtroRede) return false
     if (filtroStatus && o.status !== filtroStatus) return false
     if (filtroResponsavel && o.responsavel_escritorio !== filtroResponsavel && o.auxiliar_escritorio !== filtroResponsavel) return false
-    if (filtroCenarioUF && estadoDaObra(o) !== filtroCenarioUF) return false
+    // Card do Cenario clicado: mostra so as obras daquele estado que tem evento no dia selecionado
+    // (nao a pipeline inteira do estado, de qualquer dia/status).
+    if (filtroCenarioUF && (estadoDaObra(o) !== filtroCenarioUF || eventosCenarioObra(o, cenarioData).length === 0)) return false
     if (busca) {
       // Busca por palavras (AND, qualquer ordem) em vez de substring literal - "BTG FLUMINENSE"
       // agora acha "BTG - AG. FLUMINENSE" ou "FLUMINENSE BTG", que a busca antiga (substring unico)
@@ -3380,24 +3404,7 @@ export default function App() {
   // outra, coincidencia rara mas possivel).
   const cenarioPorUFMap = {}
   obrasAtivas.forEach(o => {
-    const ehBDN = TIPOS_BDN.includes(o.tipo)
-    const tipoCurto = (o.tipo || '').replace(/\s*ATM\s*$/i, '').trim()
-    const dataExec = (o.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(o.tipo))
-      ? paraIsoDataObraTexto(o.data_inicio_obra_texto)
-      : (o.data_obra_inicio || null)
-    const eventos = []
-    if (o.data_vistoria === cenarioData) eventos.push({ categoria: ehBDN ? `Vistoria de ${tipoCurto}` : 'Vistoria', familia: ehBDN ? 'movimentacao' : 'obra' })
-    if (dataExec === cenarioData) eventos.push({ categoria: ehBDN ? tipoCurto : 'Obra', familia: ehBDN ? 'movimentacao' : 'obra' })
-    // Experimental (Shirley, 2026-08-19): também conta visitas avulsas de operação de campo (retorno
-    // de pendência, StockTrans, demolição etc. registrados como "Outros") que caem no dia do Cenário,
-    // mesmo quando não coincidem com data_vistoria/dataExec. Se poluir os cards, reverter.
-    if (temTelaOperacaoCampo(o.rede, o.tipo)) {
-      const registros = Array.isArray(o.registros_operacao_campo) ? o.registros_operacao_campo : []
-      registros.forEach(r => {
-        if (r.data !== cenarioData) return
-        ;(r.atividades || []).forEach(a => eventos.push({ categoria: `Visita: ${a.atividade}`, familia: 'movimentacao' }))
-      })
-    }
+    const eventos = eventosCenarioObra(o, cenarioData)
     if (eventos.length === 0) return
     const estado = estadoDaObra(o)
     if (!cenarioPorUFMap[estado]) cenarioPorUFMap[estado] = { uf: estado, obras: 0, movimentacao: 0, categorias: {} }
