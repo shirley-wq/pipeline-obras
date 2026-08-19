@@ -2915,24 +2915,30 @@ export default function App() {
     doc.text(`Contato do EC: ${ecNome || '—'}${ecTelefone ? ` (${ecTelefone})` : ''}`, 14, y); y += 5
     doc.text(`Início confirmado com o cliente: ${isoToBr(paraIsoDataObraTexto(dataInicioObraTexto)) || '—'} ${horaInicioObraTexto || ''}`, 14, y); y += 5
 
-    const itensTabela = ITENS_SEGURANCA_BANCO24H.map(item => [
-      item, segurancaItens.includes(item) ? 'X' : '', segurancaItensCampo.includes(item) ? 'X' : '',
-    ])
-    itensTabela.push(['Tem barreira de dissuasão', barreiraDissuasao ? 'X' : '', barreiraDissuasaoCampo ? 'X' : ''])
-    autoTable(doc, {
-      startY: y,
-      head: [['Critério de segurança', 'Solicitação no ARS', 'Executado em campo']],
-      body: itensTabela,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 1.5 },
-      headStyles: { fillColor: [45, 58, 140], textColor: 255, fontStyle: 'bold' },
-      columnStyles: { 1: { halign: 'center', cellWidth: 26 }, 2: { halign: 'center', cellWidth: 26 } },
-    })
-    y = doc.lastAutoTable.finalY + 5
-    if (autorizacaoMudanca.trim()) {
-      doc.setFontSize(9)
-      doc.text(`Mudança autorizada por: ${autorizacaoMudanca}`, 14, y)
-      y += 7
+    // Critério de segurança/barreira de dissuasão e autorização de mudança não se aplicam à
+    // Desativação (só ARS aqui pra pegar contato do ponto) - Shirley, 2026-08-19.
+    if (modal.tipo !== 'DESATIVAÇÃO ATM') {
+      const itensTabela = ITENS_SEGURANCA_BANCO24H.map(item => [
+        item, segurancaItens.includes(item) ? 'X' : '', segurancaItensCampo.includes(item) ? 'X' : '',
+      ])
+      itensTabela.push(['Tem barreira de dissuasão', barreiraDissuasao ? 'X' : '', barreiraDissuasaoCampo ? 'X' : ''])
+      autoTable(doc, {
+        startY: y,
+        head: [['Critério de segurança', 'Solicitação no ARS', 'Executado em campo']],
+        body: itensTabela,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 1.5 },
+        headStyles: { fillColor: [45, 58, 140], textColor: 255, fontStyle: 'bold' },
+        columnStyles: { 1: { halign: 'center', cellWidth: 26 }, 2: { halign: 'center', cellWidth: 26 } },
+      })
+      y = doc.lastAutoTable.finalY + 5
+      if (autorizacaoMudanca.trim()) {
+        doc.setFontSize(9)
+        doc.text(`Mudança autorizada por: ${autorizacaoMudanca}`, 14, y)
+        y += 7
+      }
+    } else {
+      y += 3
     }
 
     doc.setFontSize(11)
@@ -5702,6 +5708,8 @@ export default function App() {
                 </div>
                 <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>A OS da Tecban sugere uma data/hora, mas o que vale aqui é a data confirmada com o cliente final (EC) — não usar a data do relatório SIGE.</div>
               </div>
+              {modal.tipo !== 'DESATIVAÇÃO ATM' && (
+              <>
               <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:6 }}>Critérios de segurança — o que o ARS indica x o que foi realizado em campo</div>
               <div style={{ marginBottom:12, overflowX:'auto' }}>
                 <div style={{ display:'grid', gridTemplateColumns:'minmax(160px, 260px) 100px 100px', gap:4, alignItems:'center', maxWidth:480 }}>
@@ -5739,6 +5747,8 @@ export default function App() {
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                 <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Preencher só quando o que foi realizado em campo é diferente do que o ARS indicava.</div>
               </div>
+              </>
+              )}
             </div>
             )}
 
