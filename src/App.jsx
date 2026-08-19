@@ -3289,12 +3289,13 @@ export default function App() {
     if (filtroResponsavel && o.responsavel_escritorio !== filtroResponsavel && o.auxiliar_escritorio !== filtroResponsavel) return false
     if (filtroCenarioUF && estadoDaObra(o) !== filtroCenarioUF) return false
     if (busca) {
-      const b = busca.toLowerCase()
-      const bate = o.nome.toLowerCase().includes(b) || (o.local||'').toLowerCase().includes(b)
-        || (o.cidade||'').toLowerCase().includes(b) || (o.uf||'').toLowerCase().includes(b)
-        || (o.os_tecban||'').toLowerCase().includes(b) || (o.pedido||'').toLowerCase().includes(b)
-        || (o.sige||'').toLowerCase().includes(b) || (o.numero_pc||'').toLowerCase().includes(b)
-      if (!bate) return false
+      // Busca por palavras (AND, qualquer ordem) em vez de substring literal - "BTG FLUMINENSE"
+      // agora acha "BTG - AG. FLUMINENSE" ou "FLUMINENSE BTG", que a busca antiga (substring unico)
+      // não achava (Shirley, 2026-08-19).
+      const campos = [o.nome, o.local, o.cidade, o.uf, o.os_tecban, o.pedido, o.sige, o.numero_pc]
+        .map(c => (c || '').toLowerCase()).join(' ')
+      const palavras = busca.toLowerCase().trim().split(/\s+/).filter(Boolean)
+      if (!palavras.every(p => campos.includes(p))) return false
     }
     if (filtroDe || filtroAte) {
       if (!o.inicio) return false
