@@ -287,7 +287,10 @@ function somaDias(iso, dias) {
 }
 
 function hojeIso() {
-  return new Date().toISOString().slice(0, 10)
+  // Usa os getters locais (não toISOString, que é UTC) - passado das 21h no horário de
+  // Brasília (UTC-3), toISOString já mostra o dia seguinte, adiantando "hoje" incorretamente.
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 function proximaFeriasEstimativa(dataAdmissao) {
@@ -301,9 +304,8 @@ function proximaFeriasEstimativa(dataAdmissao) {
 
 function statusVencimento(iso) {
   if (!iso) return null
-  const hoje = new Date().toISOString().slice(0, 10)
-  const em30dias = new Date(); em30dias.setDate(em30dias.getDate() + 30)
-  const em30isoStr = em30dias.toISOString().slice(0, 10)
+  const hoje = hojeIso()
+  const em30isoStr = somaDias(hoje, 30)
   if (iso < hoje) return { cor:'#991B1B', bg:'#FEE2E2', label:'Vencido', pendencia:true }
   if (iso <= em30isoStr) return { cor:'#92400E', bg:'#FEF3C7', label:'Vence em breve', pendencia:false }
   return { cor:'#065F46', bg:'#D1FAE5', label:'Em dia', pendencia:false }
@@ -3571,7 +3573,7 @@ export default function App() {
         const osTecban = String(l['AtributosId_OrdemdeservicosTB'] || '').trim() || null
         const numeroPc = String(l['AtributosId_NdoPC'] || '').trim() || null
         const valor = Number(l['Valor Total']) || 0
-        const dataCadastro = excelSerialParaIso(l['Data']) || excelSerialParaIso(l['AtributosId_DATAINICIO']) || new Date().toISOString().slice(0, 10)
+        const dataCadastro = excelSerialParaIso(l['Data']) || excelSerialParaIso(l['AtributosId_DATAINICIO']) || hojeIso()
         const redeOriginal = String(l['AtributosId_REDE'] || '').trim()
 
         candidatos.push({
