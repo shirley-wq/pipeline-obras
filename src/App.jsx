@@ -2987,6 +2987,7 @@ export default function App() {
           secret: APPS_SCRIPT_RELATORIO_SECRET,
           to: EMAIL_RM_TECBAN,
           cc: EMAIL_CC_OPERACAO_GRUPOPG,
+          remetente: usuario?.email || '',
           subject: assunto,
           body: montaCorpoRelatorioTecban(),
           pdfBase64,
