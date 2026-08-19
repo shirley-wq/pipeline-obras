@@ -3326,8 +3326,6 @@ export default function App() {
     else cenarioPorUFMap[estado].obras++
   })
   const cenarioPorUF = Object.values(cenarioPorUFMap).sort((a, b) => (b.obras + b.movimentacao) - (a.obras + a.movimentacao))
-  const cenarioTotalObras = obrasAtivas.filter(o => !TIPOS_BDN.includes(o.tipo)).length
-  const cenarioTotalMovimentacao = obrasAtivas.filter(o => TIPOS_BDN.includes(o.tipo)).length
 
   const todasDespesas = []
   obras.forEach(o => {
@@ -4804,18 +4802,6 @@ export default function App() {
         </div>
         {mostrarCenario && (
           <div style={{ marginTop:12 }}>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:14 }}>
-              {[
-                { n: cenarioTotalObras + cenarioTotalMovimentacao, l:'Total em execução', cor:'#1A2340' },
-                { n: cenarioTotalObras, l:'Obras (transf./descaract.)', cor:'#2D3A8C' },
-                { n: cenarioTotalMovimentacao, l:'Movimentação (ATM/BDN)', cor:'#0F766E' },
-              ].map((c,i) => (
-                <div key={i} style={{ background: c.cor, borderRadius:10, padding:'10px 8px', textAlign:'center' }}>
-                  <div style={{ fontSize:20, fontWeight:700, color:'#fff' }}>{c.n}</div>
-                  <div style={{ fontSize:10, color:'rgba(255,255,255,.75)', marginTop:2 }}>{c.l}</div>
-                </div>
-              ))}
-            </div>
             {cenarioPorUF.length === 0 ? (
               <div style={{ padding:12, fontSize:12, color:'#888', textAlign:'center', border:'1px solid #E0E8F0', borderRadius:10 }}>Nenhuma obra em execução</div>
             ) : (
