@@ -280,6 +280,16 @@ function somaAnos(iso, anos) {
   return d.toISOString().slice(0, 10)
 }
 
+function somaDias(iso, dias) {
+  const d = new Date(iso + 'T12:00:00')
+  d.setDate(d.getDate() + dias)
+  return d.toISOString().slice(0, 10)
+}
+
+function hojeIso() {
+  return new Date().toISOString().slice(0, 10)
+}
+
 function proximaFeriasEstimativa(dataAdmissao) {
   if (!dataAdmissao) return null
   const hoje = new Date()
@@ -1982,6 +1992,7 @@ export default function App() {
   const [rhSubaba, setRhSubaba] = useState('colaboradores')
   const [filtroCenarioUF, setFiltroCenarioUF] = useState('')
   const cenarioScrollRef = useRef(null)
+  const [cenarioData, setCenarioData] = useState(hojeIso())
   const [filtroStatus, setFiltroStatus] = useState('')
   const [busca, setBusca] = useState('')
   const [filtroDe, setFiltroDe] = useState('')
@@ -3309,21 +3320,30 @@ export default function App() {
     { label:'📦 Outros', obras: obrasFiltradas.filter(o => getGrupoObra(o) === 'outros') },
   ].filter(g => g.obras.length > 0)
 
-  // Cenário por estado: obras "em execução" (obrasAtivas) separadas em 2 famílias -
-  // Movimentação de máquina (ATM/BDN, régua própria) x Obras (transformação/descaracterização de agência).
+  // Cenário por estado: atividade agendada pra um dia especifico (cenarioData, navegavel pelas
+  // setas - Shirley, 2026-08-18). Replica o que a Dani/Carol/Glauce postam todo dia no grupo do
+  // WhatsApp "Demandas" - ex: "VISTORIA DE SUBSTITUIÇÃO" (data_vistoria bate com o dia) e/ou
+  // "INSTALAÇÃO" (data de execução bate com o dia - data_obra_inicio pra maioria dos tipos,
+  // data_inicio_obra_texto especificamente pra Banco24Horas, que não tem fase de vistoria).
+  // Uma mesma obra pode contribuir com até 2 eventos no mesmo dia (vistoria de uma e execução de
+  // outra, coincidencia rara mas possivel).
   const cenarioPorUFMap = {}
   obrasAtivas.forEach(o => {
+    const ehBDN = TIPOS_BDN.includes(o.tipo)
+    const tipoCurto = (o.tipo || '').replace(/\s*ATM\s*$/i, '').trim()
+    const dataExec = (o.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(o.tipo))
+      ? (/^\d{2}\/\d{2}\/\d{4}$/.test((o.data_inicio_obra_texto || '').trim()) ? brToIso(o.data_inicio_obra_texto.trim()) : null)
+      : (o.data_obra_inicio || null)
+    const eventos = []
+    if (o.data_vistoria === cenarioData) eventos.push({ categoria: ehBDN ? `Vistoria de ${tipoCurto}` : 'Vistoria', familia: ehBDN ? 'movimentacao' : 'obra' })
+    if (dataExec === cenarioData) eventos.push({ categoria: ehBDN ? tipoCurto : 'Obra', familia: ehBDN ? 'movimentacao' : 'obra' })
+    if (eventos.length === 0) return
     const estado = estadoDaObra(o)
-    if (!cenarioPorUFMap[estado]) cenarioPorUFMap[estado] = { uf: estado, obras: 0, movimentacao: 0, instalacao: 0, desativacao: 0, manutencao: 0 }
-    if (TIPOS_BDN.includes(o.tipo)) {
-      cenarioPorUFMap[estado].movimentacao++
-      // Instalação = máquina entrando; Desativação = máquina saindo/trocando de lugar;
-      // Manutenção = intervenção sem entrar/sair máquina (inclui sinalização).
-      if (o.tipo === 'INSTALAÇÃO ATM') cenarioPorUFMap[estado].instalacao++
-      else if (['DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM', 'REMANEJAMENTO ATM'].includes(o.tipo)) cenarioPorUFMap[estado].desativacao++
-      else cenarioPorUFMap[estado].manutencao++
-    }
-    else cenarioPorUFMap[estado].obras++
+    if (!cenarioPorUFMap[estado]) cenarioPorUFMap[estado] = { uf: estado, obras: 0, movimentacao: 0, categorias: {} }
+    eventos.forEach(ev => {
+      cenarioPorUFMap[estado].categorias[ev.categoria] = (cenarioPorUFMap[estado].categorias[ev.categoria] || 0) + 1
+      cenarioPorUFMap[estado][ev.familia]++
+    })
   })
   const cenarioPorUF = Object.values(cenarioPorUFMap).sort((a, b) => (b.obras + b.movimentacao) - (a.obras + a.movimentacao))
 
@@ -4802,17 +4822,22 @@ export default function App() {
         </div>
         {mostrarCenario && (
           <div style={{ marginTop:12 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
+              <button onClick={() => setCenarioData(d => somaDias(d, -1))}
+                style={{ border:'none', background:'#1A2340', color:'#fff', borderRadius:8, width:28, height:28, cursor:'pointer', fontSize:14, flexShrink:0 }}>◀</button>
+              <div style={{ flex:1, textAlign:'center', background:'#1A2340', color:'#fff', borderRadius:8, padding:'6px 10px', fontSize:12, fontWeight:700, letterSpacing:1, textTransform:'uppercase' }}>
+                {cenarioData === hojeIso() ? 'Hoje' : isoToBr(cenarioData)}
+              </div>
+              <button onClick={() => setCenarioData(d => somaDias(d, 1))}
+                style={{ border:'none', background:'#1A2340', color:'#fff', borderRadius:8, width:28, height:28, cursor:'pointer', fontSize:14, flexShrink:0 }}>▶</button>
+              {cenarioData !== hojeIso() && (
+                <span onClick={() => setCenarioData(hojeIso())} style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>voltar pra hoje</span>
+              )}
+            </div>
             {cenarioPorUF.length === 0 ? (
-              <div style={{ padding:12, fontSize:12, color:'#888', textAlign:'center', border:'1px solid #E0E8F0', borderRadius:10 }}>Nenhuma obra em execução</div>
+              <div style={{ padding:12, fontSize:12, color:'#888', textAlign:'center', border:'1px solid #E0E8F0', borderRadius:10 }}>Nenhuma atividade agendada pra {cenarioData === hojeIso() ? 'hoje' : isoToBr(cenarioData)}</div>
             ) : (
               <div>
-                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
-                  <button onClick={() => cenarioScrollRef.current?.scrollBy({ left: -240, behavior:'smooth' })}
-                    style={{ border:'none', background:'#1A2340', color:'#fff', borderRadius:8, width:28, height:28, cursor:'pointer', fontSize:14, flexShrink:0 }}>◀</button>
-                  <div style={{ flex:1, textAlign:'center', background:'#1A2340', color:'#fff', borderRadius:8, padding:'6px 10px', fontSize:12, fontWeight:700, letterSpacing:1, textTransform:'uppercase' }}>Hoje</div>
-                  <button onClick={() => cenarioScrollRef.current?.scrollBy({ left: 240, behavior:'smooth' })}
-                    style={{ border:'none', background:'#1A2340', color:'#fff', borderRadius:8, width:28, height:28, cursor:'pointer', fontSize:14, flexShrink:0 }}>▶</button>
-                </div>
                 <div ref={cenarioScrollRef} style={{ display:'flex', gap:10, overflowX:'auto', paddingBottom:6, scrollSnapType:'x proximity' }}>
                   {cenarioPorUF.map((c, i) => {
                     const selecionado = filtroCenarioUF === c.uf
@@ -4823,18 +4848,13 @@ export default function App() {
                           border: selecionado ? '2px solid #1A2340' : '2px solid transparent' }}>
                         <div style={{ background:cor, padding:'10px 12px' }}>
                           <div style={{ fontSize:14, fontWeight:700, color:'#fff', textAlign:'center', marginBottom:8 }}>{c.uf}</div>
-                          {[
-                            { l:'Instalação', v:c.instalacao },
-                            { l:'Desativação', v:c.desativacao },
-                            { l:'Manutenção', v:c.manutencao },
-                            { l:'Obra', v:c.obras },
-                          ].filter(row => row.v > 0).map(row => (
-                            <div key={row.l} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
-                              <span style={{ fontSize:10, color:'#fff', width:70, flexShrink:0 }}>{row.l.toUpperCase()}</span>
-                              <span style={{ fontSize:11, fontWeight:700, color:cor, background:'#fff', borderRadius:5, padding:'1px 6px', minWidth:18, textAlign:'center' }}>{row.v}</span>
+                          {Object.entries(c.categorias).sort((a,b) => b[1]-a[1]).map(([categoria, v]) => (
+                            <div key={categoria} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                              <span style={{ fontSize:10, color:'#fff', flex:1 }}>{categoria.toUpperCase()}</span>
+                              <span style={{ fontSize:11, fontWeight:700, color:cor, background:'#fff', borderRadius:5, padding:'1px 6px', minWidth:18, textAlign:'center' }}>{v}</span>
                             </div>
                           ))}
-                          {c.instalacao + c.desativacao + c.manutencao + c.obras === 0 && (
+                          {Object.keys(c.categorias).length === 0 && (
                             <div style={{ fontSize:10, color:'rgba(255,255,255,.7)', textAlign:'center' }}>—</div>
                           )}
                         </div>
