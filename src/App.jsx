@@ -1240,7 +1240,17 @@ const ITENS_SEGURANCA_BANCO24H = ['Máquina encostada em parede de alvenaria', '
 // As 5 obrigatórias travam a liberação do "Relatório ao Cliente" (ver operacaoCampoCompleta). Vistoria
 // e Outros são registráveis mas opcionais - não emperram esse gate (Shirley, 2026-08-19).
 const ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS = ['Base', 'Instalação', 'Habilitação', 'Construção de parede', 'Instalação de sinalização']
-const ATIVIDADES_OPERACAO_CAMPO = [...ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS, 'Vistoria', 'Outros']
+// Desativação tem um "o que foi feito" diferente de Instalação (Shirley, 2026-08-19) - não faz
+// sentido Base/Habilitação/etc, e sim desmontar o ponto e devolver o local ao estado original.
+const ATIVIDADES_OPERACAO_CAMPO_DESATIVACAO_OBRIGATORIAS = ['Remoção de ATM', 'Recomposição de piso', 'Pintura de parede']
+function atividadesOperacaoCampoObrigatorias(tipo) {
+  return tipo === 'DESATIVAÇÃO ATM' ? ATIVIDADES_OPERACAO_CAMPO_DESATIVACAO_OBRIGATORIAS : ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS
+}
+function atividadesOperacaoCampo(tipo) {
+  return tipo === 'DESATIVAÇÃO ATM'
+    ? [...ATIVIDADES_OPERACAO_CAMPO_DESATIVACAO_OBRIGATORIAS, 'Outros']
+    : [...ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS, 'Vistoria', 'Outros']
+}
 // Motivos de impedimento pra Base já definidos (Shirley, 2026-08-13). Motivos das outras atividades
 // ainda não foram levantados - usar texto livre até ela trazer a lista fechada.
 const MOTIVOS_IMPEDIMENTO_BASE = ['Não autorizado o tipo de fixação', 'Local incompatível — laje', 'Local incompatível — interfere elétrica ou hidráulica', 'Piso em concreto armado usinado']
@@ -3306,7 +3316,7 @@ export default function App() {
     || (modal?.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal?.tipo))
   const atividadesCobertas = new Set()
   registrosOperacaoCampo.forEach(r => (r.atividades || []).forEach(a => { if (typeof a.feita === 'boolean') atividadesCobertas.add(a.atividade) }))
-  const operacaoCampoCompleta = ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS.every(a => atividadesCobertas.has(a))
+  const operacaoCampoCompleta = atividadesOperacaoCampoObrigatorias(modal?.tipo).every(a => atividadesCobertas.has(a))
 
   const estilo = { fontFamily:'system-ui,sans-serif', minHeight:'100vh', background:'#F0F4F8' }
   const inp = { width:'100%', padding:'11px 12px', fontSize:14, border:'1px solid #B5D4F4', borderRadius:10, background:'#fff', color:'#1A2340', outline:'none', boxSizing:'border-box', marginBottom:12 }
@@ -5825,7 +5835,7 @@ export default function App() {
                   terceirizadoTexto={novoRegistroTerceirizadoTexto} onChangeTerceirizadoTexto={setNovoRegistroTerceirizadoTexto} />
                 <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, margin:'10px 0 6px' }}>O que foi feito nesta visita</div>
                 <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                  {ATIVIDADES_OPERACAO_CAMPO.map(atividade => {
+                  {atividadesOperacaoCampo(modal.tipo).map(atividade => {
                     const marcado = !!novoRegistroAtividades[atividade]
                     const dados = novoRegistroAtividades[atividade] || {}
                     return (
@@ -5974,8 +5984,8 @@ export default function App() {
               </div>
 
               <div style={{ fontSize:11, color:'#64748B', marginTop:10 }}>
-                Cobertura das 5 atividades: {ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS.filter(a => atividadesCobertas.has(a)).length}/{ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS.length}
-                {!operacaoCampoCompleta && ' — precisa de todas as 5 pra liberar "Relatório ao Cliente"'}
+                Cobertura das atividades: {atividadesOperacaoCampoObrigatorias(modal.tipo).filter(a => atividadesCobertas.has(a)).length}/{atividadesOperacaoCampoObrigatorias(modal.tipo).length}
+                {!operacaoCampoCompleta && ' — precisa de todas pra liberar "Relatório ao Cliente"'}
               </div>
               <button onClick={exportarRelatorioCliente} disabled={!operacaoCampoCompleta}
                 style={{ width:'100%', marginTop:10, padding:10, background: !operacaoCampoCompleta ? '#ccc' : '#0E4D73', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: !operacaoCampoCompleta ? 'default' : 'pointer' }}>
@@ -6395,7 +6405,7 @@ export default function App() {
                   || (op === 'RELATÓRIO AO CLIENTE' && temTelaOperacaoCampo(modal.rede, modal.tipo) && !operacaoCampoCompleta)
                 return (
                   <div key={op} onClick={() => { if (!bloqueado) setNovoStatus(op) }}
-                    title={bloqueado ? (op === 'RELATÓRIO AO CLIENTE' ? 'Preencha o status (OK/Impedimento) das 5 atividades no dia da obra para liberar esta etapa' : 'Preencha o campo "OS Tecban" em Dados da obra para liberar esta etapa') : undefined}
+                    title={bloqueado ? (op === 'RELATÓRIO AO CLIENTE' ? 'Preencha o status (OK/Impedimento) das atividades no dia da obra para liberar esta etapa' : 'Preencha o campo "OS Tecban" em Dados da obra para liberar esta etapa') : undefined}
                     style={{ padding:'8px 9px', borderRadius:10, border: ativo ? '2px solid #1A6B4A' : '1px solid #E0E8F0', cursor: bloqueado ? 'not-allowed' : 'pointer', background: bloqueado ? '#F8FAFC' : ativo ? '#D1FAE5' : '#fff', opacity: bloqueado ? 0.55 : 1, display:'flex', alignItems:'center', gap:6 }}>
                     <span style={{ fontSize:10, background: ativo ? '#1A6B4A' : '#E6F1FB', color: ativo ? '#fff' : '#2D3A8C', fontWeight:700, borderRadius:'50%', width:18, height:18, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{bloqueado ? '🔒' : i+1}</span>
                     <span style={{ fontSize:11, color:'#1A2340', fontWeight: ativo ? 600 : 400, lineHeight:1.2 }}>{op}</span>
@@ -6411,7 +6421,7 @@ export default function App() {
             )}
             {temTelaOperacaoCampo(modal.rede, modal.tipo) && !operacaoCampoCompleta && (
               <div style={{ fontSize:11, color:'#92400E', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'6px 10px', marginBottom:8 }}>
-                🔒 "Relatório ao Cliente" fica bloqueada até preencher OK/Impedimento das 5 atividades no dia da obra.
+                🔒 "Relatório ao Cliente" fica bloqueada até preencher OK/Impedimento das atividades no dia da obra.
               </div>
             )}
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, margin:'12px 0 6px' }}>Observação:</div>
