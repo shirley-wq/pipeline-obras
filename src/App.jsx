@@ -272,6 +272,17 @@ function brToIso(br) {
   const [d, m, y] = br.split('/')
   return `${y}-${m}-${d}`
 }
+// data_inicio_obra_texto foi digitado como texto livre "DD/MM/AAAA" até 2026-08-19 (fonte comum de
+// erro - qualquer formato levemente diferente falhava calado e sumia do Cenário). Virou <input
+// type="date"> a partir de agora (ISO direto), mas registros antigos continuam em texto BR - esse
+// helper aceita os dois formatos e sempre devolve ISO (ou null se não reconhecer nenhum dos dois).
+function paraIsoDataObraTexto(v) {
+  const s = (v || '').trim()
+  if (!s) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return brToIso(s)
+  return null
+}
 
 function somaAnos(iso, anos) {
   if (!iso) return null
@@ -2880,7 +2891,7 @@ export default function App() {
     doc.setFontSize(9)
     doc.setFont(undefined, 'normal')
     doc.text(`Contato do EC: ${ecNome || '—'}${ecTelefone ? ` (${ecTelefone})` : ''}`, 14, y); y += 5
-    doc.text(`Início confirmado com o cliente: ${dataInicioObraTexto || '—'} ${horaInicioObraTexto || ''}`, 14, y); y += 5
+    doc.text(`Início confirmado com o cliente: ${isoToBr(paraIsoDataObraTexto(dataInicioObraTexto)) || '—'} ${horaInicioObraTexto || ''}`, 14, y); y += 5
 
     const itensTabela = ITENS_SEGURANCA_BANCO24H.map(item => [
       item, segurancaItens.includes(item) ? 'X' : '', segurancaItensCampo.includes(item) ? 'X' : '',
@@ -3108,7 +3119,7 @@ export default function App() {
       campos.ars_verificado = arsVerificado
       campos.ec_nome = ecNome || null
       campos.ec_telefone = ecTelefone || null
-      campos.data_inicio_obra_texto = dataInicioObraTexto.trim() || null
+      campos.data_inicio_obra_texto = paraIsoDataObraTexto(dataInicioObraTexto)
       campos.hora_inicio_obra_texto = horaInicioObraTexto.trim() || null
       campos.seguranca_itens = segurancaItens.length > 0 ? segurancaItens : null
       campos.seguranca_itens_campo = segurancaItensCampo.length > 0 ? segurancaItensCampo : null
@@ -3372,7 +3383,7 @@ export default function App() {
     const ehBDN = TIPOS_BDN.includes(o.tipo)
     const tipoCurto = (o.tipo || '').replace(/\s*ATM\s*$/i, '').trim()
     const dataExec = (o.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(o.tipo))
-      ? (/^\d{2}\/\d{2}\/\d{4}$/.test((o.data_inicio_obra_texto || '').trim()) ? brToIso(o.data_inicio_obra_texto.trim()) : null)
+      ? paraIsoDataObraTexto(o.data_inicio_obra_texto)
       : (o.data_obra_inicio || null)
     const eventos = []
     if (o.data_vistoria === cenarioData) eventos.push({ categoria: ehBDN ? `Vistoria de ${tipoCurto}` : 'Vistoria', familia: ehBDN ? 'movimentacao' : 'obra' })
@@ -3469,7 +3480,7 @@ export default function App() {
       o.nome, o.numero_pc || '', o.status,
       o.ars_verificado ? 'Sim' : 'Não',
       o.ec_nome || '', o.ec_telefone || '',
-      o.data_inicio_obra_texto || '', o.hora_inicio_obra_texto || '',
+      isoToBr(paraIsoDataObraTexto(o.data_inicio_obra_texto)) || '', o.hora_inicio_obra_texto || '',
       Array.isArray(o.seguranca_itens) ? o.seguranca_itens.join(' | ') : '',
       Array.isArray(o.seguranca_itens_campo) ? o.seguranca_itens_campo.join(' | ') : '',
       o.barreira_dissuasao ? 'Sim' : 'Não',
@@ -5676,8 +5687,7 @@ export default function App() {
               <div style={{ marginBottom:12 }}>
                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data e hora de início da obra (confirmada com o cliente)</label>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                  <input value={dataInicioObraTexto} onChange={e => setDataInicioObraTexto(e.target.value)}
-                    placeholder="DD/MM/AAAA"
+                  <input type="date" value={paraIsoDataObraTexto(dataInicioObraTexto) || ''} onChange={e => setDataInicioObraTexto(e.target.value)}
                     style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                   <input value={horaInicioObraTexto} onChange={e => setHoraInicioObraTexto(e.target.value)}
                     placeholder="HH:MM"
@@ -5789,7 +5799,7 @@ export default function App() {
                 </div>
                 <div style={{ marginBottom:8 }}>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data</label>
-                  <input type="date" value={novoRegistroData || (/^\d{2}\/\d{2}\/\d{4}$/.test(dataInicioObraTexto.trim()) ? brToIso(dataInicioObraTexto.trim()) : '')} onChange={e => setNovoRegistroData(e.target.value)}
+                  <input type="date" value={novoRegistroData || (paraIsoDataObraTexto(dataInicioObraTexto) || '')} onChange={e => setNovoRegistroData(e.target.value)}
                     style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                   <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Preenchido a partir da data de início da obra confirmada — ajuste se essa visita for em outro dia.</div>
                 </div>
@@ -5929,7 +5939,7 @@ export default function App() {
                         } : {}),
                       }))
                       const equipe = [...novoRegistroEquipe, ...(novoRegistroTerceirizado ? [TERCEIRIZADO_PREFIXO + (novoRegistroTerceirizadoTexto.trim() || '(não informado)')] : [])]
-                      const dataVisita = novoRegistroData || (/^\d{2}\/\d{2}\/\d{4}$/.test(dataInicioObraTexto.trim()) ? brToIso(dataInicioObraTexto.trim()) : '')
+                      const dataVisita = novoRegistroData || (paraIsoDataObraTexto(dataInicioObraTexto) || '')
                       const registro = { data: dataVisita || null, equipe, atividades }
                       if (editandoVisitaIdx !== null) {
                         setRegistrosOperacaoCampo(prev => prev.map((r, i) => i === editandoVisitaIdx ? registro : r))
