@@ -4797,59 +4797,6 @@ export default function App() {
       {/* ====== ABA: PIPELINE ====== */}
       {aba === 'pipeline' && <>
 
-      {/* Filtros */}
-      <div style={{ background:'#fff', padding:'10px 16px', borderBottom:'1px solid #E0E8F0', display:'flex', gap:8, flexWrap:'wrap', alignItems:'flex-end' }}>
-        <div style={{ display:'flex', flexDirection:'column', flex:1, minWidth:100 }}>
-          <span style={{ fontSize:13, fontWeight:700, color:'#fff', background:'#2D3A8C', padding:'4px 10px', borderRadius:5, textTransform:'uppercase', letterSpacing:.5, marginBottom:5, alignSelf:'flex-start' }}>Tipos de serviço</span>
-          <select value={filtroTipo} onChange={e=>setFiltroTipo(e.target.value)} style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
-            <option value="">Todos tipos</option>
-            {[...new Set(obras.map(o=>o.tipo))].sort().map(t => <option key={t}>{t}</option>)}
-          </select>
-        </div>
-        <div style={{ display:'flex', flexDirection:'column', flex:1, minWidth:100 }}>
-          <span style={{ fontSize:13, fontWeight:700, color:'#fff', background:'#2D3A8C', padding:'4px 10px', borderRadius:5, textTransform:'uppercase', letterSpacing:.5, marginBottom:5, alignSelf:'flex-start' }}>Rede</span>
-          <select value={filtroRede} onChange={e=>setFiltroRede(e.target.value)} style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
-            <option value="">Todos bancos</option>
-            {[...new Set(obras.map(o=>o.rede))].filter(Boolean).sort().map(r => <option key={r}>{r}</option>)}
-          </select>
-        </div>
-        <div style={{ display:'flex', flexDirection:'column', flex:1, minWidth:100 }}>
-          <span style={{ fontSize:13, fontWeight:700, color:'#fff', background:'#2D3A8C', padding:'4px 10px', borderRadius:5, textTransform:'uppercase', letterSpacing:.5, marginBottom:5, alignSelf:'flex-start' }}>Status</span>
-          <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)} style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
-            <option value="">Todos status</option>
-            {[...new Set(obras.map(o=>o.status))].filter(Boolean).sort().map(s => <option key={s}>{s}</option>)}
-          </select>
-        </div>
-        <div style={{ display:'flex', flexDirection:'column', flex:2, minWidth:120 }}>
-          <span style={{ fontSize:13, fontWeight:700, color:'#fff', background:'#2D3A8C', padding:'4px 10px', borderRadius:5, textTransform:'uppercase', letterSpacing:.5, marginBottom:5, alignSelf:'flex-start' }}>Busca</span>
-          <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar..." style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340' }} />
-        </div>
-        <div style={{ display:'flex', flexDirection:'column', flex:1, minWidth:160 }}>
-          <span style={{ fontSize:13, fontWeight:700, color:'#fff', background:'#2D3A8C', padding:'4px 10px', borderRadius:5, textTransform:'uppercase', letterSpacing:.5, marginBottom:5, alignSelf:'flex-start' }}>Responsável</span>
-          <select value={filtroResponsavel} onChange={e=>setFiltroResponsavel(e.target.value)} style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
-            <option value="">Responsável/auxiliar — todos</option>
-            {COLABORADORES.map(nome => <option key={nome} value={nome}>{nome}</option>)}
-          </select>
-        </div>
-        <div style={{ display:'flex', flexDirection:'column', width:'100%' }}>
-          <span style={{ fontSize:13, fontWeight:700, color:'#fff', background:'#2D3A8C', padding:'4px 10px', borderRadius:5, textTransform:'uppercase', letterSpacing:.5, marginBottom:5, alignSelf:'flex-start' }}>Período</span>
-          <div style={{ display:'flex', gap:6, alignItems:'center', width:'100%' }}>
-            <span style={{ fontSize:11, color:'#64748B', fontWeight:600, whiteSpace:'nowrap' }}>Início:</span>
-            <input type="date" value={filtroDe} onChange={e=>setFiltroDe(e.target.value)}
-              style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', flex:1 }} />
-            <span style={{ fontSize:11, color:'#64748B' }}>até</span>
-            <input type="date" value={filtroAte} onChange={e=>setFiltroAte(e.target.value)}
-              style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', flex:1 }} />
-            {(filtroDe || filtroAte) && (
-              <button onClick={() => { setFiltroDe(''); setFiltroAte('') }}
-                style={{ padding:'7px 10px', background:'#F1F5F9', border:'1px solid #CDD8E3', borderRadius:8, fontSize:11, color:'#64748B', cursor:'pointer', whiteSpace:'nowrap' }}>
-                ✕ limpar
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* Cenário */}
       <div style={{ background:'#fff', borderBottom:'1px solid #E0E8F0', padding:'14px 16px' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
@@ -4918,6 +4865,59 @@ export default function App() {
             )}
           </div>
         )}
+      </div>
+
+      {/* Filtros */}
+      <div style={{ background:'#fff', padding:'10px 16px', borderBottom:'1px solid #E0E8F0', display:'flex', gap:8, flexWrap:'wrap', alignItems:'flex-end' }}>
+        <div style={{ display:'flex', flexDirection:'column', flex:1, minWidth:100 }}>
+          <span style={{ fontSize:13, fontWeight:700, color:'#fff', background:'#2D3A8C', padding:'4px 10px', borderRadius:5, textTransform:'uppercase', letterSpacing:.5, marginBottom:5, alignSelf:'flex-start' }}>Tipos de serviço</span>
+          <select value={filtroTipo} onChange={e=>setFiltroTipo(e.target.value)} style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+            <option value="">Todos tipos</option>
+            {[...new Set(obras.map(o=>o.tipo))].sort().map(t => <option key={t}>{t}</option>)}
+          </select>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', flex:1, minWidth:100 }}>
+          <span style={{ fontSize:13, fontWeight:700, color:'#fff', background:'#2D3A8C', padding:'4px 10px', borderRadius:5, textTransform:'uppercase', letterSpacing:.5, marginBottom:5, alignSelf:'flex-start' }}>Rede</span>
+          <select value={filtroRede} onChange={e=>setFiltroRede(e.target.value)} style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+            <option value="">Todos bancos</option>
+            {[...new Set(obras.map(o=>o.rede))].filter(Boolean).sort().map(r => <option key={r}>{r}</option>)}
+          </select>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', flex:1, minWidth:100 }}>
+          <span style={{ fontSize:13, fontWeight:700, color:'#fff', background:'#2D3A8C', padding:'4px 10px', borderRadius:5, textTransform:'uppercase', letterSpacing:.5, marginBottom:5, alignSelf:'flex-start' }}>Status</span>
+          <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)} style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+            <option value="">Todos status</option>
+            {[...new Set(obras.map(o=>o.status))].filter(Boolean).sort().map(s => <option key={s}>{s}</option>)}
+          </select>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', flex:2, minWidth:120 }}>
+          <span style={{ fontSize:13, fontWeight:700, color:'#fff', background:'#2D3A8C', padding:'4px 10px', borderRadius:5, textTransform:'uppercase', letterSpacing:.5, marginBottom:5, alignSelf:'flex-start' }}>Busca</span>
+          <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar..." style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340' }} />
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', flex:1, minWidth:160 }}>
+          <span style={{ fontSize:13, fontWeight:700, color:'#fff', background:'#2D3A8C', padding:'4px 10px', borderRadius:5, textTransform:'uppercase', letterSpacing:.5, marginBottom:5, alignSelf:'flex-start' }}>Responsável</span>
+          <select value={filtroResponsavel} onChange={e=>setFiltroResponsavel(e.target.value)} style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+            <option value="">Responsável/auxiliar — todos</option>
+            {COLABORADORES.map(nome => <option key={nome} value={nome}>{nome}</option>)}
+          </select>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', width:'100%' }}>
+          <span style={{ fontSize:13, fontWeight:700, color:'#fff', background:'#2D3A8C', padding:'4px 10px', borderRadius:5, textTransform:'uppercase', letterSpacing:.5, marginBottom:5, alignSelf:'flex-start' }}>Período</span>
+          <div style={{ display:'flex', gap:6, alignItems:'center', width:'100%' }}>
+            <span style={{ fontSize:11, color:'#64748B', fontWeight:600, whiteSpace:'nowrap' }}>Início:</span>
+            <input type="date" value={filtroDe} onChange={e=>setFiltroDe(e.target.value)}
+              style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', flex:1 }} />
+            <span style={{ fontSize:11, color:'#64748B' }}>até</span>
+            <input type="date" value={filtroAte} onChange={e=>setFiltroAte(e.target.value)}
+              style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', flex:1 }} />
+            {(filtroDe || filtroAte) && (
+              <button onClick={() => { setFiltroDe(''); setFiltroAte('') }}
+                style={{ padding:'7px 10px', background:'#F1F5F9', border:'1px solid #CDD8E3', borderRadius:8, fontSize:11, color:'#64748B', cursor:'pointer', whiteSpace:'nowrap' }}>
+                ✕ limpar
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Lista */}
