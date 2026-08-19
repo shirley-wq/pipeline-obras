@@ -1248,7 +1248,9 @@ function classificaTipoMovimentacaoSige(bruto) {
   if (s.includes('OBRA')) return null
   if (s.includes('PINTURA')) return null
   if (s.includes('INFRA') || s.includes('ELETR') || s.includes('ELÉTR')) return null
-  if (s.includes('DESATIV')) return 'DESATIVAÇÃO ATM'
+  // "DESINSTALAÇÃO" contém "INSTAL" como substring - precisa ser pego aqui, antes do check
+  // genérico de INSTAL lá embaixo, senão cai errado em INSTALAÇÃO ATM (Shirley, 2026-08-19).
+  if (s.includes('DESATIV') || s.includes('DESINSTAL')) return 'DESATIVAÇÃO ATM'
   if (s.includes('SUBST') || s.includes('SUSBT') || s.includes('SUBSIT')) return 'SUBSTITUIÇÃO ATM'
   if (s.includes('REMANEJ')) return 'REMANEJAMENTO ATM'
   if (s.includes('SINALIZ')) return 'SINALIZAÇÃO ATM'
@@ -2024,7 +2026,7 @@ export default function App() {
   const [entregaveisVistoria, setEntregaveisVistoria] = useState([])
   const [novoLembreteEtapa, setNovoLembreteEtapa] = useState('')
   const [novoLembreteTexto, setNovoLembreteTexto] = useState('')
-  const [editDados, setEditDados] = useState({ nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'' })
+  const [editDados, setEditDados] = useState({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'' })
   const [adesivos, setAdesivos] = useState([])
   const [vidros, setVidros] = useState([])
   const [novoVidro, setNovoVidro] = useState('')
@@ -3049,6 +3051,10 @@ export default function App() {
     }
     const campos = {
       status: statusFinal,
+      // Só troca o tipo se a obra já era de família ATM (TIPOS_BDN) - corrige importação errada
+      // do SIGE (ex: Desinstalação lida como Instalação) sem arriscar trocar pra uma família com
+      // campos incompatíveis, tipo TRANSF UN (Shirley, 2026-08-19).
+      ...(TIPOS_BDN.includes(modal.tipo) && editDados.tipo && TIPOS_BDN.includes(editDados.tipo) ? { tipo: editDados.tipo } : {}),
       obs: novaObs || modal.obs || null,
       atualizado_em: new Date().toISOString(),
       atualizado_por: usuario.email,
@@ -3145,7 +3151,7 @@ export default function App() {
     setItensEspeciais([])
     setBiomboFila('')
     setPortaGiratoria('')
-    setEditDados({ nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'' })
+    setEditDados({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'' })
     setDataCadastroModal('')
     setDataVistoria('')
     setColabsVistoria([])
@@ -5132,7 +5138,7 @@ export default function App() {
                         setItensEspeciais(Array.isArray(obra.itens_especiais) ? obra.itens_especiais : [])
                         setBiomboFila(obra.biombo_fila != null ? String(obra.biombo_fila) : '')
                         setPortaGiratoria(obra.porta_giratoria != null ? String(obra.porta_giratoria) : '')
-                        setEditDados({ nome: obra.nome||'', endereco: obra.endereco||'', cidade: obra.cidade||'', uf: obra.uf||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', numero_pc: obra.numero_pc||'', pedido: obra.pedido||'', nf: obra.nf||'', os_tecban: obra.os_tecban||'', pedido_valor: obra.pedido_valor!=null ? String(obra.pedido_valor) : '', pedido_os: obra.pedido_os||'', pedido_cnpj: obra.pedido_cnpj||'' })
+                        setEditDados({ tipo: obra.tipo||'', nome: obra.nome||'', endereco: obra.endereco||'', cidade: obra.cidade||'', uf: obra.uf||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', numero_pc: obra.numero_pc||'', pedido: obra.pedido||'', nf: obra.nf||'', os_tecban: obra.os_tecban||'', pedido_valor: obra.pedido_valor!=null ? String(obra.pedido_valor) : '', pedido_os: obra.pedido_os||'', pedido_cnpj: obra.pedido_cnpj||'' })
                         setDataCadastroModal(obra.data_cadastro || '')
                         setDataVistoria(obra.data_vistoria || '')
                         const listaVistoria = Array.isArray(obra.colaboradores_vistoria) ? obra.colaboradores_vistoria : []
@@ -5484,6 +5490,16 @@ export default function App() {
                 <input value={editDados.nome} onChange={e => setEditDados(d => ({...d, nome:e.target.value}))}
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
               </div>
+              {TIPOS_BDN.includes(modal.tipo) && (
+              <div style={{ marginBottom:10 }}>
+                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Tipo de serviço</label>
+                <select value={editDados.tipo || modal.tipo} onChange={e => setEditDados(d => ({...d, tipo:e.target.value}))}
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
+                  {TIPOS_BDN.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Corrige tipo importado errado do SIGE (ex: Desinstalação lida como Instalação) - só troca entre os tipos ATM, que usam a mesma régua.</div>
+              </div>
+              )}
               <div style={{ display:'grid', gridTemplateColumns:'2fr 1.3fr 0.6fr', gap:8, marginBottom:10 }}>
                 <div>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Endereço</label>
