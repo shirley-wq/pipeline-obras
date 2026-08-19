@@ -1192,6 +1192,14 @@ const TIPOS_BDN = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM'
 // Instalação, Desativação, Substituição (troca) e Remanejamento de Banco24Horas não têm fase de
 // vistoria no processo real (Shirley, 2026-08-13) - diferente de Bradesco, que tem vistoria própria.
 const SEM_VISTORIA_BANCO24H = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM', 'REMANEJAMENTO ATM']
+// Tela "Consulta ARS e agendamento" + "Dia da obra - visitas de campo" (ARS, EC, registros de
+// atividade) estendida de Banco24Horas pra AgiBank/Crefisa também (Shirley, 2026-08-19) - essas redes
+// SEGUEM tendo vistoria própria (diferente de Banco24Horas), então SEM_VISTORIA_BANCO24H continua
+// controlando só a régua de vistoria; esta função controla só a tela extra de operação de campo.
+const REDES_OPERACAO_CAMPO = ['BANCO24HORAS', 'AGIBANK', 'CREFISA']
+function temTelaOperacaoCampo(rede, tipo) {
+  return REDES_OPERACAO_CAMPO.includes(rede) && SEM_VISTORIA_BANCO24H.includes(tipo)
+}
 // Itens do ARS que descrevem onde/como a máquina fica fixada - mais de um pode se aplicar
 // ao mesmo tempo (ex: "encostada em pilar" + "fixação química").
 const ITENS_SEGURANCA_BANCO24H = ['Máquina encostada em parede de alvenaria', 'Encostada em pilar', 'Em cima de viga', 'Fixação concretada', 'Fixação química', 'Fixação projeto T', 'Construção de meia parede']
@@ -3071,7 +3079,7 @@ export default function App() {
     campos.entregaveis_vistoria = entregaveisVistoria.length > 0 ? entregaveisVistoria : null
     campos.data_vistoria = dataVistoria || null
     campos.colaboradores_vistoria = listaVistoria.length > 0 ? listaVistoria : null
-    if (modal.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal.tipo)) {
+    if (temTelaOperacaoCampo(modal.rede, modal.tipo)) {
       campos.ars_verificado = arsVerificado
       campos.ec_nome = ecNome || null
       campos.ec_telefone = ecTelefone || null
@@ -3346,7 +3354,7 @@ export default function App() {
     // Experimental (Shirley, 2026-08-19): também conta visitas avulsas de operação de campo (retorno
     // de pendência, StockTrans, demolição etc. registrados como "Outros") que caem no dia do Cenário,
     // mesmo quando não coincidem com data_vistoria/dataExec. Se poluir os cards, reverter.
-    if (o.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(o.tipo)) {
+    if (temTelaOperacaoCampo(o.rede, o.tipo)) {
       const registros = Array.isArray(o.registros_operacao_campo) ? o.registros_operacao_campo : []
       registros.forEach(r => {
         if (r.data !== cenarioData) return
@@ -3427,8 +3435,8 @@ export default function App() {
     const wsObras = XLSXStyle.utils.aoa_to_sheet([cab, ...linhasObras])
     wsObras['!cols'] = cab.map(() => ({ wch: 16 }))
 
-    // Obras Banco24Horas (as 4 atividades sem vistoria) que tenham dado entrada de ARS
-    const obrasB24h = obrasFiltradas.filter(o => o.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(o.tipo))
+    // Obras com tela de operação de campo (Banco24Horas/AgiBank/Crefisa, as 4 atividades sem vistoria própria de Banco24Horas) que tenham dado entrada de ARS
+    const obrasB24h = obrasFiltradas.filter(o => temTelaOperacaoCampo(o.rede, o.tipo))
 
     const cabArs = ['Obra','PC','Status','Entrou no ARS','Contato EC - nome','Contato EC - telefone','Data início (confirmada)','Hora início (confirmada)','ARS solicitado','Campo executado','Barreira dissuasão (ARS)','Barreira dissuasão (Campo)','Quem autorizou a mudança']
     const linhasArs = obrasB24h.map(o => [
@@ -5611,7 +5619,7 @@ export default function App() {
             </>
             )}
 
-            {modal.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal.tipo) && (
+            {temTelaOperacaoCampo(modal.rede, modal.tipo) && (
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
               <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>📑 Consulta ARS e agendamento</div>
               <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginBottom:10 }}>
@@ -5682,7 +5690,7 @@ export default function App() {
             </div>
             )}
 
-            {modal.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal.tipo) && (
+            {temTelaOperacaoCampo(modal.rede, modal.tipo) && (
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
               <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>🛠️ Dia da obra — visitas de campo</div>
 
@@ -6297,7 +6305,7 @@ export default function App() {
               {getEtapas(modal.rede, modal.tipo).map((op, i) => {
                 const ativo = novoStatus === op
                 const bloqueado = (op === 'RM ENVIADA' && !editDados.os_tecban.trim())
-                  || (op === 'RELATÓRIO AO CLIENTE' && modal.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal.tipo) && !operacaoCampoCompleta)
+                  || (op === 'RELATÓRIO AO CLIENTE' && temTelaOperacaoCampo(modal.rede, modal.tipo) && !operacaoCampoCompleta)
                 return (
                   <div key={op} onClick={() => { if (!bloqueado) setNovoStatus(op) }}
                     title={bloqueado ? (op === 'RELATÓRIO AO CLIENTE' ? 'Preencha o status (OK/Impedimento) das 5 atividades no dia da obra para liberar esta etapa' : 'Preencha o campo "OS Tecban" em Dados da obra para liberar esta etapa') : undefined}
@@ -6314,7 +6322,7 @@ export default function App() {
                 🔒 "RM Enviada" fica bloqueada até preencher a <b>OS Tecban</b> em Dados da obra.
               </div>
             )}
-            {modal.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal.tipo) && !operacaoCampoCompleta && (
+            {temTelaOperacaoCampo(modal.rede, modal.tipo) && !operacaoCampoCompleta && (
               <div style={{ fontSize:11, color:'#92400E', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'6px 10px', marginBottom:8 }}>
                 🔒 "Relatório ao Cliente" fica bloqueada até preencher OK/Impedimento das 5 atividades no dia da obra.
               </div>
