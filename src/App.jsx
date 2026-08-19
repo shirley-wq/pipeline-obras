@@ -1196,7 +1196,10 @@ const SEM_VISTORIA_BANCO24H = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTIT
 // ao mesmo tempo (ex: "encostada em pilar" + "fixação química").
 const ITENS_SEGURANCA_BANCO24H = ['Máquina encostada em parede de alvenaria', 'Encostada em pilar', 'Em cima de viga', 'Fixação concretada', 'Fixação química', 'Fixação projeto T', 'Construção de meia parede']
 // Atividades possíveis no dia da obra (rede Banco24Horas) - podem acontecer em visitas separadas.
-const ATIVIDADES_OPERACAO_CAMPO = ['Base', 'Instalação', 'Habilitação', 'Construção de parede', 'Instalação de sinalização']
+// As 5 obrigatórias travam a liberação do "Relatório ao Cliente" (ver operacaoCampoCompleta). Vistoria
+// e Outros são registráveis mas opcionais - não emperram esse gate (Shirley, 2026-08-19).
+const ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS = ['Base', 'Instalação', 'Habilitação', 'Construção de parede', 'Instalação de sinalização']
+const ATIVIDADES_OPERACAO_CAMPO = [...ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS, 'Vistoria', 'Outros']
 // Motivos de impedimento pra Base já definidos (Shirley, 2026-08-13). Motivos das outras atividades
 // ainda não foram levantados - usar texto livre até ela trazer a lista fechada.
 const MOTIVOS_IMPEDIMENTO_BASE = ['Não autorizado o tipo de fixação', 'Local incompatível — laje', 'Local incompatível — interfere elétrica ou hidráulica', 'Piso em concreto armado usinado']
@@ -2896,6 +2899,7 @@ export default function App() {
           if (Array.isArray(a.defeitosEquipamento) && a.defeitosEquipamento.length > 0) extras.push(`Defeito de equipamento: ${a.defeitosEquipamento.join(', ')}`)
           detalhe = [detalhe, ...extras].filter(Boolean).join(' — ')
         }
+        if (a.atividade === 'Outros' && a.descricao) detalhe = [detalhe, a.descricao].filter(Boolean).join(' — ')
         linhasVisitas.push([
           r.data ? isoToBr(r.data) : '—',
           Array.isArray(r.equipe) ? r.equipe.join(', ') : '',
@@ -3230,7 +3234,7 @@ export default function App() {
     || (modal?.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal?.tipo))
   const atividadesCobertas = new Set()
   registrosOperacaoCampo.forEach(r => (r.atividades || []).forEach(a => { if (typeof a.feita === 'boolean') atividadesCobertas.add(a.atividade) }))
-  const operacaoCampoCompleta = ATIVIDADES_OPERACAO_CAMPO.every(a => atividadesCobertas.has(a))
+  const operacaoCampoCompleta = ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS.every(a => atividadesCobertas.has(a))
 
   const estilo = { fontFamily:'system-ui,sans-serif', minHeight:'100vh', background:'#F0F4F8' }
   const inp = { width:'100%', padding:'11px 12px', fontSize:14, border:'1px solid #B5D4F4', borderRadius:10, background:'#fff', color:'#1A2340', outline:'none', boxSizing:'border-box', marginBottom:12 }
@@ -3339,6 +3343,16 @@ export default function App() {
     const eventos = []
     if (o.data_vistoria === cenarioData) eventos.push({ categoria: ehBDN ? `Vistoria de ${tipoCurto}` : 'Vistoria', familia: ehBDN ? 'movimentacao' : 'obra' })
     if (dataExec === cenarioData) eventos.push({ categoria: ehBDN ? tipoCurto : 'Obra', familia: ehBDN ? 'movimentacao' : 'obra' })
+    // Experimental (Shirley, 2026-08-19): também conta visitas avulsas de operação de campo (retorno
+    // de pendência, StockTrans, demolição etc. registrados como "Outros") que caem no dia do Cenário,
+    // mesmo quando não coincidem com data_vistoria/dataExec. Se poluir os cards, reverter.
+    if (o.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(o.tipo)) {
+      const registros = Array.isArray(o.registros_operacao_campo) ? o.registros_operacao_campo : []
+      registros.forEach(r => {
+        if (r.data !== cenarioData) return
+        ;(r.atividades || []).forEach(a => eventos.push({ categoria: `Visita: ${a.atividade}`, familia: 'movimentacao' }))
+      })
+    }
     if (eventos.length === 0) return
     const estado = estadoDaObra(o)
     if (!cenarioPorUFMap[estado]) cenarioPorUFMap[estado] = { uf: estado, obras: 0, movimentacao: 0, categorias: {} }
@@ -3431,7 +3445,7 @@ export default function App() {
     const wsArs = XLSXStyle.utils.aoa_to_sheet([cabArs, ...linhasArs])
     wsArs['!cols'] = cabArs.map(() => ({ wch: 20 }))
 
-    const cabDia = ['Obra','PC','Data da visita','Equipe','Atividade','Feita','Impedimento/Desvio','Motivo','Dimer finalizado','Motivo Dimer','Alarme 253 finalizado','Motivo Alarme 253','Quem atendeu no CGR','Defeito de equipamento não resolvido']
+    const cabDia = ['Obra','PC','Data da visita','Equipe','Atividade','Feita','Impedimento/Desvio','Motivo','Descrição (Outros)','Dimer finalizado','Motivo Dimer','Alarme 253 finalizado','Motivo Alarme 253','Quem atendeu no CGR','Defeito de equipamento não resolvido']
     const linhasDia = []
     obrasB24h.forEach(o => {
       const registros = Array.isArray(o.registros_operacao_campo) ? o.registros_operacao_campo : []
@@ -3442,6 +3456,7 @@ export default function App() {
             r.data ? isoToBr(r.data) : '',
             Array.isArray(r.equipe) ? r.equipe.join(', ') : '',
             a.atividade, a.feita ? 'Sim' : 'Não', a.impedimento ? 'Sim' : 'Não', a.motivo || '',
+            a.atividade === 'Outros' ? (a.descricao || '') : '',
             a.atividade === 'Habilitação' ? (a.dimerFinalizado ? 'Sim' : 'Não') : '',
             a.atividade === 'Habilitação' ? (a.dimerMotivo || '') : '',
             a.atividade === 'Habilitação' ? (a.alarme253Finalizado ? 'Sim' : 'Não') : '',
@@ -5689,6 +5704,9 @@ export default function App() {
                                 Dimer: {a.dimerFinalizado ? 'finalizado' : `não finalizado${a.dimerMotivo ? ` (${a.dimerMotivo})` : ''}`} · Alarme 253: {a.alarme253Finalizado ? 'finalizado' : `não finalizado${a.alarme253Motivo ? ` (${a.alarme253Motivo})` : ''}`}{a.cgrNome ? ` · CGR: ${a.cgrNome}` : ''}{Array.isArray(a.defeitosEquipamento) && a.defeitosEquipamento.length > 0 ? ` · Defeito: ${a.defeitosEquipamento.join(', ')}` : ''}
                               </div>
                             )}
+                            {a.atividade === 'Outros' && a.descricao && (
+                              <div style={{ fontSize:11, color:'#64748B', marginTop:2 }}>{a.descricao}</div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -5754,6 +5772,14 @@ export default function App() {
                                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                               )
                             )}
+                            {atividade === 'Outros' && (
+                              <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #E0E8F0' }}>
+                                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:4 }}>O que foi feito (obrigatório)</label>
+                                <input value={dados.descricao || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], descricao: e.target.value } }))}
+                                  placeholder="Ex: retirar modem na StockTrans pro PC 98972"
+                                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                              </div>
+                            )}
                             {atividade === 'Habilitação' && (
                               <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #E0E8F0' }}>
                                 <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>Dimer foi finalizado?</div>
@@ -5814,6 +5840,7 @@ export default function App() {
                   const valida = marcadas.length > 0 && marcadas.every(([atividade, d]) => {
                     const basico = (d.feita === true || d.feita === false) && (!d.impedimento || (d.motivo && d.motivo.trim() !== ''))
                     if (!basico) return false
+                    if (atividade === 'Outros' && !(d.descricao && d.descricao.trim() !== '')) return false
                     if (atividade === 'Habilitação') {
                       if (d.dimerFinalizado !== true && d.dimerFinalizado !== false) return false
                       if (d.dimerFinalizado === false && !(d.dimerMotivo && d.dimerMotivo.trim() !== '')) return false
@@ -5826,6 +5853,7 @@ export default function App() {
                     <button onClick={() => {
                       const atividades = marcadas.map(([atividade, d]) => ({
                         atividade, feita: d.feita, impedimento: !!d.impedimento, motivo: d.impedimento ? (d.motivo || '') : '',
+                        ...(atividade === 'Outros' ? { descricao: d.descricao || '' } : {}),
                         ...(atividade === 'Habilitação' ? {
                           dimerFinalizado: d.dimerFinalizado, dimerMotivo: d.dimerFinalizado === false ? (d.dimerMotivo || '') : '',
                           alarme253Finalizado: d.alarme253Finalizado, alarme253Motivo: d.alarme253Finalizado === false ? (d.alarme253Motivo || '') : '',
@@ -5851,7 +5879,7 @@ export default function App() {
               </div>
 
               <div style={{ fontSize:11, color:'#64748B', marginTop:10 }}>
-                Cobertura das 5 atividades: {ATIVIDADES_OPERACAO_CAMPO.filter(a => atividadesCobertas.has(a)).length}/{ATIVIDADES_OPERACAO_CAMPO.length}
+                Cobertura das 5 atividades: {ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS.filter(a => atividadesCobertas.has(a)).length}/{ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS.length}
                 {!operacaoCampoCompleta && ' — precisa de todas as 5 pra liberar "Relatório ao Cliente"'}
               </div>
               <button onClick={exportarRelatorioCliente} disabled={!operacaoCampoCompleta}
