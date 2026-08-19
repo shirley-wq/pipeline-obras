@@ -2058,6 +2058,7 @@ export default function App() {
   const [novoRegistroTerceirizado, setNovoRegistroTerceirizado] = useState(false)
   const [novoRegistroTerceirizadoTexto, setNovoRegistroTerceirizadoTexto] = useState('')
   const [novoRegistroAtividades, setNovoRegistroAtividades] = useState({})
+  const [editandoVisitaIdx, setEditandoVisitaIdx] = useState(null)
   const [mostrarEnvioRelatorio, setMostrarEnvioRelatorio] = useState(false)
   const [fotosRelatorio, setFotosRelatorio] = useState([])
   const [enviandoRelatorio, setEnviandoRelatorio] = useState(false)
@@ -5723,14 +5724,29 @@ export default function App() {
                     <div key={idx} style={{ background:'#fff', border:'1px solid #CDD8E3', borderRadius:8, padding:10 }}>
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                         <div style={{ fontSize:12, fontWeight:600, color:'#1A2340' }}>{r.data ? isoToBr(r.data) : '(sem data)'} — {(r.equipe||[]).join(', ') || '—'}</div>
-                        <span onClick={() => setRegistrosOperacaoCampo(prev => prev.filter((_, i) => i !== idx))}
-                          style={{ fontSize:11, color:'#DC2626', cursor:'pointer', fontWeight:600 }}>Remover</span>
+                        <div style={{ display:'flex', gap:10 }}>
+                          <span onClick={() => {
+                            setEditandoVisitaIdx(idx)
+                            setNovoRegistroData(r.data || '')
+                            setNovoRegistroEquipe((r.equipe || []).filter(e => !e.startsWith(TERCEIRIZADO_PREFIXO)))
+                            const terceirizadoNome = (r.equipe || []).find(e => e.startsWith(TERCEIRIZADO_PREFIXO))
+                            setNovoRegistroTerceirizado(!!terceirizadoNome)
+                            setNovoRegistroTerceirizadoTexto(terceirizadoNome ? terceirizadoNome.slice(TERCEIRIZADO_PREFIXO.length) : '')
+                            const atividadesMap = {}
+                            ;(r.atividades || []).forEach(a => { atividadesMap[a.atividade] = { ...a } })
+                            setNovoRegistroAtividades(atividadesMap)
+                          }} style={{ fontSize:11, color:'#2D3A8C', cursor:'pointer', fontWeight:600 }}>Editar</span>
+                          <span onClick={() => {
+                            setRegistrosOperacaoCampo(prev => prev.filter((_, i) => i !== idx))
+                            if (editandoVisitaIdx === idx) setEditandoVisitaIdx(null)
+                          }} style={{ fontSize:11, color:'#DC2626', cursor:'pointer', fontWeight:600 }}>Remover</span>
+                        </div>
                       </div>
                       <div style={{ marginTop:6, display:'flex', flexDirection:'column', gap:4 }}>
                         {(r.atividades||[]).map((a, ai) => (
-                          <div key={ai} style={{ fontSize:12, color: a.feita ? '#065F46' : '#991B1B' }}>
-                            {a.feita ? '✓ Feita' : '✗ Não feita'} — {a.atividade}{a.impedimento && a.motivo ? ` (com desvio: ${a.motivo})` : (a.impedimento ? ' (com desvio)' : '')}
-                            {a.atividade === 'Habilitação' && (
+                          <div key={ai} style={{ fontSize:12, color: a.feita === true ? '#065F46' : a.feita === false ? '#991B1B' : '#92400E' }}>
+                            {a.feita === true ? '✓ Feita' : a.feita === false ? '✗ Não feita' : '⏳ Planejada'} — {a.atividade}{a.impedimento && a.motivo ? ` (com desvio: ${a.motivo})` : (a.impedimento ? ' (com desvio)' : '')}
+                            {a.atividade === 'Habilitação' && a.feita !== null && a.feita !== undefined && (
                               <div style={{ fontSize:11, color:'#64748B', marginTop:2 }}>
                                 Dimer: {a.dimerFinalizado ? 'finalizado' : `não finalizado${a.dimerMotivo ? ` (${a.dimerMotivo})` : ''}`} · Alarme 253: {a.alarme253Finalizado ? 'finalizado' : `não finalizado${a.alarme253Motivo ? ` (${a.alarme253Motivo})` : ''}`}{a.cgrNome ? ` · CGR: ${a.cgrNome}` : ''}{Array.isArray(a.defeitosEquipamento) && a.defeitosEquipamento.length > 0 ? ` · Defeito: ${a.defeitosEquipamento.join(', ')}` : ''}
                               </div>
@@ -5747,7 +5763,19 @@ export default function App() {
               )}
 
               <div style={{ background:'#fff', border:'1px dashed #B5D4F4', borderRadius:8, padding:12 }}>
-                <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, marginBottom:8 }}>+ Nova visita</div>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                  <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700 }}>{editandoVisitaIdx !== null ? '✏️ Editando visita' : '+ Nova visita'}</div>
+                  {editandoVisitaIdx !== null && (
+                    <span onClick={() => {
+                      setEditandoVisitaIdx(null)
+                      setNovoRegistroData('')
+                      setNovoRegistroEquipe([])
+                      setNovoRegistroTerceirizado(false)
+                      setNovoRegistroTerceirizadoTexto('')
+                      setNovoRegistroAtividades({})
+                    }} style={{ fontSize:11, color:'#64748B', cursor:'pointer', fontWeight:600 }}>Cancelar edição</span>
+                  )}
+                </div>
                 <div style={{ marginBottom:8 }}>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data</label>
                   <input type="date" value={novoRegistroData || (/^\d{2}\/\d{2}\/\d{4}$/.test(dataInicioObraTexto.trim()) ? brToIso(dataInicioObraTexto.trim()) : '')} onChange={e => setNovoRegistroData(e.target.value)}
@@ -5785,6 +5813,7 @@ export default function App() {
                                 </span>
                               ))}
                             </div>
+                            <div style={{ fontSize:10, color:'#64748B', marginTop:-4, marginBottom:8 }}>Deixe em branco se essa visita ainda não aconteceu — fica registrada como planejada pro Cenário, e você volta aqui pra completar depois (Editar).</div>
                             <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginBottom:6 }}>
                               <input type="checkbox" checked={dados.impedimento || false}
                                 onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], impedimento: e.target.checked } }))} />
@@ -5868,11 +5897,14 @@ export default function App() {
                 </div>
                 {(() => {
                   const marcadas = Object.entries(novoRegistroAtividades)
+                  // "feita" pode ficar em branco (null) - visita planejada, ainda não aconteceu. Só
+                  // exige feita decidido (Sim/Não) e os campos extras de Habilitação quando ela já foi
+                  // marcada como concluída ou não (Shirley, 2026-08-19 - agenda/dashboard).
                   const valida = marcadas.length > 0 && marcadas.every(([atividade, d]) => {
-                    const basico = (d.feita === true || d.feita === false) && (!d.impedimento || (d.motivo && d.motivo.trim() !== ''))
-                    if (!basico) return false
+                    const decidida = d.feita === true || d.feita === false
+                    if (d.impedimento && !(d.motivo && d.motivo.trim() !== '')) return false
                     if (atividade === 'Outros' && !(d.descricao && d.descricao.trim() !== '')) return false
-                    if (atividade === 'Habilitação') {
+                    if (atividade === 'Habilitação' && decidida) {
                       if (d.dimerFinalizado !== true && d.dimerFinalizado !== false) return false
                       if (d.dimerFinalizado === false && !(d.dimerMotivo && d.dimerMotivo.trim() !== '')) return false
                       if (d.alarme253Finalizado !== true && d.alarme253Finalizado !== false) return false
@@ -5880,10 +5912,18 @@ export default function App() {
                     }
                     return true
                   })
+                  function limparFormularioVisita() {
+                    setEditandoVisitaIdx(null)
+                    setNovoRegistroData('')
+                    setNovoRegistroEquipe([])
+                    setNovoRegistroTerceirizado(false)
+                    setNovoRegistroTerceirizadoTexto('')
+                    setNovoRegistroAtividades({})
+                  }
                   return (
                     <button onClick={() => {
                       const atividades = marcadas.map(([atividade, d]) => ({
-                        atividade, feita: d.feita, impedimento: !!d.impedimento, motivo: d.impedimento ? (d.motivo || '') : '',
+                        atividade, feita: d.feita === true || d.feita === false ? d.feita : null, impedimento: !!d.impedimento, motivo: d.impedimento ? (d.motivo || '') : '',
                         ...(atividade === 'Outros' ? { descricao: d.descricao || '' } : {}),
                         ...(atividade === 'Habilitação' ? {
                           dimerFinalizado: d.dimerFinalizado, dimerMotivo: d.dimerFinalizado === false ? (d.dimerMotivo || '') : '',
@@ -5894,16 +5934,17 @@ export default function App() {
                       }))
                       const equipe = [...novoRegistroEquipe, ...(novoRegistroTerceirizado ? [TERCEIRIZADO_PREFIXO + (novoRegistroTerceirizadoTexto.trim() || '(não informado)')] : [])]
                       const dataVisita = novoRegistroData || (/^\d{2}\/\d{2}\/\d{4}$/.test(dataInicioObraTexto.trim()) ? brToIso(dataInicioObraTexto.trim()) : '')
-                      setRegistrosOperacaoCampo(prev => [...prev, { data: dataVisita || null, equipe, atividades }])
-                      setNovoRegistroData('')
-                      setNovoRegistroEquipe([])
-                      setNovoRegistroTerceirizado(false)
-                      setNovoRegistroTerceirizadoTexto('')
-                      setNovoRegistroAtividades({})
+                      const registro = { data: dataVisita || null, equipe, atividades }
+                      if (editandoVisitaIdx !== null) {
+                        setRegistrosOperacaoCampo(prev => prev.map((r, i) => i === editandoVisitaIdx ? registro : r))
+                      } else {
+                        setRegistrosOperacaoCampo(prev => [...prev, registro])
+                      }
+                      limparFormularioVisita()
                     }}
                       disabled={!valida}
                       style={{ width:'100%', marginTop:10, padding:10, background: !valida ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: !valida ? 'default' : 'pointer' }}>
-                      + Adicionar visita
+                      {editandoVisitaIdx !== null ? '💾 Salvar edição' : '+ Adicionar visita'}
                     </button>
                   )
                 })()}
