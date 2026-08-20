@@ -1302,6 +1302,10 @@ const MOTIVOS_IMPEDIMENTO_BRADESCO = ['Sem senha do cofre (Taurus/robô)', 'Atra
 // usar pro relatório individual por obra, mesmo endereço que o Fabio já usa pro report diário).
 const EMAIL_RM_TECBAN = 'Implantacao.B24horas@tecban.com.br'
 const EMAIL_CC_OPERACAO_GRUPOPG = 'operacao@grupopg.com.br'
+// E-mail de solicitação de correção de pedido divergente (Shirley, 2026-08-20) - endereço diferente
+// do relatório ao cliente acima, é o time de pagamentos/gestão de pedidos da Tecban.
+const EMAIL_CORRECAO_PEDIDO_TECBAN = 'gestaopagamentos2026@tecban.com.br'
+const EMAIL_CC_CORRECAO_PEDIDO = 'rayan.miranda@servicosintegradostecban.com.br'
 const APPS_SCRIPT_RELATORIO_URL = 'https://script.google.com/macros/s/AKfycbzxp855GA1oWW_p8tXOba7O7wtEuN7AO31rON7zAKAKrmmbpGDWiAINqIHDFRw0eQHyuw/exec'
 const APPS_SCRIPT_RELATORIO_SECRET = 'pg-tecban-report-2026-x7q2m9'
 // Fase de teste - só quem está nessa lista vê o botão de enviar (Shirley, 2026-08-18).
@@ -2118,7 +2122,7 @@ export default function App() {
   const [entregaveisVistoria, setEntregaveisVistoria] = useState([])
   const [novoLembreteEtapa, setNovoLembreteEtapa] = useState('')
   const [novoLembreteTexto, setNovoLembreteTexto] = useState('')
-  const [editDados, setEditDados] = useState({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'' })
+  const [editDados, setEditDados] = useState({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'', pedido_tecban_cnpj:'', pedido_tecban_nome:'' })
   const [adesivos, setAdesivos] = useState([])
   const [vidros, setVidros] = useState([])
   const [novoVidro, setNovoVidro] = useState('')
@@ -2154,6 +2158,9 @@ export default function App() {
   const [fotosRelatorio, setFotosRelatorio] = useState([])
   const [enviandoRelatorio, setEnviandoRelatorio] = useState(false)
   const [erroEnvioRelatorio, setErroEnvioRelatorio] = useState('')
+  const [mostrarEnvioCorrecaoPedido, setMostrarEnvioCorrecaoPedido] = useState(false)
+  const [enviandoCorrecaoPedido, setEnviandoCorrecaoPedido] = useState(false)
+  const [erroEnvioCorrecaoPedido, setErroEnvioCorrecaoPedido] = useState('')
   const [colabsObra, setColabsObra] = useState([])
   const [terceirizadoObra, setTerceirizadoObra] = useState(false)
   const [terceirizadoObraTexto, setTerceirizadoObraTexto] = useState('')
@@ -3120,6 +3127,63 @@ export default function App() {
     }
   }
 
+  // Lista as divergencias da conferencia do pedido (mesma logica usada no bloco de bate/nao bate) -
+  // usada pra montar o corpo do e-mail de solicitacao de correcao (Shirley, 2026-08-20).
+  function divergenciasPedido() {
+    const valorObra = parseFloat(String(editDados.valor).replace(',', '.')) || 0
+    const valorPedido = parseFloat(String(editDados.pedido_valor).replace(',', '.')) || 0
+    const valorBate = editDados.pedido_valor !== '' && Math.abs(valorPedido - valorObra) < 0.01
+    const osBate = editDados.pedido_os.trim() !== '' && editDados.pedido_os.trim() === editDados.os_tecban.trim()
+    const ufObra = editDados.uf.trim().toUpperCase()
+    const cnpjEsperado = cnpjEsperadoParaUF(ufObra)
+    const cnpjBate = !!editDados.pedido_cnpj && editDados.pedido_cnpj === cnpjEsperado
+    const problemas = []
+    if (editDados.pedido_valor !== '' && !valorBate) problemas.push(`Valor do pedido (R$ ${valorPedido.toFixed(2)}) diferente do valor cadastrado (R$ ${valorObra.toFixed(2)})`)
+    if (editDados.pedido_os.trim() && !osBate) problemas.push(`OS do pedido ("${editDados.pedido_os}") diferente da OS cadastrada ("${editDados.os_tecban}")`)
+    if (editDados.pedido_cnpj && !cnpjBate) problemas.push(`CNPJ do pedido está incorreto para o estado ${ufObra || '?'} — veio ${editDados.pedido_cnpj}, deveria ser ${cnpjEsperado}`)
+    return problemas
+  }
+
+  function montaAssuntoCorrecaoPedido() {
+    const pedido = (editDados.pedido || '').trim() || '(sem número)'
+    const os = (editDados.os_tecban || '').trim() || '(sem OS)'
+    return `Pedido divergente - ${pedido} - OS ${os}`
+  }
+
+  function montaCorpoCorrecaoPedido() {
+    if (!modal) return ''
+    const problemas = divergenciasPedido()
+    const pcTexto = editDados.numero_pc ? ` (PC ${editDados.numero_pc})` : ''
+    return `Prezados,\n\nIdentificamos uma divergência no pedido ${editDados.pedido || '(sem número)'} referente à OS ${editDados.os_tecban || '(sem OS)'} - ${modal.nome}${pcTexto}:\n\n${problemas.map(p => `- ${p}`).join('\n')}\n\nSolicitamos a correção do pedido para que possamos seguir com o faturamento.\n\nAtenciosamente,\nGrupo PG`
+  }
+
+  async function enviarCorrecaoPedidoTecban() {
+    setEnviandoCorrecaoPedido(true)
+    setErroEnvioCorrecaoPedido('')
+    try {
+      const resp = await fetch(APPS_SCRIPT_RELATORIO_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          secret: APPS_SCRIPT_RELATORIO_SECRET,
+          to: EMAIL_CORRECAO_PEDIDO_TECBAN,
+          cc: EMAIL_CC_CORRECAO_PEDIDO,
+          remetente: usuario?.email || '',
+          subject: montaAssuntoCorrecaoPedido(),
+          body: montaCorpoCorrecaoPedido(),
+        }),
+      })
+      const resultado = await resp.json()
+      if (!resultado.ok) throw new Error(resultado.error || 'Falha no envio')
+      setMostrarEnvioCorrecaoPedido(false)
+      alert('Solicitação de correção enviada para a Tecban.')
+    } catch (err) {
+      setErroEnvioCorrecaoPedido('Não foi possível enviar: ' + err.message)
+    } finally {
+      setEnviandoCorrecaoPedido(false)
+    }
+  }
+
   async function salvarStatus() {
     if (!novoStatus) return
     setSalvando(true)
@@ -3183,6 +3247,8 @@ export default function App() {
       pedido_valor: editDados.pedido_valor !== '' ? parseFloat(String(editDados.pedido_valor).replace(',', '.')) || 0 : null,
       pedido_os: editDados.pedido_os || null,
       pedido_cnpj: editDados.pedido_cnpj || null,
+      pedido_tecban_cnpj: editDados.pedido_tecban_cnpj || null,
+      pedido_tecban_nome: editDados.pedido_tecban_nome || null,
     }
     const listaVistoria = [...colabsVistoria, ...(terceirizadoVistoria ? [TERCEIRIZADO_PREFIXO + (terceirizadoVistoriaTexto.trim() || '(não informado)')] : [])]
     if (modal.tipo === 'TRANSF UN') {
@@ -3271,7 +3337,7 @@ export default function App() {
     setItensEspeciais([])
     setBiomboFila('')
     setPortaGiratoria('')
-    setEditDados({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'' })
+    setEditDados({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'', pedido_tecban_cnpj:'', pedido_tecban_nome:'' })
     setDataCadastroModal('')
     setDataVistoria('')
     setColabsVistoria([])
@@ -5241,7 +5307,7 @@ export default function App() {
                         setItensEspeciais(Array.isArray(obra.itens_especiais) ? obra.itens_especiais : [])
                         setBiomboFila(obra.biombo_fila != null ? String(obra.biombo_fila) : '')
                         setPortaGiratoria(obra.porta_giratoria != null ? String(obra.porta_giratoria) : '')
-                        setEditDados({ tipo: obra.tipo||'', nome: obra.nome||'', endereco: obra.endereco||'', cidade: obra.cidade||'', uf: obra.uf||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', numero_pc: obra.numero_pc||'', pedido: obra.pedido||'', nf: obra.nf||'', os_tecban: obra.os_tecban||'', pedido_valor: obra.pedido_valor!=null ? String(obra.pedido_valor) : '', pedido_os: obra.pedido_os||'', pedido_cnpj: obra.pedido_cnpj||'' })
+                        setEditDados({ tipo: obra.tipo||'', nome: obra.nome||'', endereco: obra.endereco||'', cidade: obra.cidade||'', uf: obra.uf||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', numero_pc: obra.numero_pc||'', pedido: obra.pedido||'', nf: obra.nf||'', os_tecban: obra.os_tecban||'', pedido_valor: obra.pedido_valor!=null ? String(obra.pedido_valor) : '', pedido_os: obra.pedido_os||'', pedido_cnpj: obra.pedido_cnpj||'', pedido_tecban_cnpj: obra.pedido_tecban_cnpj||'', pedido_tecban_nome: obra.pedido_tecban_nome||'' })
                         setDataCadastroModal(obra.data_cadastro || '')
                         setDataVistoria(obra.data_vistoria || '')
                         const listaVistoria = Array.isArray(obra.colaboradores_vistoria) ? obra.colaboradores_vistoria : []
@@ -5704,6 +5770,21 @@ export default function App() {
                     </select>
                   </div>
                 </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
+                  <div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>CNPJ da Tecban (dados para faturamento)</label>
+                    <input value={editDados.pedido_tecban_cnpj} onChange={e => setEditDados(d => ({...d, pedido_tecban_cnpj:e.target.value}))}
+                      placeholder="Ex: 51.427.102/0019-58"
+                      style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Razão social da Tecban no pedido</label>
+                    <input value={editDados.pedido_tecban_nome} onChange={e => setEditDados(d => ({...d, pedido_tecban_nome:up(e.target.value)}))}
+                      placeholder="Ex: TECNOLOGIA BANCARIA S.A. / TBSI"
+                      style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                </div>
+                <div style={{ fontSize:10, color:'#64748B', marginTop:-6, marginBottom:10 }}>Dado informativo pro faturamento (Aline) — não entra na conferência de bate/não bate.</div>
                 {(editDados.pedido_valor !== '' || editDados.pedido_os.trim() || editDados.pedido_cnpj) && (() => {
                   const valorObra = parseFloat(String(editDados.valor).replace(',', '.')) || 0
                   const valorPedido = parseFloat(String(editDados.pedido_valor).replace(',', '.')) || 0
@@ -5723,6 +5804,35 @@ export default function App() {
                     </div>
                   )
                 })()}
+                {divergenciasPedido().length > 0 && (
+                  <div style={{ marginTop:10 }}>
+                    <button onClick={() => { setMostrarEnvioCorrecaoPedido(true); setErroEnvioCorrecaoPedido('') }}
+                      style={{ width:'100%', padding:10, background:'#DC2626', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                      📧 Solicitar correção à Tecban
+                    </button>
+                    {mostrarEnvioCorrecaoPedido && (
+                      <div style={{ marginTop:10, background:'#fff', border:'1px solid #CDD8E3', borderRadius:8, padding:12 }}>
+                        <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:8 }}>Revisar antes de enviar</div>
+                        <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Para:</strong> {EMAIL_CORRECAO_PEDIDO_TECBAN}</div>
+                        <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Cc:</strong> {EMAIL_CC_CORRECAO_PEDIDO}</div>
+                        <div style={{ fontSize:12, color:'#374151', marginBottom:8 }}><strong>Assunto:</strong> {montaAssuntoCorrecaoPedido()}</div>
+                        <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>Texto do e-mail</div>
+                        <div style={{ fontSize:12, color:'#374151', whiteSpace:'pre-wrap', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, padding:10, marginBottom:10 }}>{montaCorpoCorrecaoPedido()}</div>
+                        {erroEnvioCorrecaoPedido && <div style={{ fontSize:12, color:'#DC2626', marginBottom:8 }}>{erroEnvioCorrecaoPedido}</div>}
+                        <div style={{ display:'flex', gap:8 }}>
+                          <button onClick={() => { setMostrarEnvioCorrecaoPedido(false); setErroEnvioCorrecaoPedido('') }} disabled={enviandoCorrecaoPedido}
+                            style={{ flex:1, padding:10, background:'#F1F5F9', color:'#1A2340', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                            Cancelar
+                          </button>
+                          <button onClick={enviarCorrecaoPedidoTecban} disabled={enviandoCorrecaoPedido}
+                            style={{ flex:1, padding:10, background: enviandoCorrecaoPedido ? '#94A3B8' : '#DC2626', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: enviandoCorrecaoPedido ? 'default' : 'pointer' }}>
+                            {enviandoCorrecaoPedido ? 'Enviando...' : 'Confirmar envio'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
