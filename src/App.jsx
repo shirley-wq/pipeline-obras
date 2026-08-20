@@ -1217,7 +1217,10 @@ const SEM_VISTORIA_BANCO24H = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTIT
 // atividade) estendida de Banco24Horas pra AgiBank/Crefisa também (Shirley, 2026-08-19) - essas redes
 // SEGUEM tendo vistoria própria (diferente de Banco24Horas), então SEM_VISTORIA_BANCO24H continua
 // controlando só a régua de vistoria; esta função controla só a tela extra de operação de campo.
-const REDES_OPERACAO_CAMPO = ['BANCO24HORAS', 'AGIBANK', 'CREFISA']
+const REDES_OPERACAO_CAMPO = ['BANCO24HORAS', 'AGIBANK', 'CREFISA', 'BRADESCO']
+// Bradesco não tem ARS nenhum (Shirley, 2026-08-20) - só contato + data confirmada, sem o
+// checkbox/tabela de critério de segurança nem autorização de mudança.
+const REDES_SEM_ARS = ['BRADESCO']
 function temTelaOperacaoCampo(rede, tipo) {
   return REDES_OPERACAO_CAMPO.includes(rede) && SEM_VISTORIA_BANCO24H.includes(tipo)
 }
@@ -1267,14 +1270,19 @@ const ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS = ['Base', 'Instalação', 'Habilit
 // Desativação tem um "o que foi feito" diferente de Instalação (Shirley, 2026-08-19) - não faz
 // sentido Base/Habilitação/etc, e sim desmontar o ponto e devolver o local ao estado original.
 const ATIVIDADES_OPERACAO_CAMPO_DESATIVACAO_OBRIGATORIAS = ['Remoção de ATM', 'Recomposição de piso', 'Pintura de parede']
-function atividadesOperacaoCampoObrigatorias(tipo) {
+// Bradesco (BDN) tem "o que foi feito" próprio - abertura de cofre e remoção/instalação do BDN, com
+// troca de fechadura quando coincide com a TRANSF UN da mesma agência (Shirley, 2026-08-20).
+const ATIVIDADES_OPERACAO_CAMPO_BRADESCO_OBRIGATORIAS = ['Abertura de cofre', 'Remoção/Instalação de BDN']
+function atividadesOperacaoCampoObrigatorias(rede, tipo) {
   if (tipo === 'TRANSF UN') return []
+  if (rede === 'BRADESCO') return ATIVIDADES_OPERACAO_CAMPO_BRADESCO_OBRIGATORIAS
   return tipo === 'DESATIVAÇÃO ATM' ? ATIVIDADES_OPERACAO_CAMPO_DESATIVACAO_OBRIGATORIAS : ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS
 }
-function atividadesOperacaoCampo(tipo) {
+function atividadesOperacaoCampo(rede, tipo) {
   // TRANSF UN: só "Outros" (retorno avulso ao ponto, descrito em texto livre) - Shirley, 2026-08-20,
   // sem lista fechada de motivo ainda (mesmo padrão de deixar crescer com o tempo).
   if (tipo === 'TRANSF UN') return ['Outros']
+  if (rede === 'BRADESCO') return [...ATIVIDADES_OPERACAO_CAMPO_BRADESCO_OBRIGATORIAS, 'Troca de fechadura', 'Vistoria', 'Outros']
   return tipo === 'DESATIVAÇÃO ATM'
     ? [...ATIVIDADES_OPERACAO_CAMPO_DESATIVACAO_OBRIGATORIAS, 'Outros']
     : [...ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS, 'Vistoria', 'Outros']
@@ -1282,6 +1290,9 @@ function atividadesOperacaoCampo(tipo) {
 // Motivos de impedimento pra Base já definidos (Shirley, 2026-08-13). Motivos das outras atividades
 // ainda não foram levantados - usar texto livre até ela trazer a lista fechada.
 const MOTIVOS_IMPEDIMENTO_BASE = ['Não autorizado o tipo de fixação', 'Local incompatível — laje', 'Local incompatível — interfere elétrica ou hidráulica', 'Piso em concreto armado usinado']
+// Motivos de impedimento do Bradesco (BDN) - lista fechada pra qualquer atividade dessa rede, ao
+// contrário de Base (só se aplica àquela atividade específica) - Shirley, 2026-08-20.
+const MOTIVOS_IMPEDIMENTO_BRADESCO = ['Sem senha do cofre (Taurus/robô)', 'Atraso de transporte', 'Outro']
 
 // Envio do relatório da obra pra Tecban (Shirley, 2026-08-18, endereço ajustado no mesmo dia pra
 // Implantacao.B24horas em vez de gestaopagamentos2026 - esse é o endereço que a Shirley pediu pra
@@ -2952,7 +2963,7 @@ export default function App() {
     let y = 36
     doc.setFontSize(11)
     doc.setFont(undefined, 'bold')
-    doc.text('Consulta ARS e agendamento', 14, y)
+    doc.text(REDES_SEM_ARS.includes(modal.rede) ? 'Contato e agendamento' : 'Consulta ARS e agendamento', 14, y)
     y += 5
     doc.setFontSize(9)
     doc.setFont(undefined, 'normal')
@@ -2960,8 +2971,9 @@ export default function App() {
     doc.text(`Início confirmado com o cliente: ${isoToBr(paraIsoDataObraTexto(dataInicioObraTexto)) || '—'} ${horaInicioObraTexto || ''}`, 14, y); y += 5
 
     // Critério de segurança/barreira de dissuasão e autorização de mudança não se aplicam à
-    // Desativação (só ARS aqui pra pegar contato do ponto) - Shirley, 2026-08-19.
-    if (modal.tipo !== 'DESATIVAÇÃO ATM') {
+    // Desativação (só ARS aqui pra pegar contato do ponto) nem ao Bradesco (sem ARS nenhum) -
+    // Shirley, 2026-08-19/20.
+    if (modal.tipo !== 'DESATIVAÇÃO ATM' && !REDES_SEM_ARS.includes(modal.rede)) {
       const itensTabela = ITENS_SEGURANCA_BANCO24H.map(item => [
         item, segurancaItens.includes(item) ? 'X' : '', segurancaItensCampo.includes(item) ? 'X' : '',
       ])
@@ -3364,7 +3376,7 @@ export default function App() {
   // faturado como improdutiva, não fica pendente pra sempre esperando uma instalação que não vai
   // acontecer (Fabio, 2026-08-20).
   const temVistoriaImprodutiva = registrosOperacaoCampo.some(r => (r.atividades || []).some(a => a.atividade === 'Vistoria' && a.feita === false && a.impedimento))
-  const operacaoCampoCompleta = atividadesOperacaoCampoObrigatorias(modal?.tipo).every(a => atividadesCobertas.has(a)) || temVistoriaImprodutiva
+  const operacaoCampoCompleta = atividadesOperacaoCampoObrigatorias(modal?.rede, modal?.tipo).every(a => atividadesCobertas.has(a)) || temVistoriaImprodutiva
 
   const estilo = { fontFamily:'system-ui,sans-serif', minHeight:'100vh', background:'#F0F4F8' }
   const inp = { width:'100%', padding:'11px 12px', fontSize:14, border:'1px solid #B5D4F4', borderRadius:10, background:'#fff', color:'#1A2340', outline:'none', boxSizing:'border-box', marginBottom:12 }
@@ -5730,11 +5742,15 @@ export default function App() {
 
             {temTelaOperacaoCampo(modal.rede, modal.tipo) && (
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
-              <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>📑 Consulta ARS e agendamento</div>
+              <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>
+                {REDES_SEM_ARS.includes(modal.rede) ? '📑 Contato e agendamento' : '📑 Consulta ARS e agendamento'}
+              </div>
+              {!REDES_SEM_ARS.includes(modal.rede) && (
               <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginBottom:10 }}>
                 <input type="checkbox" checked={arsVerificado} onChange={e => setArsVerificado(e.target.checked)} />
                 <span style={{ fontSize:13, color:'#1A2340', fontWeight:600 }}>Entrou no ARS e conferiu as informações</span>
               </label>
+              )}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:12 }}>
                 <div>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Contato do EC — nome</label>
@@ -5758,7 +5774,7 @@ export default function App() {
                 </div>
                 <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>A OS da Tecban sugere uma data/hora, mas o que vale aqui é a data confirmada com o cliente final (EC) — não usar a data do relatório SIGE.</div>
               </div>
-              {modal.tipo !== 'DESATIVAÇÃO ATM' && (
+              {modal.tipo !== 'DESATIVAÇÃO ATM' && !REDES_SEM_ARS.includes(modal.rede) && (
               <>
               <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:6 }}>Critérios de segurança — o que o ARS indica x o que foi realizado em campo</div>
               <div style={{ marginBottom:12, overflowX:'auto' }}>
@@ -5877,7 +5893,7 @@ export default function App() {
                   terceirizadoTexto={novoRegistroTerceirizadoTexto} onChangeTerceirizadoTexto={setNovoRegistroTerceirizadoTexto} />
                 <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, margin:'10px 0 6px' }}>O que foi feito nesta visita</div>
                 <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                  {atividadesOperacaoCampo(modal.tipo).map(atividade => {
+                  {atividadesOperacaoCampo(modal.rede, modal.tipo).map(atividade => {
                     const marcado = !!novoRegistroAtividades[atividade]
                     const dados = novoRegistroAtividades[atividade] || {}
                     return (
@@ -5915,6 +5931,12 @@ export default function App() {
                                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
                                   <option value="">Selecione o motivo...</option>
                                   {MOTIVOS_IMPEDIMENTO_BASE.map(m => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                              ) : modal.rede === 'BRADESCO' ? (
+                                <select value={dados.motivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], motivo: e.target.value } }))}
+                                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
+                                  <option value="">Selecione o motivo...</option>
+                                  {MOTIVOS_IMPEDIMENTO_BRADESCO.map(m => <option key={m} value={m}>{m}</option>)}
                                 </select>
                               ) : (
                                 <input value={dados.motivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], motivo: up(e.target.value) } }))}
@@ -6030,7 +6052,7 @@ export default function App() {
               {temTelaOperacaoCampo(modal.rede, modal.tipo) && (
               <>
               <div style={{ fontSize:11, color:'#64748B', marginTop:10 }}>
-                Cobertura das atividades: {atividadesOperacaoCampoObrigatorias(modal.tipo).filter(a => atividadesCobertas.has(a)).length}/{atividadesOperacaoCampoObrigatorias(modal.tipo).length}
+                Cobertura das atividades: {atividadesOperacaoCampoObrigatorias(modal.rede, modal.tipo).filter(a => atividadesCobertas.has(a)).length}/{atividadesOperacaoCampoObrigatorias(modal.rede, modal.tipo).length}
                 {temVistoriaImprodutiva && ' — vistoria improdutiva registrada, liberado pra faturar mesmo sem instalação'}
                 {!operacaoCampoCompleta && !temVistoriaImprodutiva && ' — precisa de todas pra liberar "Relatório ao Cliente"'}
               </div>
