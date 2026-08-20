@@ -3147,6 +3147,14 @@ export default function App() {
       const etapas = getEtapas(modal.rede, modal.tipo)
       statusFinal = etapas[1] || statusFinal
     }
+    // Data de obra preenchida numa movimentação ainda em "Agendamento" - avança sozinho pra
+    // "Operação em Campo", sem precisar clicar manual (Shirley, 2026-08-20).
+    const dataDeObraPreenchida = temTelaOperacaoCampo(modal.rede, modal.tipo) ? paraIsoDataObraTexto(dataInicioObraTexto) : dataObra.inicio
+    if (novoStatus === 'AGENDAMENTO' && TIPOS_BDN.includes(modal.tipo) && dataDeObraPreenchida) {
+      const etapas = getEtapas(modal.rede, modal.tipo)
+      const idxAgendamento = etapas.indexOf('AGENDAMENTO')
+      statusFinal = (idxAgendamento >= 0 && etapas[idxAgendamento + 1]) ? etapas[idxAgendamento + 1] : statusFinal
+    }
     const campos = {
       status: statusFinal,
       // Só troca o tipo se a obra já era de família ATM (TIPOS_BDN) - corrige importação errada
