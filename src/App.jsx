@@ -1230,12 +1230,20 @@ function temVisitasDeCampo(rede, tipo) {
 function eventosCenarioObra(o, dia) {
   const ehBDN = TIPOS_BDN.includes(o.tipo)
   const tipoCurto = (o.tipo || '').replace(/\s*ATM\s*$/i, '').trim()
-  const dataExec = (o.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(o.tipo))
-    ? paraIsoDataObraTexto(o.data_inicio_obra_texto)
-    : (o.data_obra_inicio || null)
   const eventos = []
   if (o.data_vistoria === dia) eventos.push({ categoria: ehBDN ? `Vistoria de ${tipoCurto}` : 'Vistoria', familia: ehBDN ? 'movimentacao' : 'obra' })
-  if (dataExec === dia) eventos.push({ categoria: ehBDN ? tipoCurto : 'Obra', familia: ehBDN ? 'movimentacao' : 'obra' })
+  if (o.tipo === 'TRANSF UN') {
+    // TRANSF UN não usa mais um campo solto de "data de início" - lê direto as datas reais da 1ª
+    // Etapa (Troca de Fechaduras) e 2ª Etapa (Obra Final), cada uma seu próprio evento no dia certo
+    // (Shirley, 2026-08-20).
+    if (o.data_etapa2 === dia) eventos.push({ categoria: '1ª Etapa (Fechaduras)', familia: 'obra' })
+    if (o.data_etapa3 === dia) eventos.push({ categoria: '2ª Etapa (Obra Final)', familia: 'obra' })
+  } else {
+    const dataExec = (o.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(o.tipo))
+      ? paraIsoDataObraTexto(o.data_inicio_obra_texto)
+      : (o.data_obra_inicio || null)
+    if (dataExec === dia) eventos.push({ categoria: ehBDN ? tipoCurto : 'Obra', familia: ehBDN ? 'movimentacao' : 'obra' })
+  }
   if (temVisitasDeCampo(o.rede, o.tipo)) {
     const registros = Array.isArray(o.registros_operacao_campo) ? o.registros_operacao_campo : []
     registros.forEach(r => {
@@ -2128,7 +2136,6 @@ export default function App() {
   const [fotosRelatorio, setFotosRelatorio] = useState([])
   const [enviandoRelatorio, setEnviandoRelatorio] = useState(false)
   const [erroEnvioRelatorio, setErroEnvioRelatorio] = useState('')
-  const [dataObraInicio, setDataObraInicio] = useState('')
   const [colabsObra, setColabsObra] = useState([])
   const [terceirizadoObra, setTerceirizadoObra] = useState(false)
   const [terceirizadoObraTexto, setTerceirizadoObraTexto] = useState('')
@@ -3196,7 +3203,10 @@ export default function App() {
     if (modal.tipo === 'TRANSF UN') {
       campos.registros_operacao_campo = registrosOperacaoCampo.length > 0 ? registrosOperacaoCampo : null
     }
-    campos.data_obra_inicio = modal.tipo === 'TRANSF UN' ? (dataObraInicio || null) : (dataObra.inicio || null)
+    // TRANSF UN não usa mais um campo solto de "data de início" - o Cenário passou a ler direto as
+    // datas da 1ª/2ª Etapa (data_etapa2/data_etapa3), então não sobrescreve data_obra_inicio pra
+    // esse tipo (Shirley, 2026-08-20).
+    if (modal.tipo !== 'TRANSF UN') campos.data_obra_inicio = dataObra.inicio || null
     const listaObra = [...colabsObra, ...(terceirizadoObra ? [TERCEIRIZADO_PREFIXO + (terceirizadoObraTexto.trim() || '(não informado)')] : [])]
     campos.colaboradores_obra = listaObra.length > 0 ? listaObra : null
     campos.responsavel_escritorio = responsavelEscritorio || null
@@ -3253,7 +3263,6 @@ export default function App() {
     setNovoRegistroTerceirizado(false)
     setNovoRegistroTerceirizadoTexto('')
     setNovoRegistroAtividades({})
-    setDataObraInicio('')
     setColabsObra([])
     setTerceirizadoObra(false)
     setTerceirizadoObraTexto('')
@@ -5228,7 +5237,6 @@ export default function App() {
                         setMostrarEnvioRelatorio(false)
                         setFotosRelatorio([])
                         setErroEnvioRelatorio('')
-                        setDataObraInicio(obra.data_obra_inicio || '')
                         const listaObra = Array.isArray(obra.colaboradores_obra) ? obra.colaboradores_obra : []
                         const terceiroObra = listaObra.find(c => c.startsWith(TERCEIRIZADO_PREFIXO))
                         setColabsObra(listaObra.filter(c => !c.startsWith(TERCEIRIZADO_PREFIXO)))
@@ -6084,17 +6092,6 @@ export default function App() {
             </div>
             )}
 
-            {modal.tipo === 'TRANSF UN' && (
-              <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
-                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data de início da obra</label>
-                <input type="date" value={dataObraInicio} disabled={!vistoriaCompleta} onChange={e => setDataObraInicio(e.target.value)}
-                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8, background: vistoriaCompleta ? '#fff' : '#F1F5F9', cursor: vistoriaCompleta ? 'text' : 'not-allowed' }} />
-                <SeletorEquipe titulo="Equipe" selecionados={colabsObra} onChangeSelecionados={setColabsObra}
-                  terceirizado={terceirizadoObra} onChangeTerceirizado={setTerceirizadoObra}
-                  terceirizadoTexto={terceirizadoObraTexto} onChangeTerceirizadoTexto={setTerceirizadoObraTexto}
-                  bloqueado={!vistoriaCompleta} mensagemBloqueio='Preencha a data da vistoria e quem foi antes de liberar esta etapa' />
-              </div>
-            )}
 
             {modal.tipo === 'TRANSF UN' && (
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
