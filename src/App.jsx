@@ -1246,7 +1246,10 @@ function eventosCenarioObra(o, dia) {
     if (o.data_etapa2 === dia) eventos.push({ categoria: '1ª Etapa (Fechaduras)', familia: 'obra' })
     if (o.data_etapa3 === dia) eventos.push({ categoria: '2ª Etapa (Obra Final)', familia: 'obra' })
   } else {
-    const dataExec = (o.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(o.tipo))
+    // Qualquer rede/tipo com tela de operação de campo usa a "Data e hora de início da obra
+    // (confirmada com o cliente)" de lá - o campo genérico "Início" de Datas da obra foi escondido
+    // pra essas combinações (redundante), então não pode mais ser a fonte (Shirley, 2026-08-20).
+    const dataExec = temTelaOperacaoCampo(o.rede, o.tipo)
       ? paraIsoDataObraTexto(o.data_inicio_obra_texto)
       : (o.data_obra_inicio || null)
     if (dataExec === dia) eventos.push({ categoria: ehBDN ? tipoCurto : 'Obra', familia: ehBDN ? 'movimentacao' : 'obra' })
@@ -6259,17 +6262,15 @@ export default function App() {
               </div>
             )}
 
-            {modal.tipo !== 'TRANSF UN' && !(modal.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal.tipo)) && (
+            {modal.tipo !== 'TRANSF UN' && !temTelaOperacaoCampo(modal.rede, modal.tipo) && (
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
                 <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Datas da obra</div>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
-                  {!(modal.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal.tipo)) && (
                   <div>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Início</label>
                     <input type="date" value={dataObra.inicio} disabled={!vistoriaCompleta} onChange={e => setDataObra(d => ({...d, inicio: e.target.value}))}
                       style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', background: vistoriaCompleta ? '#fff' : '#F1F5F9', cursor: vistoriaCompleta ? 'text' : 'not-allowed' }} />
                   </div>
-                  )}
                   {modal.rede !== 'BANCO24HORAS' && (
                   <div>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Término</label>
@@ -6286,12 +6287,10 @@ export default function App() {
                   )}
                 </div>
                 <div style={{ marginBottom:10 }}>
-                  {!(modal.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal.tipo)) && (
                   <SeletorEquipe titulo="Quem foi na obra" selecionados={colabsObra} onChangeSelecionados={setColabsObra}
                     terceirizado={terceirizadoObra} onChangeTerceirizado={setTerceirizadoObra}
                     terceirizadoTexto={terceirizadoObraTexto} onChangeTerceirizadoTexto={setTerceirizadoObraTexto}
                     bloqueado={!vistoriaCompleta} mensagemBloqueio='Preencha a data da vistoria e quem foi antes de liberar esta etapa' />
-                  )}
                 </div>
                 <div onClick={() => setEmNegociacao(v => !v)}
                   style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'10px 12px', borderRadius:10,
