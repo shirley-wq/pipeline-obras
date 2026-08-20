@@ -3316,7 +3316,13 @@ export default function App() {
     || (modal?.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal?.tipo))
   const atividadesCobertas = new Set()
   registrosOperacaoCampo.forEach(r => (r.atividades || []).forEach(a => { if (typeof a.feita === 'boolean') atividadesCobertas.add(a.atividade) }))
-  const operacaoCampoCompleta = atividadesOperacaoCampoObrigatorias(modal?.tipo).every(a => atividadesCobertas.has(a))
+  // Vistoria que fracassou (visita improdutiva - ex: gerente desistiu da instalação porque o local
+  // vai sofrer obra e não sobra espaço pro ATM) também libera o Relatório ao Cliente/envio pra
+  // Tecban, mesmo sem cobrir as atividades de instalação - o ciclo se encerra ali e precisa ser
+  // faturado como improdutiva, não fica pendente pra sempre esperando uma instalação que não vai
+  // acontecer (Fabio, 2026-08-20).
+  const temVistoriaImprodutiva = registrosOperacaoCampo.some(r => (r.atividades || []).some(a => a.atividade === 'Vistoria' && a.feita === false && a.impedimento))
+  const operacaoCampoCompleta = atividadesOperacaoCampoObrigatorias(modal?.tipo).every(a => atividadesCobertas.has(a)) || temVistoriaImprodutiva
 
   const estilo = { fontFamily:'system-ui,sans-serif', minHeight:'100vh', background:'#F0F4F8' }
   const inp = { width:'100%', padding:'11px 12px', fontSize:14, border:'1px solid #B5D4F4', borderRadius:10, background:'#fff', color:'#1A2340', outline:'none', boxSizing:'border-box', marginBottom:12 }
@@ -5985,7 +5991,8 @@ export default function App() {
 
               <div style={{ fontSize:11, color:'#64748B', marginTop:10 }}>
                 Cobertura das atividades: {atividadesOperacaoCampoObrigatorias(modal.tipo).filter(a => atividadesCobertas.has(a)).length}/{atividadesOperacaoCampoObrigatorias(modal.tipo).length}
-                {!operacaoCampoCompleta && ' — precisa de todas pra liberar "Relatório ao Cliente"'}
+                {temVistoriaImprodutiva && ' — vistoria improdutiva registrada, liberado pra faturar mesmo sem instalação'}
+                {!operacaoCampoCompleta && !temVistoriaImprodutiva && ' — precisa de todas pra liberar "Relatório ao Cliente"'}
               </div>
               <button onClick={exportarRelatorioCliente} disabled={!operacaoCampoCompleta}
                 style={{ width:'100%', marginTop:10, padding:10, background: !operacaoCampoCompleta ? '#ccc' : '#0E4D73', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: !operacaoCampoCompleta ? 'default' : 'pointer' }}>
