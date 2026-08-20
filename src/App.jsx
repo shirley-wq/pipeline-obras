@@ -3447,17 +3447,23 @@ export default function App() {
   // data_inicio_obra_texto especificamente pra Banco24Horas, que não tem fase de vistoria).
   // Uma mesma obra pode contribuir com até 2 eventos no mesmo dia (vistoria de uma e execução de
   // outra, coincidencia rara mas possivel).
+  // Lista fixa de estados (todos os que já têm obra ativa, ordem alfabética) - garante cor estável
+  // por estado (não muda de um dia pro outro) e mostra o estado zerado quando não tem atividade
+  // naquele dia, em vez de sumir do carrossel (Shirley, 2026-08-20).
+  const todosEstadosCenario = [...new Set(obrasAtivas.map(estadoDaObra))].sort()
   const cenarioPorUFMap = {}
+  todosEstadosCenario.forEach(estado => { cenarioPorUFMap[estado] = { uf: estado, obras: 0, movimentacao: 0, categorias: {} } })
   obrasAtivas.forEach(o => {
     const eventos = eventosCenarioObra(o, cenarioData)
     if (eventos.length === 0) return
     const estado = estadoDaObra(o)
-    if (!cenarioPorUFMap[estado]) cenarioPorUFMap[estado] = { uf: estado, obras: 0, movimentacao: 0, categorias: {} }
     eventos.forEach(ev => {
       cenarioPorUFMap[estado].categorias[ev.categoria] = (cenarioPorUFMap[estado].categorias[ev.categoria] || 0) + 1
       cenarioPorUFMap[estado][ev.familia]++
     })
   })
+  const corPorEstadoCenario = {}
+  todosEstadosCenario.forEach((estado, i) => { corPorEstadoCenario[estado] = CENARIO_CORES[i % CENARIO_CORES.length] })
   const cenarioPorUF = Object.values(cenarioPorUFMap).sort((a, b) => (b.obras + b.movimentacao) - (a.obras + a.movimentacao))
 
   const todasDespesas = []
@@ -4892,7 +4898,7 @@ export default function App() {
                 <div ref={cenarioScrollRef} style={{ display:'flex', gap:10, overflowX:'auto', paddingBottom:6, scrollSnapType:'x proximity' }}>
                   {cenarioPorUF.map((c, i) => {
                     const selecionado = filtroCenarioUF === c.uf
-                    const cor = CENARIO_CORES[i % CENARIO_CORES.length]
+                    const cor = corPorEstadoCenario[c.uf] || CENARIO_CORES[i % CENARIO_CORES.length]
                     return (
                       <div key={c.uf} onClick={() => setFiltroCenarioUF(v => v === c.uf ? '' : c.uf)}
                         style={{ flex:'0 0 200px', scrollSnapAlign:'start', cursor:'pointer', borderRadius:14, overflow:'hidden',
