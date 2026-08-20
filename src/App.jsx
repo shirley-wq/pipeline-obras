@@ -3390,8 +3390,11 @@ export default function App() {
     if (filtroStatus && o.status !== filtroStatus) return false
     if (filtroResponsavel && o.responsavel_escritorio !== filtroResponsavel && o.auxiliar_escritorio !== filtroResponsavel) return false
     // Card do Cenario clicado: mostra so as obras daquele estado que tem evento no dia selecionado
-    // (nao a pipeline inteira do estado, de qualquer dia/status).
-    if (filtroCenarioUF && (estadoDaObra(o) !== filtroCenarioUF || eventosCenarioObra(o, cenarioData).length === 0)) return false
+    // (nao a pipeline inteira do estado, de qualquer dia/status). Exceção: "S/UF" é um problema de
+    // cadastro (obra sem estado definido), não uma agenda do dia - mostra todas as S/UF direto, pra
+    // dar pra achar e corrigir, mesmo sem atividade hoje (Shirley, 2026-08-20).
+    if (filtroCenarioUF && estadoDaObra(o) !== filtroCenarioUF) return false
+    if (filtroCenarioUF && filtroCenarioUF !== 'S/UF' && eventosCenarioObra(o, cenarioData).length === 0) return false
     if (busca) {
       // Busca por palavras (AND, qualquer ordem) em vez de substring literal - "BTG FLUMINENSE"
       // agora acha "BTG - AG. FLUMINENSE" ou "FLUMINENSE BTG", que a busca antiga (substring unico)
