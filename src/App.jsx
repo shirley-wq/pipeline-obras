@@ -1278,6 +1278,10 @@ const EMAILS_ENVIO_RELATORIO = ['shirley@grupopg.com.br', 'fabioesteves@grupopg.
 // 2026-08-18) - mais restrito que podeVerValores, que continua valendo pras outras telas
 // (Disponível pra Faturar, Histórico, Despesas, valor por obra).
 const EMAILS_VER_VALORES_TOPO = ['shirley@grupopg.com.br', 'aline.roza@grupopg.com.br', 'leandro@grupopg.com.br']
+// Custos terceirizados/despesas de pessoal (dentro de cada obra) e a aba "Despesas" restritos a
+// essas 4 pessoas (Shirley, 2026-08-20) - antes abertos pra todo mundo com podeVerValores
+// (admin/administrativo/financeiro), o que incluía toda a equipe de escritório.
+const EMAILS_CUSTOS_DESPESAS = ['shirley@grupopg.com.br', 'aline.roza@grupopg.com.br', 'leandro@grupopg.com.br', 'anderson@grupopg.com.br']
 // Cores dos cards do "Cenário por estado" no dashboard (2026-08-18) - só decoração, cicla por estado.
 const CENARIO_CORES = ['#2D3A8C', '#0F766E', '#C2410C', '#7C3AED', '#0369A1', '#BE185D', '#4D7C0F']
 
@@ -3787,7 +3791,7 @@ export default function App() {
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'rh', label:'RH', count: rhColaboradores.length, cor:'#7C3AED' }] : []),
           ...(papel ? [{ id:'meusdados', label:'Meus Documentos', count:null, cor:'#7C3AED' }] : []),
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'jantas', label:'Jantas', count: jantasTodas.filter(j => j.status === 'pendente').length, cor:'#B45309' }] : []),
-          ...(podeVerValores ? [{ id:'despesas', label:'Despesas', count:null, cor:'#B91C1C' }] : []),
+          ...(EMAILS_CUSTOS_DESPESAS.includes(usuario?.email) ? [{ id:'despesas', label:'Despesas', count:null, cor:'#B91C1C' }] : []),
         ].map(a => (
           <button key={a.id} onClick={() => setAba(a.id)}
             style={{ flex:1, padding:'12px 8px', border:'none', borderBottom: aba===a.id ? `3px solid ${a.cor||'#2D3A8C'}` : '3px solid transparent',
@@ -4764,7 +4768,7 @@ export default function App() {
       )}
 
       {/* ====== ABA: DESPESAS ====== */}
-      {aba === 'despesas' && podeVerValores && (() => {
+      {aba === 'despesas' && EMAILS_CUSTOS_DESPESAS.includes(usuario?.email) && (() => {
         const anoAtual = new Date().getFullYear()
         const anosDisponiveis = Array.from(new Set([anoAtual - 1, anoAtual, anoAtual + 1, despesasAno])).sort()
         return (
@@ -5158,7 +5162,7 @@ export default function App() {
                         {obra.data_vistoria && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Vistoria</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:600 }}>{isoToBr(obra.data_vistoria)}</div>{Array.isArray(obra.colaboradores_vistoria) && obra.colaboradores_vistoria.length > 0 && <div style={{ fontSize:10, color:'#888' }}>{obra.colaboradores_vistoria.join(', ')}</div>}</div>}
                         {obra.data_obra_inicio && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Início da obra</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:600 }}>{isoToBr(obra.data_obra_inicio)}</div>{Array.isArray(obra.colaboradores_obra) && obra.colaboradores_obra.length > 0 && <div style={{ fontSize:10, color:'#888' }}>{obra.colaboradores_obra.join(', ')}</div>}</div>}
                         {(obra.responsavel_escritorio || obra.auxiliar_escritorio) && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Acompanhamento (escritório)</div>{obra.responsavel_escritorio && <div style={{ fontSize:12, color:'#1A2340', fontWeight:600 }}>👤 {obra.responsavel_escritorio}</div>}{obra.auxiliar_escritorio && <div style={{ fontSize:10, color:'#888' }}>aux: {obra.auxiliar_escritorio}</div>}</div>}
-                        {(Array.isArray(obra.custos_terceirizados) && obra.custos_terceirizados.length > 0 || Array.isArray(obra.despesas_pessoal) && obra.despesas_pessoal.length > 0) && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Custos lançados</div><div style={{ fontSize:12, color:'#9A3412', fontWeight:600 }}>{fmt(somaValores(obra.custos_terceirizados) + somaValores(obra.despesas_pessoal))}</div></div>}
+                        {EMAILS_CUSTOS_DESPESAS.includes(usuario?.email) && (Array.isArray(obra.custos_terceirizados) && obra.custos_terceirizados.length > 0 || Array.isArray(obra.despesas_pessoal) && obra.despesas_pessoal.length > 0) && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Custos lançados</div><div style={{ fontSize:12, color:'#9A3412', fontWeight:600 }}>{fmt(somaValores(obra.custos_terceirizados) + somaValores(obra.despesas_pessoal))}</div></div>}
                         {obra.sige && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>SIGE</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.sige}</div></div>}
                         {obra.pedido && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Pedido</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.pedido}</div></div>}
                         {obra.nf && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>NF</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.nf}</div></div>}
@@ -6297,7 +6301,7 @@ export default function App() {
               <div style={{ fontSize:10, color:'#64748B', marginTop:5 }}>Quando esta demanda entrou no pipeline (usada para calcular dias parado)</div>
             </div>
 
-            {podeVerValores && (
+            {EMAILS_CUSTOS_DESPESAS.includes(usuario?.email) && (
             <>
             <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:12, padding:14, marginBottom:16 }}>
               <div style={{ fontSize:12, color:'#9A3412', fontWeight:700, marginBottom:10 }}>
