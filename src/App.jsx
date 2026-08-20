@@ -1028,9 +1028,9 @@ function gerarBriefing(obra) {
   const hoje = new Date().toLocaleDateString('pt-BR')
 
   const etapasUN = [
-    { label: '1ª Visita — Vistoria + BDN', data: obra.data_etapa1, resp: obra.resp_etapa1 },
-    { label: '2ª Visita — Troca de Fechaduras', data: obra.data_etapa2, resp: obra.resp_etapa2 },
-    { label: '3ª Visita — Obra Final', data: obra.data_etapa3, resp: obra.resp_etapa3 },
+    { label: 'Vistoria — Vistoria + BDN', data: obra.data_etapa1, resp: obra.resp_etapa1 },
+    { label: '1ª Etapa — Troca de Fechaduras', data: obra.data_etapa2, resp: obra.resp_etapa2 },
+    { label: '2ª Etapa — Obra Final', data: obra.data_etapa3, resp: obra.resp_etapa3 },
   ]
 
   const rowEtapa = e => `<tr style="border-bottom:1px solid #e5e7eb">
@@ -1130,6 +1130,12 @@ const ETAPAS_UN = [
   { titulo: 'Fechaduras', desc: 'Troca de fechaduras (coincide com troca/substituição do BDN)', campo: 'data_etapa2' },
   { titulo: 'Obra Final', desc: 'Remoção porta giratória · Porta passa-objeto · Drywall/naval nos box · Adesivos', campo: 'data_etapa3' },
 ]
+// Pra Tecban só existem 2 etapas de verdade (Troca de Fechadura e Obra) - Vistoria não conta como
+// etapa numerada pra eles. Mantém as 3 partes internamente (campo/dado não muda), só ajusta o
+// rótulo mostrado: i=0 vira "Vistoria" solto, i=1/2 viram "1ª Etapa"/"2ª Etapa" (Shirley, 2026-08-20).
+function rotuloEtapaUN(i) {
+  return i === 0 ? 'Vistoria' : `${i}ª Etapa`
+}
 
 function ReguaEtapasUN({ obra }) {
   const primeiraVazia = ETAPAS_UN.findIndex(e => !obra[e.campo])
@@ -1146,7 +1152,7 @@ function ReguaEtapasUN({ obra }) {
         return (
           <div key={i} style={{ flex:1, background:bg, border:`1.5px solid ${borda}`, borderRadius:10, padding:'8px 6px', textAlign:'center' }}>
             <div style={{ fontSize:9, fontWeight:700, color:cor, textTransform:'uppercase', letterSpacing:.5, marginBottom:2 }}>
-              {i+1}ª Etapa
+              {rotuloEtapaUN(i)}
             </div>
             <div style={{ fontSize:10, fontWeight:600, color:'#1A2340', marginBottom:4, lineHeight:1.2 }}>
               {etapa.titulo}
@@ -5090,7 +5096,7 @@ export default function App() {
                               const data = obra[etapa.campo]
                               return (
                                 <div key={i} style={{ flex:1, background: data ? '#D1FAE5' : '#fff', border:`1.5px solid ${data ? '#BBF7D0' : '#C7D2FE'}`, borderRadius:10, padding:'8px 10px', textAlign:'center' }}>
-                                  <div style={{ fontSize:9, fontWeight:700, color: data ? '#1A6B4A' : '#2D3A8C', textTransform:'uppercase', marginBottom:3 }}>{i+1}ª Etapa</div>
+                                  <div style={{ fontSize:9, fontWeight:700, color: data ? '#1A6B4A' : '#2D3A8C', textTransform:'uppercase', marginBottom:3 }}>{rotuloEtapaUN(i)}</div>
                                   <div style={{ fontSize:10, fontWeight:600, color:'#1A2340', marginBottom:5, lineHeight:1.2 }}>{etapa.titulo}</div>
                                   <div style={{ fontSize:13, fontWeight:700, color: data ? '#1A6B4A' : '#9CA3AF' }}>{data ? isoToBr(data) : '—'}</div>
                                   {obra[`resp_etapa${i+1}`] && <div style={{ fontSize:9, color:'#475569', marginTop:3 }}>👤 {obra[`resp_etapa${i+1}`]}</div>}
@@ -6100,7 +6106,7 @@ export default function App() {
                   i === 0 ? null : (
                   <div key={etapa.campo} style={{ marginBottom:12 }}>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>
-                      {i+1}ª Etapa — {etapa.titulo}
+                      {rotuloEtapaUN(i)} — {etapa.titulo}
                     </label>
                     <div style={{ fontSize:10, color:'#888', marginBottom:4 }}>{etapa.desc}</div>
                     {i === 2 ? (
@@ -6108,7 +6114,7 @@ export default function App() {
                         <input type="date" value={datas[etapa.campo]||''}
                           onChange={e => setDatas(d => ({...d, [etapa.campo]: e.target.value}))}
                           style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8 }} />
-                        <SeletorEquipe titulo="Quem foi na 3ª etapa" selecionados={equipeEtapa3} onChangeSelecionados={setEquipeEtapa3}
+                        <SeletorEquipe titulo="Quem foi na 2ª etapa (Obra Final)" selecionados={equipeEtapa3} onChangeSelecionados={setEquipeEtapa3}
                           terceirizado={terceirizadoEtapa3} onChangeTerceirizado={setTerceirizadoEtapa3}
                           terceirizadoTexto={terceirizadoEtapa3Texto} onChangeTerceirizadoTexto={setTerceirizadoEtapa3Texto} />
                       </>
