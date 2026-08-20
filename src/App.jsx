@@ -3455,8 +3455,12 @@ export default function App() {
   // naquele dia, em vez de sumir do carrossel (Shirley, 2026-08-20).
   const todosEstadosCenario = [...new Set(obrasAtivas.map(estadoDaObra))].sort()
   const cenarioPorUFMap = {}
-  todosEstadosCenario.forEach(estado => { cenarioPorUFMap[estado] = { uf: estado, obras: 0, movimentacao: 0, categorias: {} } })
+  todosEstadosCenario.forEach(estado => { cenarioPorUFMap[estado] = { uf: estado, obras: 0, movimentacao: 0, pendenteFaturar: 0, categorias: {} } })
   obrasAtivas.forEach(o => {
+    // Pendente de faturar - independe do dia selecionado no Cenario, é o total de obras daquele
+    // estado que ainda não chegaram em "Emitir NF" (Shirley, 2026-08-20: rodapé do card virou isso
+    // em vez do total de eventos do dia, que ela achou confuso ali).
+    if (!STATUS_FATURAR.includes(o.status)) cenarioPorUFMap[estadoDaObra(o)].pendenteFaturar++
     const eventos = eventosCenarioObra(o, cenarioData)
     if (eventos.length === 0) return
     const estado = estadoDaObra(o)
@@ -4919,11 +4923,8 @@ export default function App() {
                           )}
                         </div>
                         <div style={{ background: selecionado ? '#EEF2FF' : '#F8FAFC', padding:'6px 12px' }}>
-                          <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#2D3A8C', fontWeight:600 }}>
-                            <span>OBRA</span><span>{c.obras}</span>
-                          </div>
-                          <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#0F766E', fontWeight:600 }}>
-                            <span>MOVIMENTAÇÃO</span><span>{c.movimentacao}</span>
+                          <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color: c.pendenteFaturar > 0 ? '#9A3412' : '#0F766E', fontWeight:600 }}>
+                            <span>PENDENTE DE FATURAR</span><span>{c.pendenteFaturar}</span>
                           </div>
                         </div>
                       </div>
