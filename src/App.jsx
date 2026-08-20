@@ -272,6 +272,10 @@ function brToIso(br) {
   const [d, m, y] = br.split('/')
   return `${y}-${m}-${d}`
 }
+// Maiuscula automática em campos de texto livre escritos por pessoas (nome, endereço, motivos,
+// observações etc.) - pedido da Shirley, 2026-08-20, pra padronizar como fica escrito nos
+// relatórios. Não usar em busca/nomes vindos de datalist de colaboradores (autocomplete quebra).
+const up = v => v.toUpperCase()
 // data_inicio_obra_texto foi digitado como texto livre "DD/MM/AAAA" até 2026-08-19 (fonte comum de
 // erro - qualquer formato levemente diferente falhava calado e sumia do Cenário). Virou <input
 // type="date"> a partir de agora (ISO direto), mas registros antigos continuam em texto BR - esse
@@ -1510,7 +1514,7 @@ function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizad
         <span style={{ fontSize:13, color:'#1A2340', fontWeight:600 }}>Terceirizado</span>
       </label>
       {terceirizado && (
-        <input value={terceirizadoTexto} onChange={e => onChangeTerceirizadoTexto(e.target.value)}
+        <input value={terceirizadoTexto} onChange={e => onChangeTerceirizadoTexto(up(e.target.value))}
           placeholder="Nome da empresa/pessoa terceirizada"
           style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginTop:8 }} />
       )}
@@ -5436,7 +5440,7 @@ export default function App() {
                     ) : f.options.map(o => <option key={o}>{o}</option>)}
                   </select>
                 ) : f.type === 'textarea' ? (
-                  <textarea value={novaObra[f.field]} onChange={e => setNovaObra(p => ({...p, [f.field]:e.target.value}))}
+                  <textarea value={novaObra[f.field]} onChange={e => setNovaObra(p => ({...p, [f.field]: f.field === 'obs' ? up(e.target.value) : e.target.value}))}
                     rows={3} placeholder={f.placeholder}
                     style={{ width:'100%', padding:'10px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, resize:'none', boxSizing:'border-box', color:'#1A2340' }} />
                 ) : (
@@ -5475,20 +5479,20 @@ export default function App() {
             )}
             <div style={{ marginBottom:12 }}>
               <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Nome da obra *</label>
-              <input value={novaObra.nome} onChange={e => setNovaObra(p => ({...p, nome:e.target.value}))}
+              <input value={novaObra.nome} onChange={e => setNovaObra(p => ({...p, nome:up(e.target.value)}))}
                 placeholder="Ex: BR_UN 1234 - NOME-USP"
                 style={{ width:'100%', padding:'10px 12px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'2fr 1.3fr 0.6fr', gap:8, marginBottom:12 }}>
               <div>
                 <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Endereço{novaObra.rede === 'BANCO24HORAS' ? ' *' : ''}</label>
-                <input value={novaObra.endereco} onChange={e => setNovaObra(p => ({...p, endereco:e.target.value}))}
+                <input value={novaObra.endereco} onChange={e => setNovaObra(p => ({...p, endereco:up(e.target.value)}))}
                   placeholder="Rua, número, CEP"
                   style={{ width:'100%', padding:'10px 8px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
               </div>
               <div>
                 <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Cidade{novaObra.rede === 'BANCO24HORAS' ? ' *' : ''}</label>
-                <input value={novaObra.cidade} onChange={e => setNovaObra(p => ({...p, cidade:e.target.value}))}
+                <input value={novaObra.cidade} onChange={e => setNovaObra(p => ({...p, cidade:up(e.target.value)}))}
                   placeholder="Ex: São Paulo"
                   style={{ width:'100%', padding:'10px 8px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
               </div>
@@ -5509,7 +5513,7 @@ export default function App() {
               <div key={f.field} style={{ marginBottom:12 }}>
                 <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>{f.label}</label>
                 {f.type === 'textarea' ? (
-                  <textarea value={novaObra[f.field]} onChange={e => setNovaObra(p => ({...p, [f.field]:e.target.value}))}
+                  <textarea value={novaObra[f.field]} onChange={e => setNovaObra(p => ({...p, [f.field]: f.field === 'obs' ? up(e.target.value) : e.target.value}))}
                     rows={3} placeholder={f.placeholder}
                     style={{ width:'100%', padding:'10px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, resize:'none', boxSizing:'border-box', color:'#1A2340' }} />
                 ) : (
@@ -5557,7 +5561,7 @@ export default function App() {
               )}
               <div style={{ marginBottom:10 }}>
                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Nome</label>
-                <input value={editDados.nome} onChange={e => setEditDados(d => ({...d, nome:e.target.value}))}
+                <input value={editDados.nome} onChange={e => setEditDados(d => ({...d, nome:up(e.target.value)}))}
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
               </div>
               {TIPOS_BDN.includes(modal.tipo) && (
@@ -5573,13 +5577,13 @@ export default function App() {
               <div style={{ display:'grid', gridTemplateColumns:'2fr 1.3fr 0.6fr', gap:8, marginBottom:10 }}>
                 <div>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Endereço</label>
-                  <input value={editDados.endereco} onChange={e => setEditDados(d => ({...d, endereco:e.target.value}))}
+                  <input value={editDados.endereco} onChange={e => setEditDados(d => ({...d, endereco:up(e.target.value)}))}
                     placeholder="Rua, número, CEP"
                     style={{ width:'100%', padding:'8px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                 </div>
                 <div>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Cidade</label>
-                  <input value={editDados.cidade} onChange={e => setEditDados(d => ({...d, cidade:e.target.value}))}
+                  <input value={editDados.cidade} onChange={e => setEditDados(d => ({...d, cidade:up(e.target.value)}))}
                     style={{ width:'100%', padding:'8px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                 </div>
                 <div>
@@ -5734,7 +5738,7 @@ export default function App() {
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:12 }}>
                 <div>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Contato do EC — nome</label>
-                  <input value={ecNome} onChange={e => setEcNome(e.target.value)}
+                  <input value={ecNome} onChange={e => setEcNome(up(e.target.value))}
                     style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                 </div>
                 <div>
@@ -5788,7 +5792,7 @@ export default function App() {
               </div>
               <div style={{ marginBottom:12 }}>
                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Quem autorizou a mudança? Nome completo e data e hora do e-mail</label>
-                <input value={autorizacaoMudanca} onChange={e => setAutorizacaoMudanca(e.target.value)}
+                <input value={autorizacaoMudanca} onChange={e => setAutorizacaoMudanca(up(e.target.value))}
                   placeholder="Ex: João Silva, 14/08/2026 09:30"
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                 <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Preencher só quando o que foi realizado em campo é diferente do que o ARS indicava.</div>
@@ -5913,7 +5917,7 @@ export default function App() {
                                   {MOTIVOS_IMPEDIMENTO_BASE.map(m => <option key={m} value={m}>{m}</option>)}
                                 </select>
                               ) : (
-                                <input value={dados.motivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], motivo: e.target.value } }))}
+                                <input value={dados.motivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], motivo: up(e.target.value) } }))}
                                   placeholder="Motivo do impedimento (lista fechada ainda não definida)"
                                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                               )
@@ -5921,7 +5925,7 @@ export default function App() {
                             {atividade === 'Outros' && (
                               <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #E0E8F0' }}>
                                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:4 }}>O que foi feito (obrigatório)</label>
-                                <input value={dados.descricao || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], descricao: e.target.value } }))}
+                                <input value={dados.descricao || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], descricao: up(e.target.value) } }))}
                                   placeholder="Ex: retirar modem na StockTrans pro PC 98972"
                                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                               </div>
@@ -5938,7 +5942,7 @@ export default function App() {
                                   ))}
                                 </div>
                                 {dados.dimerFinalizado === false && (
-                                  <input value={dados.dimerMotivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], dimerMotivo: e.target.value } }))}
+                                  <input value={dados.dimerMotivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], dimerMotivo: up(e.target.value) } }))}
                                     placeholder="Motivo do Dimer não finalizado (lista fechada ainda não definida)"
                                     style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', marginBottom:10 }} />
                                 )}
@@ -5952,12 +5956,12 @@ export default function App() {
                                   ))}
                                 </div>
                                 {dados.alarme253Finalizado === false && (
-                                  <input value={dados.alarme253Motivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], alarme253Motivo: e.target.value } }))}
+                                  <input value={dados.alarme253Motivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], alarme253Motivo: up(e.target.value) } }))}
                                     placeholder="Motivo do Alarme 253 não finalizado (lista fechada ainda não definida)"
                                     style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', marginBottom:10 }} />
                                 )}
                                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Nome de quem atendeu a equipe no CGR</label>
-                                <input value={dados.cgrNome || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], cgrNome: e.target.value } }))}
+                                <input value={dados.cgrNome || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], cgrNome: up(e.target.value) } }))}
                                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                               </div>
                             )}
@@ -6157,7 +6161,7 @@ export default function App() {
                             </div>
                           )}
                           <div style={{ display:'flex', gap:6 }}>
-                            <input value={novoVidro} onChange={e => setNovoVidro(e.target.value)}
+                            <input value={novoVidro} onChange={e => setNovoVidro(up(e.target.value))}
                               onKeyDown={e => { if (e.key === 'Enter' && novoVidro.trim()) { setVidros(prev => [...prev, novoVidro.trim()]); setNovoVidro('') }}}
                               placeholder="Ex: 1,20 x 0,90 m — porta AA"
                               style={{ flex:1, padding:'7px 10px', border:'1px solid #BFDBFE', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
@@ -6313,7 +6317,7 @@ export default function App() {
                   style={{ padding:'7px 8px', border:'1px solid #FED7AA', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
                   {TIPOS_CUSTO_TERCEIRIZADO.map(t => <option key={t}>{t}</option>)}
                 </select>
-                <input value={novoCustoObs} onChange={e => setNovoCustoObs(e.target.value)}
+                <input value={novoCustoObs} onChange={e => setNovoCustoObs(up(e.target.value))}
                   placeholder="Fornecedor / obs (opcional)"
                   style={{ flex:1, minWidth:120, padding:'7px 10px', border:'1px solid #FED7AA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                 <input type="number" value={novoCustoValor} onChange={e => setNovoCustoValor(e.target.value)}
@@ -6349,10 +6353,10 @@ export default function App() {
               )}
               {novaDespesaCategoria === 'Combustível' && (
                 <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center', marginBottom:8 }}>
-                  <input value={novaDespesaOrigem} onChange={e => setNovaDespesaOrigem(e.target.value)}
+                  <input value={novaDespesaOrigem} onChange={e => setNovaDespesaOrigem(up(e.target.value))}
                     placeholder="Origem (cidade/endereço)"
                     style={{ flex:1, minWidth:140, padding:'7px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-                  <input value={novaDespesaDestino} onChange={e => setNovaDespesaDestino(e.target.value)}
+                  <input value={novaDespesaDestino} onChange={e => setNovaDespesaDestino(up(e.target.value))}
                     placeholder="Destino (cidade/endereço)"
                     style={{ flex:1, minWidth:140, padding:'7px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                   <button onClick={calcularKmRota} disabled={calculandoRota || !novaDespesaOrigem.trim() || !novaDespesaDestino.trim()}
@@ -6369,7 +6373,7 @@ export default function App() {
                   style={{ padding:'7px 8px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
                   {CATEGORIAS_DESPESA_PESSOAL.map(c => <option key={c}>{c}</option>)}
                 </select>
-                <input value={novaDespesaObs} onChange={e => setNovaDespesaObs(e.target.value)}
+                <input value={novaDespesaObs} onChange={e => setNovaDespesaObs(up(e.target.value))}
                   placeholder="Obs (opcional)"
                   style={{ flex:1, minWidth:100, padding:'7px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                 {novaDespesaCategoria === 'Combustível' ? (
@@ -6470,7 +6474,7 @@ export default function App() {
               </div>
             )}
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, margin:'12px 0 6px' }}>Observação:</div>
-            <textarea value={novaObs} onChange={e=>setNovaObs(e.target.value)} rows={3}
+            <textarea value={novaObs} onChange={e=>setNovaObs(up(e.target.value))} rows={3}
               placeholder="Pendências, próximos passos..."
               style={{ width:'100%', padding:'10px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, resize:'none', marginBottom:12, boxSizing:'border-box', color:'#1A2340' }} />
 
@@ -6499,7 +6503,7 @@ export default function App() {
                     <option key={i} value={i+1}>{i+1}</option>
                   ))}
                 </select>
-                <input value={novoLembreteTexto} onChange={e => setNovoLembreteTexto(e.target.value)}
+                <input value={novoLembreteTexto} onChange={e => setNovoLembreteTexto(up(e.target.value))}
                   placeholder="Ex: Emitir ART — Carol"
                   style={{ flex:1, padding:'8px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }} />
                 <button onClick={() => {
