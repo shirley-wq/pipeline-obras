@@ -3133,10 +3133,15 @@ export default function App() {
       const idxRmEnviada = etapasRegua.indexOf('RM ENVIADA')
       statusFinal = (idxRmEnviada >= 0 && etapasRegua[idxRmEnviada + 1]) ? etapasRegua[idxRmEnviada + 1] : 'EMITIR NF'
     }
-    // Se o pedido da Tecban chegou (campo Pedido preenchido) numa obra que já estava em etapa
-    // avançada (elaborando/enviando RM), considera pronta pra faturar - pula direto pra EMITIR NF.
-    const pedidoPreenchido = !!(editDados.pedido && editDados.pedido.trim())
-    if (['ELABORAR RM', 'ENVIAR RM', 'RM ENVIADA'].includes(novoStatus) && pedidoPreenchido) {
+    // Se o pedido da Tecban chegou E bate certinho (valor, OS e CNPJ conferidos - não só o campo
+    // Pedido preenchido, que não garantia nada) numa obra que já estava em etapa avançada
+    // (elaborando/enviando RM), considera pronta pra faturar - pula direto pra EMITIR NF. Se não
+    // bater, fica como está pra alguém corrigir manualmente (Shirley, 2026-08-20).
+    const pedidoConferido = conferePedidoObra({
+      valor: editDados.valor, os_tecban: editDados.os_tecban, local: montaLocal(editDados.cidade, editDados.uf),
+      pedido_valor: editDados.pedido_valor, pedido_os: editDados.pedido_os, pedido_cnpj: editDados.pedido_cnpj,
+    }).completo
+    if (['ELABORAR RM', 'ENVIAR RM', 'RM ENVIADA'].includes(novoStatus) && pedidoConferido) {
       statusFinal = 'EMITIR NF'
     }
     // Dados da obra completos (PC até OS Tecban) numa obra ainda na 1ª etapa - avança sozinho pra
