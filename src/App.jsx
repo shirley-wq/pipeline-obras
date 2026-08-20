@@ -3735,7 +3735,12 @@ export default function App() {
       <div style={{ background:'#1A2340', padding:'14px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <div>
           <div style={{ fontSize:16, fontWeight:700, color:'#fff' }}>Pipeline de Obras</div>
-          <div style={{ fontSize:11, color:'rgba(255,255,255,.6)', marginTop:2 }}>Grupo PG — {obras.length} obras</div>
+          <div style={{ fontSize:11, color:'rgba(255,255,255,.6)', marginTop:2 }}>
+            Grupo PG — {obras.length} obras · {emAndamento} em execução · <span style={{ color: pendencias > 0 ? '#FCA5A5' : 'inherit' }}>{pendencias} pendência{pendencias === 1 ? '' : 's'}</span>
+            {EMAILS_VER_VALORES_TOPO.includes(usuario?.email) && (
+              <> · R${(totalValor/1000).toFixed(0)}k em andamento · <span style={{ color: obrasFaturar.length > 0 ? '#FDE68A' : 'inherit' }}>R${(totalFaturar/1000).toFixed(0)}k a faturar</span></>
+            )}
+          </div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           {podeVerValores && (
@@ -3767,20 +3772,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Totalizadores */}
-      <div style={{ background:'#2D3A8C', padding:'12px 16px', display:'grid', gridTemplateColumns: EMAILS_VER_VALORES_TOPO.includes(usuario?.email) ? 'repeat(4,1fr)' : 'repeat(2,1fr)', gap:8 }}>
-        {[
-          ...(EMAILS_VER_VALORES_TOPO.includes(usuario?.email) ? [{ n: 'R$' + (totalValor/1000).toFixed(0) + 'k', l:'Em Andamento' }] : []),
-          { n: emAndamento, l:'Execução' },
-          { n: pendencias, l:'Pendências', alert: pendencias > 0 },
-          ...(EMAILS_VER_VALORES_TOPO.includes(usuario?.email) ? [{ n: 'R$' + (totalFaturar/1000).toFixed(0) + 'k', l:'A Faturar', highlight: obrasFaturar.length > 0 }] : []),
-        ].map((t,i) => (
-          <div key={i} style={{ background:'rgba(255,255,255,.1)', borderRadius:10, padding:'10px 8px', textAlign:'center' }}>
-            <div style={{ fontSize:20, fontWeight:700, color: t.alert ? '#FCA5A5' : t.highlight ? '#FDE68A' : '#fff' }}>{t.n}</div>
-            <div style={{ fontSize:10, color:'rgba(255,255,255,.65)', marginTop:2 }}>{t.l}</div>
-          </div>
-        ))}
-      </div>
 
       {/* Abas */}
       <div style={{ background:'#fff', borderBottom:'2px solid #E0E8F0', display:'flex' }}>
