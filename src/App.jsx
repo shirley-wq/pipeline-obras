@@ -1211,6 +1211,12 @@ const REDES_OPERACAO_CAMPO = ['BANCO24HORAS', 'AGIBANK', 'CREFISA']
 function temTelaOperacaoCampo(rede, tipo) {
   return REDES_OPERACAO_CAMPO.includes(rede) && SEM_VISTORIA_BANCO24H.includes(tipo)
 }
+// TRANSF UN também ganhou (2026-08-20) o registro de visitas extras/retornos ao ponto (ex: troca de
+// vidro depois da 3ª etapa) - mesma mecânica do "Dia da obra" do ATM, mas sem o gate de Relatório ao
+// Cliente (que não existe pra TRANSF UN) nem os campos de ARS.
+function temVisitasDeCampo(rede, tipo) {
+  return temTelaOperacaoCampo(rede, tipo) || tipo === 'TRANSF UN'
+}
 // Eventos de uma obra pra um dia especifico do Cenario - usado tanto pra montar os cards por
 // estado quanto pra filtrar a lista de baixo quando um card e clicado (Shirley, 2026-08-19: antes o
 // clique no card so filtrava por estado, ignorando o dia selecionado, e mostrava a pipeline inteira
@@ -1224,11 +1230,11 @@ function eventosCenarioObra(o, dia) {
   const eventos = []
   if (o.data_vistoria === dia) eventos.push({ categoria: ehBDN ? `Vistoria de ${tipoCurto}` : 'Vistoria', familia: ehBDN ? 'movimentacao' : 'obra' })
   if (dataExec === dia) eventos.push({ categoria: ehBDN ? tipoCurto : 'Obra', familia: ehBDN ? 'movimentacao' : 'obra' })
-  if (temTelaOperacaoCampo(o.rede, o.tipo)) {
+  if (temVisitasDeCampo(o.rede, o.tipo)) {
     const registros = Array.isArray(o.registros_operacao_campo) ? o.registros_operacao_campo : []
     registros.forEach(r => {
       if (r.data !== dia) return
-      ;(r.atividades || []).forEach(a => eventos.push({ categoria: `Visita: ${a.atividade}`, familia: 'movimentacao' }))
+      ;(r.atividades || []).forEach(a => eventos.push({ categoria: `Visita: ${a.atividade}`, familia: ehBDN ? 'movimentacao' : 'obra' }))
     })
   }
   return eventos
@@ -1244,9 +1250,13 @@ const ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS = ['Base', 'Instalação', 'Habilit
 // sentido Base/Habilitação/etc, e sim desmontar o ponto e devolver o local ao estado original.
 const ATIVIDADES_OPERACAO_CAMPO_DESATIVACAO_OBRIGATORIAS = ['Remoção de ATM', 'Recomposição de piso', 'Pintura de parede']
 function atividadesOperacaoCampoObrigatorias(tipo) {
+  if (tipo === 'TRANSF UN') return []
   return tipo === 'DESATIVAÇÃO ATM' ? ATIVIDADES_OPERACAO_CAMPO_DESATIVACAO_OBRIGATORIAS : ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS
 }
 function atividadesOperacaoCampo(tipo) {
+  // TRANSF UN: só "Outros" (retorno avulso ao ponto, descrito em texto livre) - Shirley, 2026-08-20,
+  // sem lista fechada de motivo ainda (mesmo padrão de deixar crescer com o tempo).
+  if (tipo === 'TRANSF UN') return ['Outros']
   return tipo === 'DESATIVAÇÃO ATM'
     ? [...ATIVIDADES_OPERACAO_CAMPO_DESATIVACAO_OBRIGATORIAS, 'Outros']
     : [...ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS, 'Vistoria', 'Outros']
@@ -2060,6 +2070,9 @@ export default function App() {
   const [salvando, setSalvando] = useState(false)
   const [datas, setDatas] = useState({ data_etapa1:'', data_etapa2:'', data_etapa3:'' })
   const [resps, setResps] = useState({ resp_etapa1:'', resp_etapa2:'', resp_etapa3:'' })
+  const [equipeEtapa3, setEquipeEtapa3] = useState([])
+  const [terceirizadoEtapa3, setTerceirizadoEtapa3] = useState(false)
+  const [terceirizadoEtapa3Texto, setTerceirizadoEtapa3Texto] = useState('')
   const [dataObra, setDataObra] = useState({ inicio:'', termino:'' })
   const [dataArt, setDataArt] = useState('')
   const [emNegociacao, setEmNegociacao] = useState(false)
@@ -3131,7 +3144,10 @@ export default function App() {
       campos.data_etapa3 = datas.data_etapa3 || null
       campos.resp_etapa1 = listaVistoria.length > 0 ? listaVistoria.join(', ') : null
       campos.resp_etapa2 = resps.resp_etapa2 || null
-      campos.resp_etapa3 = resps.resp_etapa3 || null
+      {
+        const listaEtapa3 = [...equipeEtapa3, ...(terceirizadoEtapa3 ? [TERCEIRIZADO_PREFIXO + (terceirizadoEtapa3Texto.trim() || '(não informado)')] : [])]
+        campos.resp_etapa3 = listaEtapa3.length > 0 ? listaEtapa3.join(', ') : null
+      }
       campos.adesivos = adesivos.length > 0 ? adesivos.join(',') : null
       campos.vidros = vidros.length > 0 ? vidros : null
       campos.divisorias = divisorias.length > 0 ? divisorias : null
@@ -3165,6 +3181,9 @@ export default function App() {
       campos.barreira_dissuasao_campo = barreiraDissuasaoCampo
       campos.autorizacao_mudanca = autorizacaoMudanca || null
       campos.agendamento_data = agendamentoData || null
+      campos.registros_operacao_campo = registrosOperacaoCampo.length > 0 ? registrosOperacaoCampo : null
+    }
+    if (modal.tipo === 'TRANSF UN') {
       campos.registros_operacao_campo = registrosOperacaoCampo.length > 0 ? registrosOperacaoCampo : null
     }
     campos.data_obra_inicio = modal.tipo === 'TRANSF UN' ? (dataObraInicio || null) : (dataObra.inicio || null)
@@ -5160,6 +5179,13 @@ export default function App() {
                         setNovaObs(obra.obs||'')
                         setDatas({ data_etapa1: obra.data_etapa1||'', data_etapa2: obra.data_etapa2||'', data_etapa3: obra.data_etapa3||'' })
                         setResps({ resp_etapa1: obra.resp_etapa1||'', resp_etapa2: obra.resp_etapa2||'', resp_etapa3: obra.resp_etapa3||'' })
+                        {
+                          const nomesEtapa3 = (obra.resp_etapa3 || '').split(',').map(s => s.trim()).filter(Boolean)
+                          const terceirizadoNomeEtapa3 = nomesEtapa3.find(n => n.startsWith(TERCEIRIZADO_PREFIXO))
+                          setEquipeEtapa3(nomesEtapa3.filter(n => !n.startsWith(TERCEIRIZADO_PREFIXO)))
+                          setTerceirizadoEtapa3(!!terceirizadoNomeEtapa3)
+                          setTerceirizadoEtapa3Texto(terceirizadoNomeEtapa3 ? terceirizadoNomeEtapa3.slice(TERCEIRIZADO_PREFIXO.length) : '')
+                        }
                         setDataObra({ inicio: obra.inicio ? brToIso(obra.inicio) : '', termino: obra.termino ? brToIso(obra.termino) : '' })
                         setDataArt(obra.data_art || '')
                         setEmNegociacao(obra.em_negociacao || false)
@@ -5768,9 +5794,11 @@ export default function App() {
             </div>
             )}
 
-            {temTelaOperacaoCampo(modal.rede, modal.tipo) && (
+            {temVisitasDeCampo(modal.rede, modal.tipo) && (
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
-              <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>🛠️ Dia da obra — visitas de campo</div>
+              <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>
+                {modal.tipo === 'TRANSF UN' ? '🔁 Retornos ao ponto — visitas extras' : '🛠️ Dia da obra — visitas de campo'}
+              </div>
 
               {registrosOperacaoCampo.length > 0 && (
                 <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:12 }}>
@@ -5937,10 +5965,13 @@ export default function App() {
                 </div>
                 {(() => {
                   const marcadas = Object.entries(novoRegistroAtividades)
+                  // Data obrigatória (Shirley, 2026-08-20) - sem isso a visita não sobe pro Cenário
+                  // como agenda do dia certo.
+                  const dataVisita = novoRegistroData || (paraIsoDataObraTexto(dataInicioObraTexto) || '')
                   // "feita" pode ficar em branco (null) - visita planejada, ainda não aconteceu. Só
                   // exige feita decidido (Sim/Não) e os campos extras de Habilitação quando ela já foi
                   // marcada como concluída ou não (Shirley, 2026-08-19 - agenda/dashboard).
-                  const valida = marcadas.length > 0 && marcadas.every(([atividade, d]) => {
+                  const valida = Boolean(dataVisita) && marcadas.length > 0 && marcadas.every(([atividade, d]) => {
                     const decidida = d.feita === true || d.feita === false
                     if (d.impedimento && !(d.motivo && d.motivo.trim() !== '')) return false
                     if (atividade === 'Outros' && !(d.descricao && d.descricao.trim() !== '')) return false
@@ -5972,7 +6003,6 @@ export default function App() {
                         } : {}),
                       }))
                       const equipe = [...novoRegistroEquipe, ...(novoRegistroTerceirizado ? [TERCEIRIZADO_PREFIXO + (novoRegistroTerceirizadoTexto.trim() || '(não informado)')] : [])]
-                      const dataVisita = novoRegistroData || (paraIsoDataObraTexto(dataInicioObraTexto) || '')
                       const registro = { data: dataVisita || null, equipe, atividades }
                       if (editandoVisitaIdx !== null) {
                         setRegistrosOperacaoCampo(prev => prev.map((r, i) => i === editandoVisitaIdx ? registro : r))
@@ -5989,6 +6019,8 @@ export default function App() {
                 })()}
               </div>
 
+              {temTelaOperacaoCampo(modal.rede, modal.tipo) && (
+              <>
               <div style={{ fontSize:11, color:'#64748B', marginTop:10 }}>
                 Cobertura das atividades: {atividadesOperacaoCampoObrigatorias(modal.tipo).filter(a => atividadesCobertas.has(a)).length}/{atividadesOperacaoCampoObrigatorias(modal.tipo).length}
                 {temVistoriaImprodutiva && ' — vistoria improdutiva registrada, liberado pra faturar mesmo sem instalação'}
@@ -6051,6 +6083,8 @@ export default function App() {
                   </div>
                 </div>
               )}
+              </>
+              )}
             </div>
             )}
 
@@ -6079,6 +6113,16 @@ export default function App() {
                       {i+1}ª Etapa — {etapa.titulo}
                     </label>
                     <div style={{ fontSize:10, color:'#888', marginBottom:4 }}>{etapa.desc}</div>
+                    {i === 2 ? (
+                      <>
+                        <input type="date" value={datas[etapa.campo]||''}
+                          onChange={e => setDatas(d => ({...d, [etapa.campo]: e.target.value}))}
+                          style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8 }} />
+                        <SeletorEquipe titulo="Quem foi na 3ª etapa" selecionados={equipeEtapa3} onChangeSelecionados={setEquipeEtapa3}
+                          terceirizado={terceirizadoEtapa3} onChangeTerceirizado={setTerceirizadoEtapa3}
+                          terceirizadoTexto={terceirizadoEtapa3Texto} onChangeTerceirizadoTexto={setTerceirizadoEtapa3Texto} />
+                      </>
+                    ) : (
                     <div style={{ display:'flex', gap:8 }}>
                       <input type="date" value={datas[etapa.campo]||''}
                         onChange={e => setDatas(d => ({...d, [etapa.campo]: e.target.value}))}
@@ -6088,6 +6132,7 @@ export default function App() {
                         placeholder="Responsável" list="lista-colaboradores-etapas"
                         style={{ flex:1, padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                     </div>
+                    )}
                     {i === 2 && (
                       <div style={{ marginTop:8 }}>
                         <div style={{ fontSize:10, color:'#64748B', fontWeight:600, marginBottom:6 }}>Adesivos necessários:</div>
