@@ -1297,6 +1297,34 @@ function eventosCenarioObra(o, dia) {
   }
   return eventos
 }
+// Próxima atividade agendada de uma obra (a mais próxima de hoje pra frente), pra mostrar no card
+// da lista com data (e hora, quando existir) em evidência - mesmas fontes de data do Cenário acima,
+// só que varrendo todas as datas futuras em vez de checar um dia específico (Shirley, 2026-08-25).
+function proximaAtividadeObra(o) {
+  const hoje = hojeIso()
+  const candidatos = []
+  const ehBDN = TIPOS_BDN.includes(o.tipo)
+  const tipoCurto = (o.tipo || '').replace(/\s*ATM\s*$/i, '').trim()
+  if (o.data_vistoria) candidatos.push({ data: o.data_vistoria, hora: null, label: ehBDN ? `Vistoria de ${tipoCurto}` : 'Vistoria' })
+  if (o.tipo === 'TRANSF UN') {
+    if (o.data_etapa2) candidatos.push({ data: o.data_etapa2, hora: null, label: '1ª Etapa (Fechaduras)' })
+    if (o.data_etapa3) candidatos.push({ data: o.data_etapa3, hora: null, label: '2ª Etapa (Obra Final)' })
+  } else {
+    const usaConfirmada = temTelaOperacaoCampo(o.rede, o.tipo)
+    const dataExec = usaConfirmada ? paraIsoDataObraTexto(o.data_inicio_obra_texto) : (o.data_obra_inicio || null)
+    if (dataExec) candidatos.push({ data: dataExec, hora: usaConfirmada ? (o.hora_inicio_obra_texto || null) : null, label: ehBDN ? tipoCurto : 'Obra' })
+  }
+  if (temVisitasDeCampo(o.rede, o.tipo)) {
+    const registros = Array.isArray(o.registros_operacao_campo) ? o.registros_operacao_campo : []
+    registros.forEach(r => {
+      if (!r.data) return
+      ;(r.atividades || []).forEach(a => candidatos.push({ data: r.data, hora: null, label: `Visita: ${a.atividade}` }))
+    })
+  }
+  const futuros = candidatos.filter(c => c.data >= hoje)
+    .sort((a, b) => a.data === b.data ? (a.hora || '').localeCompare(b.hora || '') : a.data.localeCompare(b.data))
+  return futuros[0] || null
+}
 // Itens do ARS que descrevem onde/como a máquina fica fixada - mais de um pode se aplicar
 // ao mesmo tempo (ex: "encostada em pilar" + "fixação química").
 const ITENS_SEGURANCA_BANCO24H = ['Máquina encostada em parede de alvenaria', 'Encostada em pilar', 'Em cima de viga', 'Fixação concretada', 'Fixação química', 'Fixação projeto T', 'Construção de meia parede']
@@ -5272,6 +5300,7 @@ export default function App() {
               const estaSelecionada = selecionadas.has(obra.id)
               const dias = diasNoPipeline(obra.data_cadastro)
               const alerta = alertaDias(dias, obra.status)
+              const proxima = proximaAtividadeObra(obra)
               return (
                 <div key={obra.id} style={{ background: estaSelecionada ? '#EEF2FF' : '#fff', borderRadius:12, marginBottom:10, border: estaSelecionada ? '2px solid #2D3A8C' : alerta ? `2px solid ${alerta.cor}` : '1px solid #E0E8F0', overflow:'hidden' }}>
                   <div style={{ position:'relative' }}>
@@ -5295,7 +5324,10 @@ export default function App() {
                             display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1, cursor:'pointer' }}>
                           {estaSelecionada && <span style={{ color:'#fff', fontSize:11, fontWeight:700 }}>✓</span>}
                         </div>
-                        <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', flex:1, lineHeight:1.4 }}>{obra.nome}</div>
+                        <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', flex:1, lineHeight:1.4 }}>
+                          {proxima && <span style={{ fontSize:11, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#DBEAFE', color:'#1E40AF', marginRight:6, whiteSpace:'nowrap', display:'inline-block' }}>📅 {isoToBr(proxima.data)}{proxima.hora ? ` ${proxima.hora}` : ''}</span>}
+                          {obra.nome}
+                        </div>
                       </div>
                       {podeVerValores && <div style={{ fontSize:13, fontWeight:700, color:'#2D3A8C', whiteSpace:'nowrap' }}>{fmt(obra.valor)}</div>}
                     </div>
