@@ -1241,7 +1241,7 @@ const ETAPAS_ATM_B24H = ['OS ABERTA', 'AGENDAMENTO', 'OPERAÇÃO EM CAMPO', 'REL
 const ETAPAS_BDN_BRADESCO = ['OS ABERTA', 'VISTORIA', 'AGENDAMENTO', 'OPERAÇÃO EM CAMPO', 'AGUARDANDO OS', 'ELABORAR RM', 'RM ENVIADA', 'AGUARDANDO PEDIDO', 'EMITIR NF', 'NF EMITIDO']
 // Tipos de obra que são "movimentação de BDN" (não confundir com TRANSF UN/DESC PA, que são a
 // transformação da agência em si - podem coexistir na mesma agência, com OS/contrato separados).
-const TIPOS_BDN = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM', 'REMANEJAMENTO ATM', 'SINALIZAÇÃO ATM', 'MANUTENÇÃO ATM']
+const TIPOS_BDN = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM', 'REMANEJAMENTO ATM', 'SINALIZAÇÃO ATM', 'MANUTENÇÃO ATM', 'PINTURA ATM']
 // Instalação, Desativação, Substituição (troca) e Remanejamento de Banco24Horas não têm fase de
 // vistoria no processo real (Shirley, 2026-08-13) - diferente de Bradesco, que tem vistoria própria.
 const SEM_VISTORIA_BANCO24H = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM', 'REMANEJAMENTO ATM']
@@ -1258,11 +1258,11 @@ function temTelaOperacaoCampo(rede, tipo) {
 }
 // TRANSF UN também ganhou (2026-08-20) o registro de visitas extras/retornos ao ponto (ex: troca de
 // vidro depois da 3ª etapa) - mesma mecânica do "Dia da obra" do ATM, mas sem o gate de Relatório ao
-// Cliente (que não existe pra TRANSF UN) nem os campos de ARS. Manutenção ATM e Sinalização ATM
-// ganharam o mesmo registro simples de visitas (2026-08-25, Shirley) - sem checklist ARS, só
-// data + equipe + descrição livre (atividade "Outros"), igual TRANSF UN.
+// Cliente (que não existe pra TRANSF UN) nem os campos de ARS. Manutenção ATM, Sinalização ATM e
+// Pintura ATM ganharam o mesmo registro simples de visitas (2026-08-25, Shirley) - sem checklist
+// ARS, só data + equipe + descrição livre (atividade "Outros"), igual TRANSF UN.
 function temVisitasDeCampo(rede, tipo) {
-  return temTelaOperacaoCampo(rede, tipo) || tipo === 'TRANSF UN' || tipo === 'MANUTENÇÃO ATM' || tipo === 'SINALIZAÇÃO ATM'
+  return temTelaOperacaoCampo(rede, tipo) || tipo === 'TRANSF UN' || tipo === 'MANUTENÇÃO ATM' || tipo === 'SINALIZAÇÃO ATM' || tipo === 'PINTURA ATM'
 }
 // Eventos de uma obra pra um dia especifico do Cenario - usado tanto pra montar os cards por
 // estado quanto pra filtrar a lista de baixo quando um card e clicado (Shirley, 2026-08-19: antes o
@@ -1311,15 +1311,15 @@ const ATIVIDADES_OPERACAO_CAMPO_DESATIVACAO_OBRIGATORIAS = ['Remoção de ATM', 
 // troca de fechadura quando coincide com a TRANSF UN da mesma agência (Shirley, 2026-08-20).
 const ATIVIDADES_OPERACAO_CAMPO_BRADESCO_OBRIGATORIAS = ['Abertura de cofre', 'Remoção/Instalação de BDN']
 function atividadesOperacaoCampoObrigatorias(rede, tipo) {
-  if (tipo === 'TRANSF UN' || tipo === 'MANUTENÇÃO ATM' || tipo === 'SINALIZAÇÃO ATM') return []
+  if (tipo === 'TRANSF UN' || tipo === 'MANUTENÇÃO ATM' || tipo === 'SINALIZAÇÃO ATM' || tipo === 'PINTURA ATM') return []
   if (rede === 'BRADESCO') return ATIVIDADES_OPERACAO_CAMPO_BRADESCO_OBRIGATORIAS
   return tipo === 'DESATIVAÇÃO ATM' ? ATIVIDADES_OPERACAO_CAMPO_DESATIVACAO_OBRIGATORIAS : ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS
 }
 function atividadesOperacaoCampo(rede, tipo) {
-  // TRANSF UN, Manutenção ATM e Sinalização ATM: só "Outros" (visita avulsa, descrita em texto
-  // livre) - Shirley, 2026-08-20 (TRANSF UN) e 2026-08-25 (Manutenção/Sinalização), sem lista
-  // fechada de motivo ainda (mesmo padrão de deixar crescer com o tempo).
-  if (tipo === 'TRANSF UN' || tipo === 'MANUTENÇÃO ATM' || tipo === 'SINALIZAÇÃO ATM') return ['Outros']
+  // TRANSF UN, Manutenção ATM, Sinalização ATM e Pintura ATM: só "Outros" (visita avulsa, descrita
+  // em texto livre) - Shirley, 2026-08-20 (TRANSF UN), 2026-08-25 (demais), sem lista fechada de
+  // motivo ainda (mesmo padrão de deixar crescer com o tempo).
+  if (tipo === 'TRANSF UN' || tipo === 'MANUTENÇÃO ATM' || tipo === 'SINALIZAÇÃO ATM' || tipo === 'PINTURA ATM') return ['Outros']
   if (rede === 'BRADESCO') return [...ATIVIDADES_OPERACAO_CAMPO_BRADESCO_OBRIGATORIAS, 'Troca de fechadura', 'Vistoria', 'Outros']
   return tipo === 'DESATIVAÇÃO ATM'
     ? [...ATIVIDADES_OPERACAO_CAMPO_DESATIVACAO_OBRIGATORIAS, 'Outros']
@@ -5711,7 +5711,7 @@ export default function App() {
                 <select value={novaObra.rede} onChange={e => setNovaObra(p => ({...p, rede:e.target.value}))}
                   style={{ width:'100%', padding:'10px 12px', border:'1px solid #BFDBFE', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }}>
                   <option value="">Selecione...</option>
-                  {['BANCO24HORAS','BRADESCO','AGIBANK','CREFISA','BANESTES'].map(o => <option key={o}>{o}</option>)}
+                  {['BANCO24HORAS','BRADESCO','AGIBANK','CREFISA','BANESTES','ITAÚ'].map(o => <option key={o}>{o}</option>)}
                 </select>
                 <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Define a régua de status: Bradesco tem processo próprio (com vistoria e espera pelo pedido); as demais seguem o processo Banco24Horas.</div>
               </div>
