@@ -1258,9 +1258,11 @@ function temTelaOperacaoCampo(rede, tipo) {
 }
 // TRANSF UN também ganhou (2026-08-20) o registro de visitas extras/retornos ao ponto (ex: troca de
 // vidro depois da 3ª etapa) - mesma mecânica do "Dia da obra" do ATM, mas sem o gate de Relatório ao
-// Cliente (que não existe pra TRANSF UN) nem os campos de ARS.
+// Cliente (que não existe pra TRANSF UN) nem os campos de ARS. Manutenção ATM e Sinalização ATM
+// ganharam o mesmo registro simples de visitas (2026-08-25, Shirley) - sem checklist ARS, só
+// data + equipe + descrição livre (atividade "Outros"), igual TRANSF UN.
 function temVisitasDeCampo(rede, tipo) {
-  return temTelaOperacaoCampo(rede, tipo) || tipo === 'TRANSF UN'
+  return temTelaOperacaoCampo(rede, tipo) || tipo === 'TRANSF UN' || tipo === 'MANUTENÇÃO ATM' || tipo === 'SINALIZAÇÃO ATM'
 }
 // Eventos de uma obra pra um dia especifico do Cenario - usado tanto pra montar os cards por
 // estado quanto pra filtrar a lista de baixo quando um card e clicado (Shirley, 2026-08-19: antes o
@@ -1309,14 +1311,15 @@ const ATIVIDADES_OPERACAO_CAMPO_DESATIVACAO_OBRIGATORIAS = ['Remoção de ATM', 
 // troca de fechadura quando coincide com a TRANSF UN da mesma agência (Shirley, 2026-08-20).
 const ATIVIDADES_OPERACAO_CAMPO_BRADESCO_OBRIGATORIAS = ['Abertura de cofre', 'Remoção/Instalação de BDN']
 function atividadesOperacaoCampoObrigatorias(rede, tipo) {
-  if (tipo === 'TRANSF UN') return []
+  if (tipo === 'TRANSF UN' || tipo === 'MANUTENÇÃO ATM' || tipo === 'SINALIZAÇÃO ATM') return []
   if (rede === 'BRADESCO') return ATIVIDADES_OPERACAO_CAMPO_BRADESCO_OBRIGATORIAS
   return tipo === 'DESATIVAÇÃO ATM' ? ATIVIDADES_OPERACAO_CAMPO_DESATIVACAO_OBRIGATORIAS : ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS
 }
 function atividadesOperacaoCampo(rede, tipo) {
-  // TRANSF UN: só "Outros" (retorno avulso ao ponto, descrito em texto livre) - Shirley, 2026-08-20,
-  // sem lista fechada de motivo ainda (mesmo padrão de deixar crescer com o tempo).
-  if (tipo === 'TRANSF UN') return ['Outros']
+  // TRANSF UN, Manutenção ATM e Sinalização ATM: só "Outros" (visita avulsa, descrita em texto
+  // livre) - Shirley, 2026-08-20 (TRANSF UN) e 2026-08-25 (Manutenção/Sinalização), sem lista
+  // fechada de motivo ainda (mesmo padrão de deixar crescer com o tempo).
+  if (tipo === 'TRANSF UN' || tipo === 'MANUTENÇÃO ATM' || tipo === 'SINALIZAÇÃO ATM') return ['Outros']
   if (rede === 'BRADESCO') return [...ATIVIDADES_OPERACAO_CAMPO_BRADESCO_OBRIGATORIAS, 'Troca de fechadura', 'Vistoria', 'Outros']
   return tipo === 'DESATIVAÇÃO ATM'
     ? [...ATIVIDADES_OPERACAO_CAMPO_DESATIVACAO_OBRIGATORIAS, 'Outros']
@@ -6543,7 +6546,7 @@ export default function App() {
               </div>
             )}
 
-            {modal.tipo !== 'TRANSF UN' && !temTelaOperacaoCampo(modal.rede, modal.tipo) && (
+            {!temVisitasDeCampo(modal.rede, modal.tipo) && !temTelaOperacaoCampo(modal.rede, modal.tipo) && (
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
                 <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Datas da obra</div>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
