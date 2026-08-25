@@ -1342,8 +1342,9 @@ const EMAIL_CC_CORRECAO_PEDIDO = 'rayan.miranda@servicosintegradostecban.com.br'
 // Script) - assim o segredo do webhook nunca fica exposto no código do navegador (Shirley/Claude,
 // 2026-08-25). A Edge Function confere a sessão de quem chama antes de repassar o pedido.
 const EDGE_FUNCTION_TECBAN_URL = 'https://chlccnbyntjrbxptrmgf.supabase.co/functions/v1/enviar-email-tecban'
-// Fase de teste - só quem está nessa lista vê o botão de enviar (Shirley, 2026-08-18).
-const EMAILS_ENVIO_RELATORIO = ['shirley@grupopg.com.br', 'fabioesteves@grupopg.com.br']
+// Fase de teste - só quem está nessa lista vê o botão de enviar (Shirley, 2026-08-18; lista
+// ampliada em 2026-08-25 pra incluir toda a equipe de escritório que confere pedido).
+const EMAILS_ENVIO_RELATORIO = ['shirley@grupopg.com.br', 'fabioesteves@grupopg.com.br', 'daniela.ferreira@grupopg.com.br', 'glauce@grupopg.com.br', 'carol.carvalho@grupopg.com.br', 'bruna@grupopg.com.br', 'anderson@grupopg.com.br']
 // Totalizadores de valor (R$) no topo do dashboard restritos a essas 3 pessoas (Shirley,
 // 2026-08-18) - mais restrito que podeVerValores, que continua valendo pras outras telas
 // (Disponível pra Faturar, Histórico, Despesas, valor por obra).
@@ -3165,7 +3166,8 @@ export default function App() {
   }
 
   // Lista as divergencias da conferencia do pedido (mesma logica usada no bloco de bate/nao bate) -
-  // usada pra montar o corpo do e-mail de solicitacao de correcao (Shirley, 2026-08-20).
+  // usada pra montar o corpo do e-mail de solicitacao de correcao (Shirley, 2026-08-20; modelo de
+  // texto com par "correto vs pedido" + diferenca ajustado em 2026-08-25).
   function divergenciasPedido() {
     const valorObra = parseFloat(String(editDados.valor).replace(',', '.')) || 0
     const valorPedido = parseFloat(String(editDados.pedido_valor).replace(',', '.')) || 0
@@ -3174,10 +3176,18 @@ export default function App() {
     const ufObra = editDados.uf.trim().toUpperCase()
     const cnpjEsperado = cnpjEsperadoParaUF(ufObra)
     const cnpjBate = !!editDados.pedido_cnpj && editDados.pedido_cnpj === cnpjEsperado
+    const fmtRS = v => v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
     const problemas = []
-    if (editDados.pedido_valor !== '' && !valorBate) problemas.push(`Valor do pedido (R$ ${valorPedido.toFixed(2)}) diferente do valor cadastrado (R$ ${valorObra.toFixed(2)})`)
-    if (editDados.pedido_os.trim() && !osBate) problemas.push(`OS do pedido ("${editDados.pedido_os}") diferente da OS cadastrada ("${editDados.os_tecban}")`)
-    if (editDados.pedido_cnpj && !cnpjBate) problemas.push(`CNPJ do pedido está incorreto para o estado ${ufObra || '?'} — veio ${editDados.pedido_cnpj}, deveria ser ${cnpjEsperado}`)
+    if (editDados.pedido_valor !== '' && !valorBate) {
+      const diferenca = valorPedido - valorObra
+      problemas.push(`Valor correto: R$ ${fmtRS(valorObra)} | Valor no pedido: R$ ${fmtRS(valorPedido)} | Diferença: R$ ${fmtRS(Math.abs(diferenca))} (pedido veio ${diferenca > 0 ? 'a maior' : 'a menor'})`)
+    }
+    if (editDados.pedido_os.trim() && !osBate) {
+      problemas.push(`OS correta: ${editDados.os_tecban} | OS no pedido: ${editDados.pedido_os}`)
+    }
+    if (editDados.pedido_cnpj && !cnpjBate) {
+      problemas.push(`CNPJ do Fornecedor correto: ${cnpjEsperado} | CNPJ do Fornecedor no pedido: ${editDados.pedido_cnpj}`)
+    }
     return problemas
   }
 
@@ -3191,7 +3201,8 @@ export default function App() {
     if (!modal) return ''
     const problemas = divergenciasPedido()
     const pcTexto = editDados.numero_pc ? ` (PC ${editDados.numero_pc})` : ''
-    return `Prezados,\n\nIdentificamos uma divergência no pedido ${editDados.pedido || '(sem número)'} referente à OS ${editDados.os_tecban || '(sem OS)'} - ${modal.nome}${pcTexto}:\n\n${problemas.map(p => `- ${p}`).join('\n')}\n\nSolicitamos a correção do pedido para que possamos seguir com o faturamento.\n\nAtenciosamente,\nGrupo PG`
+    const tomadorTexto = editDados.pedido_tecban_cnpj ? `\nCNPJ do Tomador no pedido: ${editDados.pedido_tecban_cnpj}` : ''
+    return `Prezados,\n\nRecebemos o pedido número ${editDados.pedido || '(sem número)'} referente à OS ${editDados.os_tecban || '(sem OS)'} - ${modal.nome}${pcTexto}, com as seguintes divergências:\n\n${problemas.map(p => `- ${p}`).join('\n')}${tomadorTexto}\n\nSolicitamos a correção do pedido para que possamos seguir com o faturamento.\n\nAtenciosamente,\nGrupo PG`
   }
 
   async function enviarCorrecaoPedidoTecban() {
