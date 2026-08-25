@@ -243,6 +243,38 @@ function conferePedidoObra(obra) {
   return { temValor, temOs, temCnpj, temConferencia, valorBate, osBate, cnpjBate, completo, precisaCorrecao }
 }
 
+// Agrupa obras 100% conferidas por CNPJ fornecedor (Grupo PG, pela UF) + CNPJ tomador (Tecban,
+// vindo do pedido) pra faturar várias de uma vez com uma única NF - máximo de 15 serviços por
+// grupo (Shirley, 2026-08-25); quando um par de CNPJs passa disso, quebra em mais de um grupo.
+const MAX_SERVICOS_POR_GRUPO_FATURAMENTO = 15
+function agruparParaFaturamento(obrasProntas) {
+  const porChave = {}
+  obrasProntas.forEach(o => {
+    const ufObra = uf(o.local).toUpperCase()
+    const cnpjFornecedor = cnpjEsperadoParaUF(ufObra)
+    const cnpjTomador = o.pedido_tecban_cnpj || ''
+    const chave = `${cnpjFornecedor}|${cnpjTomador}`
+    if (!porChave[chave]) porChave[chave] = []
+    porChave[chave].push(o)
+  })
+  const grupos = []
+  Object.entries(porChave).forEach(([chave, lista]) => {
+    const [cnpjFornecedor, cnpjTomador] = chave.split('|')
+    for (let i = 0; i < lista.length; i += MAX_SERVICOS_POR_GRUPO_FATURAMENTO) {
+      const fatia = lista.slice(i, i + MAX_SERVICOS_POR_GRUPO_FATURAMENTO)
+      grupos.push({
+        chave: `${chave}#${Math.floor(i / MAX_SERVICOS_POR_GRUPO_FATURAMENTO)}`,
+        cnpjFornecedor,
+        cnpjTomador,
+        nomeTecban: fatia[0].pedido_tecban_nome || '',
+        obras: fatia,
+        total: fatia.reduce((s, o) => s + (Number(o.valor) || 0), 0),
+      })
+    }
+  })
+  return grupos
+}
+
 function montaLocal(cidade, ufSigla) {
   const c = (cidade||'').trim(), u = (ufSigla||'').trim()
   if (c && u) return `${c}-${u}`
@@ -2197,6 +2229,7 @@ export default function App() {
   const [dataCadastroModal, setDataCadastroModal] = useState('')
   const [aba, setAba] = useState('pipeline')
   const [faturarDados, setFaturarDados] = useState({})
+  const [grupoFaturarDados, setGrupoFaturarDados] = useState({})
   const [filtroHistTipo, setFiltroHistTipo] = useState('')
   const [filtroHistRegiao, setFiltroHistRegiao] = useState('')
   const [filtroHistDe, setFiltroHistDe] = useState('')
@@ -3401,6 +3434,24 @@ export default function App() {
     }
   }
 
+  // Marca todas as obras de um grupo (mesmo CNPJ fornecedor+tomador) como faturadas de uma vez,
+  // com o mesmo número de NF e vencimento (Shirley, 2026-08-25).
+  async function marcarFaturadoGrupo(chaveGrupo, ids) {
+    const d = grupoFaturarDados[chaveGrupo] || {}
+    const campos = {
+      status: 'NF EMITIDO',
+      nf: d.nf || null,
+      vencimento: d.vencimento || null,
+      atualizado_em: new Date().toISOString(),
+      atualizado_por: usuario.email,
+    }
+    const { error } = await supabase.from('pipeline_obras').update(campos).in('id', ids)
+    if (!error) {
+      setObras(prev => prev.map(o => ids.includes(o.id) ? { ...o, ...campos } : o))
+      setGrupoFaturarDados(prev => { const n = {...prev}; delete n[chaveGrupo]; return n })
+    }
+  }
+
   async function removerLembrete(obraId, lembrete) {
     const obra = obras.find(o => o.id === obraId)
     const novaLista = (Array.isArray(obra?.lembretes) ? obra.lembretes : []).filter(l => !(l.etapa === lembrete.etapa && l.texto === lembrete.texto))
@@ -3942,90 +3993,180 @@ export default function App() {
                 {obrasFaturar.length} obra(s) · Total: R$ {totalFaturar.toLocaleString('pt-BR',{minimumFractionDigits:2})}
               </div>
               {(() => {
-                const ordenadas = [...obrasFaturar].sort((a, b) => {
-                  const ra = conferePedidoObra(a).precisaCorrecao ? 1 : 0
-                  const rb = conferePedidoObra(b).precisaCorrecao ? 1 : 0
-                  return ra - rb
-                })
-                const totalRevisao = ordenadas.filter(o => conferePedidoObra(o).precisaCorrecao).length
-                return ordenadas.map((o, i) => {
-                const conf = conferePedidoObra(o)
-                const precisaCorrecao = conf.precisaCorrecao
-                const inicioSecaoRevisao = precisaCorrecao && (i === 0 || !conferePedidoObra(ordenadas[i - 1]).precisaCorrecao)
-                const tc = TIPO_COR[o.tipo] || { bg:'#F1F5F9', text:'#475569' }
-                const sc = STATUS_COR[o.status] || { bg:'#F1F5F9', text:'#475569' }
+                const obrasCorrecao = obrasFaturar.filter(o => conferePedidoObra(o).precisaCorrecao)
+                const obrasProntas = obrasFaturar.filter(o => conferePedidoObra(o).completo)
+                const idsProntas = new Set(obrasProntas.map(o => o.id))
+                const obrasOutras = obrasFaturar.filter(o => !conferePedidoObra(o).precisaCorrecao && !idsProntas.has(o.id))
+                const grupos = agruparParaFaturamento(obrasProntas)
                 return (
-                  <React.Fragment key={o.id}>
-                  {inicioSecaoRevisao && (
-                    <div style={{ fontSize:11, color:'#9A3412', fontWeight:700, marginTop:16, marginBottom:10, padding:'8px 12px', background:'#FFF7ED', borderRadius:8, border:'1px solid #FED7AA' }}>
-                      ⚠ Precisa de correção antes de faturar ({totalRevisao})
-                    </div>
-                  )}
-                  <div style={{ background:'#fff', border: precisaCorrecao ? '1px solid #FED7AA' : '1px solid #D1FAE5', borderRadius:12, marginBottom:10, padding:'12px 14px' }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8, marginBottom:6 }}>
-                      <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', flex:1, lineHeight:1.4 }}>{o.nome}</div>
-                      <div style={{ fontSize:14, fontWeight:700, color:'#1A6B4A', whiteSpace:'nowrap' }}>{fmt(o.valor)}</div>
-                    </div>
-                    <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
-                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:tc.bg, color:tc.text }}>{o.tipo}</span>
-                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text }}>{o.status}</span>
-                      {o.local && <span style={{ fontSize:11, color:'#64748B' }}>{o.local}</span>}
-                    </div>
-                    <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:10, fontSize:11, color:'#475569' }}>
-                      {o.sige && <span>SIGE: <b>{o.sige}</b></span>}
-                      {o.pedido && <span>Pedido: <b>{o.pedido}</b></span>}
-                      {o.nf && <span>NF: <b>{o.nf}</b></span>}
-                    </div>
-                    {o.obs && <div style={{ fontSize:11, background:'#FFF9E6', borderLeft:'3px solid #F5A623', padding:'5px 8px', borderRadius:4, color:'#7A5A00', marginBottom:10 }}>📌 {o.obs}</div>}
-                    {precisaCorrecao && (
-                      <div style={{ fontSize:11, background:'#FFF7ED', borderLeft:'3px solid #EA580C', padding:'5px 8px', borderRadius:4, color:'#9A3412', marginBottom:10 }}>
-                        ⚠ Divergência no pedido:{conf.temValor && !conf.valorBate && ' valor'}{conf.temOs && !conf.osBate && ' · OS'}{conf.temCnpj && !conf.cnpjBate && ' · CNPJ'}
+                  <>
+                    {obrasCorrecao.length > 0 && (
+                      <div style={{ fontSize:11, color:'#9A3412', fontWeight:700, marginTop:6, marginBottom:10, padding:'8px 12px', background:'#FFF7ED', borderRadius:8, border:'1px solid #FED7AA' }}>
+                        ⚠ Precisa de correção antes de faturar ({obrasCorrecao.length})
                       </div>
                     )}
-                    <div style={{ background:'#F0F4F8', borderRadius:10, padding:10, marginBottom:10 }}>
-                      <div style={{ fontSize:11, color:'#2D3A8C', fontWeight:700, marginBottom:8 }}>Dados para faturamento</div>
-                      <div style={{ marginBottom:8 }}>
-                        <label style={{ fontSize:10, color:'#64748B', fontWeight:600, display:'block', marginBottom:3 }}>Valor (R$)</label>
-                        <input
-                          value={(faturarDados[o.id]||{}).valor !== undefined ? (faturarDados[o.id]||{}).valor : (o.valor||'')}
-                          onChange={e => setFaturarDados(prev => ({...prev, [o.id]: {...(prev[o.id]||{}), valor: e.target.value}}))}
-                          placeholder="0,00"
-                          style={{ width:'100%', padding:'8px 10px', border:'1.5px solid #BFDBFE', borderRadius:8, fontSize:14, fontWeight:700, color:'#1A6B4A', boxSizing:'border-box' }} />
-                      </div>
-                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                        <div>
-                          <label style={{ fontSize:10, color:'#64748B', fontWeight:600, display:'block', marginBottom:3 }}>Nº da NF *</label>
-                          <input value={(faturarDados[o.id]||{}).nf||''} onChange={e => setFaturarDados(prev => ({...prev, [o.id]: {...(prev[o.id]||{}), nf: e.target.value}}))}
-                            placeholder="Ex: 3185"
-                            style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                    {obrasCorrecao.map(o => {
+                      const conf = conferePedidoObra(o)
+                      const tc = TIPO_COR[o.tipo] || { bg:'#F1F5F9', text:'#475569' }
+                      const sc = STATUS_COR[o.status] || { bg:'#F1F5F9', text:'#475569' }
+                      return (
+                        <div key={o.id} style={{ background:'#fff', border:'1px solid #FED7AA', borderRadius:12, marginBottom:10, padding:'12px 14px' }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8, marginBottom:6 }}>
+                            <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', flex:1, lineHeight:1.4 }}>{o.nome}</div>
+                            <div style={{ fontSize:14, fontWeight:700, color:'#1A6B4A', whiteSpace:'nowrap' }}>{fmt(o.valor)}</div>
+                          </div>
+                          <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
+                            <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:tc.bg, color:tc.text }}>{o.tipo}</span>
+                            <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text }}>{o.status}</span>
+                            {o.local && <span style={{ fontSize:11, color:'#64748B' }}>{o.local}</span>}
+                          </div>
+                          <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:10, fontSize:11, color:'#475569' }}>
+                            {o.sige && <span>SIGE: <b>{o.sige}</b></span>}
+                            {o.pedido && <span>Pedido: <b>{o.pedido}</b></span>}
+                            {o.nf && <span>NF: <b>{o.nf}</b></span>}
+                          </div>
+                          {o.obs && <div style={{ fontSize:11, background:'#FFF9E6', borderLeft:'3px solid #F5A623', padding:'5px 8px', borderRadius:4, color:'#7A5A00', marginBottom:10 }}>📌 {o.obs}</div>}
+                          <div style={{ fontSize:11, background:'#FFF7ED', borderLeft:'3px solid #EA580C', padding:'5px 8px', borderRadius:4, color:'#9A3412', marginBottom:10 }}>
+                            ⚠ Divergência no pedido:{conf.temValor && !conf.valorBate && ' valor'}{conf.temOs && !conf.osBate && ' · OS'}{conf.temCnpj && !conf.cnpjBate && ' · CNPJ'}
+                          </div>
+                          <div style={{ display:'flex', gap:8 }}>
+                            <button onClick={async () => {
+                              const campos = { status:'RM ENVIADA', atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+                              const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', o.id)
+                              if (!error) setObras(prev => prev.map(ob => ob.id === o.id ? { ...ob, ...campos } : ob))
+                            }}
+                              style={{ flex:1, padding:'10px', background:'#fff', color:'#2D3A8C', border:'1.5px solid #2D3A8C', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer' }}>
+                              ↩ Devolver ao Pipeline
+                            </button>
+                            <button onClick={() => {
+                              setModal(o)
+                              setEditDados({ tipo: o.tipo||'', nome: o.nome||'', endereco: o.endereco||'', cidade: o.cidade||'', uf: o.uf||'', valor: o.valor!=null ? String(o.valor) : '', sige: o.sige||'', numero_pc: o.numero_pc||'', pedido: o.pedido||'', nf: o.nf||'', os_tecban: o.os_tecban||'', pedido_valor: o.pedido_valor!=null ? String(o.pedido_valor) : '', pedido_os: o.pedido_os||'', pedido_cnpj: o.pedido_cnpj||'', pedido_tecban_cnpj: o.pedido_tecban_cnpj||'', pedido_tecban_nome: o.pedido_tecban_nome||'' })
+                              setMostrarEnvioCorrecaoPedido(true)
+                            }}
+                              style={{ flex:1, padding:'10px', background:'#EA580C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer' }}>
+                              📧 Solicitar correção à Tecban
+                            </button>
+                          </div>
                         </div>
-                        <div>
-                          <label style={{ fontSize:10, color:'#64748B', fontWeight:600, display:'block', marginBottom:3 }}>Vencimento</label>
-                          <input type="date" value={(faturarDados[o.id]||{}).vencimento||''} onChange={e => setFaturarDados(prev => ({...prev, [o.id]: {...(prev[o.id]||{}), vencimento: e.target.value}}))}
-                            style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
-                        </div>
+                      )
+                    })}
+
+                    {grupos.length > 0 && (
+                      <div style={{ fontSize:11, color:'#1A6B4A', fontWeight:700, marginTop:16, marginBottom:10, padding:'8px 12px', background:'#D1FAE5', borderRadius:8 }}>
+                        ✓ Prontos pra faturar, agrupados por CNPJ ({grupos.length} grupo{grupos.length===1?'':'s'})
                       </div>
-                    </div>
-                    <div style={{ display:'flex', gap:8 }}>
-                      <button onClick={async () => {
-                        const campos = { status:'RM ENVIADA', atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
-                        const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', o.id)
-                        if (!error) setObras(prev => prev.map(ob => ob.id === o.id ? { ...ob, ...campos } : ob))
-                      }}
-                        style={{ flex:1, padding:'10px', background:'#fff', color:'#2D3A8C', border:'1.5px solid #2D3A8C', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer' }}>
-                        ↩ Devolver ao Pipeline
-                      </button>
-                      <button onClick={() => marcarFaturado(o.id)}
-                        disabled={!(faturarDados[o.id]||{}).nf}
-                        style={{ flex:1, padding:'10px', background: (faturarDados[o.id]||{}).nf ? '#1A6B4A' : '#ccc', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor: (faturarDados[o.id]||{}).nf ? 'pointer' : 'default' }}>
-                        ✓ Marcar como Faturado
-                      </button>
-                    </div>
-                  </div>
-                  </React.Fragment>
+                    )}
+                    {grupos.map(g => {
+                      const gd = grupoFaturarDados[g.chave] || {}
+                      return (
+                        <div key={g.chave} style={{ background:'#fff', border:'1px solid #D1FAE5', borderRadius:12, marginBottom:10, padding:'12px 14px' }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8, marginBottom:6 }}>
+                            <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', flex:1, lineHeight:1.4 }}>
+                              {g.nomeTecban || 'Tecban'} <span style={{ fontWeight:400, color:'#64748B' }}>· tomador {g.cnpjTomador || '(sem CNPJ)'}</span>
+                            </div>
+                            <div style={{ fontSize:14, fontWeight:700, color:'#1A6B4A', whiteSpace:'nowrap' }}>{fmt(g.total)}</div>
+                          </div>
+                          <div style={{ fontSize:11, color:'#475569', marginBottom:10 }}>
+                            Fornecedor (Grupo PG): <b>{g.cnpjFornecedor}</b> · {g.obras.length} serviço{g.obras.length===1?'':'s'} (máx. {MAX_SERVICOS_POR_GRUPO_FATURAMENTO}/grupo)
+                          </div>
+                          <div style={{ background:'#F8FAFC', borderRadius:8, padding:'6px 10px', marginBottom:10 }}>
+                            {g.obras.map(o => (
+                              <div key={o.id} style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#334155', padding:'3px 0' }}>
+                                <span>{o.nome}{o.pedido ? ` · Pedido ${o.pedido}` : ''}</span>
+                                <span style={{ fontWeight:600, whiteSpace:'nowrap', marginLeft:8 }}>{fmt(o.valor)}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ background:'#F0F4F8', borderRadius:10, padding:10, marginBottom:10 }}>
+                            <div style={{ fontSize:11, color:'#2D3A8C', fontWeight:700, marginBottom:8 }}>Dados para faturamento do grupo</div>
+                            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                              <div>
+                                <label style={{ fontSize:10, color:'#64748B', fontWeight:600, display:'block', marginBottom:3 }}>Nº da NF *</label>
+                                <input value={gd.nf||''} onChange={e => setGrupoFaturarDados(prev => ({...prev, [g.chave]: {...(prev[g.chave]||{}), nf: e.target.value}}))}
+                                  placeholder="Ex: 3185"
+                                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                              </div>
+                              <div>
+                                <label style={{ fontSize:10, color:'#64748B', fontWeight:600, display:'block', marginBottom:3 }}>Vencimento</label>
+                                <input type="date" value={gd.vencimento||''} onChange={e => setGrupoFaturarDados(prev => ({...prev, [g.chave]: {...(prev[g.chave]||{}), vencimento: e.target.value}}))}
+                                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                              </div>
+                            </div>
+                          </div>
+                          <button onClick={() => marcarFaturadoGrupo(g.chave, g.obras.map(o => o.id))}
+                            disabled={!gd.nf}
+                            style={{ width:'100%', padding:'10px', background: gd.nf ? '#1A6B4A' : '#ccc', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor: gd.nf ? 'pointer' : 'default' }}>
+                            ✓ Marcar grupo inteiro como Faturado ({g.obras.length})
+                          </button>
+                        </div>
+                      )
+                    })}
+
+                    {obrasOutras.map(o => {
+                      const tc = TIPO_COR[o.tipo] || { bg:'#F1F5F9', text:'#475569' }
+                      const sc = STATUS_COR[o.status] || { bg:'#F1F5F9', text:'#475569' }
+                      return (
+                        <div key={o.id} style={{ background:'#fff', border:'1px solid #D1FAE5', borderRadius:12, marginBottom:10, padding:'12px 14px' }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8, marginBottom:6 }}>
+                            <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', flex:1, lineHeight:1.4 }}>{o.nome}</div>
+                            <div style={{ fontSize:14, fontWeight:700, color:'#1A6B4A', whiteSpace:'nowrap' }}>{fmt(o.valor)}</div>
+                          </div>
+                          <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
+                            <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:tc.bg, color:tc.text }}>{o.tipo}</span>
+                            <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text }}>{o.status}</span>
+                            {o.local && <span style={{ fontSize:11, color:'#64748B' }}>{o.local}</span>}
+                          </div>
+                          <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:10, fontSize:11, color:'#475569' }}>
+                            {o.sige && <span>SIGE: <b>{o.sige}</b></span>}
+                            {o.pedido && <span>Pedido: <b>{o.pedido}</b></span>}
+                            {o.nf && <span>NF: <b>{o.nf}</b></span>}
+                          </div>
+                          {o.obs && <div style={{ fontSize:11, background:'#FFF9E6', borderLeft:'3px solid #F5A623', padding:'5px 8px', borderRadius:4, color:'#7A5A00', marginBottom:10 }}>📌 {o.obs}</div>}
+                          <div style={{ background:'#F0F4F8', borderRadius:10, padding:10, marginBottom:10 }}>
+                            <div style={{ fontSize:11, color:'#2D3A8C', fontWeight:700, marginBottom:8 }}>Dados para faturamento</div>
+                            <div style={{ marginBottom:8 }}>
+                              <label style={{ fontSize:10, color:'#64748B', fontWeight:600, display:'block', marginBottom:3 }}>Valor (R$)</label>
+                              <input
+                                value={(faturarDados[o.id]||{}).valor !== undefined ? (faturarDados[o.id]||{}).valor : (o.valor||'')}
+                                onChange={e => setFaturarDados(prev => ({...prev, [o.id]: {...(prev[o.id]||{}), valor: e.target.value}}))}
+                                placeholder="0,00"
+                                style={{ width:'100%', padding:'8px 10px', border:'1.5px solid #BFDBFE', borderRadius:8, fontSize:14, fontWeight:700, color:'#1A6B4A', boxSizing:'border-box' }} />
+                            </div>
+                            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                              <div>
+                                <label style={{ fontSize:10, color:'#64748B', fontWeight:600, display:'block', marginBottom:3 }}>Nº da NF *</label>
+                                <input value={(faturarDados[o.id]||{}).nf||''} onChange={e => setFaturarDados(prev => ({...prev, [o.id]: {...(prev[o.id]||{}), nf: e.target.value}}))}
+                                  placeholder="Ex: 3185"
+                                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                              </div>
+                              <div>
+                                <label style={{ fontSize:10, color:'#64748B', fontWeight:600, display:'block', marginBottom:3 }}>Vencimento</label>
+                                <input type="date" value={(faturarDados[o.id]||{}).vencimento||''} onChange={e => setFaturarDados(prev => ({...prev, [o.id]: {...(prev[o.id]||{}), vencimento: e.target.value}}))}
+                                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ display:'flex', gap:8 }}>
+                            <button onClick={async () => {
+                              const campos = { status:'RM ENVIADA', atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+                              const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', o.id)
+                              if (!error) setObras(prev => prev.map(ob => ob.id === o.id ? { ...ob, ...campos } : ob))
+                            }}
+                              style={{ flex:1, padding:'10px', background:'#fff', color:'#2D3A8C', border:'1.5px solid #2D3A8C', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer' }}>
+                              ↩ Devolver ao Pipeline
+                            </button>
+                            <button onClick={() => marcarFaturado(o.id)}
+                              disabled={!(faturarDados[o.id]||{}).nf}
+                              style={{ flex:1, padding:'10px', background: (faturarDados[o.id]||{}).nf ? '#1A6B4A' : '#ccc', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor: (faturarDados[o.id]||{}).nf ? 'pointer' : 'default' }}>
+                              ✓ Marcar como Faturado
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </>
                 )
-              })
-            })()}
+              })()}
             </>
           )}
         </div>
