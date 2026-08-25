@@ -1306,8 +1306,10 @@ const EMAIL_CC_OPERACAO_GRUPOPG = 'operacao@grupopg.com.br'
 // do relatório ao cliente acima, é o time de pagamentos/gestão de pedidos da Tecban.
 const EMAIL_CORRECAO_PEDIDO_TECBAN = 'gestaopagamentos2026@tecban.com.br'
 const EMAIL_CC_CORRECAO_PEDIDO = 'rayan.miranda@servicosintegradostecban.com.br'
-const APPS_SCRIPT_RELATORIO_URL = 'https://script.google.com/macros/s/AKfycbzxp855GA1oWW_p8tXOba7O7wtEuN7AO31rON7zAKAKrmmbpGDWiAINqIHDFRw0eQHyuw/exec'
-const APPS_SCRIPT_RELATORIO_SECRET = 'pg-tecban-report-2026-x7q2m9'
+// Envio de e-mail à Tecban passa por uma Edge Function no Supabase (não fala direto com o Apps
+// Script) - assim o segredo do webhook nunca fica exposto no código do navegador (Shirley/Claude,
+// 2026-08-25). A Edge Function confere a sessão de quem chama antes de repassar o pedido.
+const EDGE_FUNCTION_TECBAN_URL = 'https://chlccnbyntjrbxptrmgf.supabase.co/functions/v1/enviar-email-tecban'
 // Fase de teste - só quem está nessa lista vê o botão de enviar (Shirley, 2026-08-18).
 const EMAILS_ENVIO_RELATORIO = ['shirley@grupopg.com.br', 'fabioesteves@grupopg.com.br']
 // Totalizadores de valor (R$) no topo do dashboard restritos a essas 3 pessoas (Shirley,
@@ -3096,14 +3098,16 @@ export default function App() {
     try {
       const pdfBase64 = doc.output('datauristring').split(',')[1] || ''
       const assunto = montaAssuntoRelatorioTecban()
-      const resp = await fetch(APPS_SCRIPT_RELATORIO_URL, {
+      const { data: { session } } = await supabase.auth.getSession()
+      const resp = await fetch(EDGE_FUNCTION_TECBAN_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || ''}`,
+        },
         body: JSON.stringify({
-          secret: APPS_SCRIPT_RELATORIO_SECRET,
           to: EMAIL_RM_TECBAN,
           cc: EMAIL_CC_OPERACAO_GRUPOPG,
-          remetente: usuario?.email || '',
           subject: assunto,
           body: montaCorpoRelatorioTecban(),
           pdfBase64,
@@ -3161,14 +3165,16 @@ export default function App() {
     setEnviandoCorrecaoPedido(true)
     setErroEnvioCorrecaoPedido('')
     try {
-      const resp = await fetch(APPS_SCRIPT_RELATORIO_URL, {
+      const { data: { session } } = await supabase.auth.getSession()
+      const resp = await fetch(EDGE_FUNCTION_TECBAN_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || ''}`,
+        },
         body: JSON.stringify({
-          secret: APPS_SCRIPT_RELATORIO_SECRET,
           to: EMAIL_CORRECAO_PEDIDO_TECBAN,
           cc: EMAIL_CC_CORRECAO_PEDIDO,
-          remetente: usuario?.email || '',
           subject: montaAssuntoCorrecaoPedido(),
           body: montaCorpoCorrecaoPedido(),
         }),
