@@ -224,6 +224,12 @@ function cnpjEsperadoParaUF(ufSigla) {
   if (ufSigla === 'MG') return CNPJS_GRUPOPG.MG
   return CNPJS_GRUPOPG.SP
 }
+// Caminho inverso do de cima - a partir do CNPJ fornecedor de um grupo de faturamento, descobre de
+// qual estado é (pra mostrar na linha resumida do grupo, Shirley 2026-08-26).
+function ufDoCnpjFornecedor(cnpj) {
+  const par = Object.entries(CNPJS_GRUPOPG).find(([, c]) => c === cnpj)
+  return par ? par[0] : ''
+}
 
 // Conferência do pedido a partir dos campos já salvos na obra (não dos campos do formulário
 // em edição) - usada pra decidir se uma obra "disponível pra faturar" está 100% conferida
@@ -4128,15 +4134,21 @@ export default function App() {
                     )}
                     {grupos.map(g => {
                       const gd = grupoFaturarDados[g.chave] || {}
+                      const ufGrupo = ufDoCnpjFornecedor(g.cnpjFornecedor)
                       return (
-                        <div key={g.chave} style={{ background:'#fff', border:'1px solid #D1FAE5', borderRadius:12, marginBottom:10, padding:'12px 14px' }}>
-                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8, marginBottom:6 }}>
-                            <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', flex:1, lineHeight:1.4 }}>
-                              {g.nomeTecban || 'Tecban'} <span style={{ fontWeight:400, color:'#64748B' }}>· tomador {g.cnpjTomador || '(sem CNPJ)'}</span>
+                        <div key={g.chave} style={{ background:'#fff', border:'1px solid #D1FAE5', borderRadius:12, marginBottom:10, overflow:'hidden' }}>
+                          <div onClick={() => setGrupoFaturarDados(prev => ({...prev, [g.chave]: {...(prev[g.chave]||{}), expandido: !gd.expandido}}))}
+                            style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, padding:'12px 14px', cursor:'pointer', background: gd.expandido ? '#F0FDF4' : '#fff' }}>
+                            <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', flex:1, lineHeight:1.4, minWidth:0 }}>
+                              {ufGrupo ? `${ufGrupo} – ` : ''}{g.nomeTecban || 'Tecban'} <span style={{ fontWeight:400, color:'#64748B' }}>· tomador {g.cnpjTomador || '(sem CNPJ)'}</span>
                             </div>
+                            <div style={{ fontSize:11, color:'#64748B', fontWeight:700, whiteSpace:'nowrap' }}>QTD {g.obras.length}</div>
                             <div style={{ fontSize:14, fontWeight:700, color:'#1A6B4A', whiteSpace:'nowrap' }}>{fmt(g.total)}</div>
+                            <span style={{ fontSize:12, color:'#64748B', transform: gd.expandido ? 'rotate(180deg)' : 'none', display:'inline-block' }}>▼</span>
                           </div>
-                          <div style={{ fontSize:11, color:'#475569', marginBottom:10 }}>
+                          {gd.expandido && (
+                          <div style={{ padding:'0 14px 14px', borderTop:'1px solid #F0F4F8' }}>
+                          <div style={{ fontSize:11, color:'#475569', margin:'10px 0' }}>
                             Fornecedor (Grupo PG): <b>{g.cnpjFornecedor}</b> · {g.obras.length} serviço{g.obras.length===1?'':'s'} (máx. {MAX_SERVICOS_POR_GRUPO_FATURAMENTO}/grupo)
                           </div>
                           <div style={{ background:'#F8FAFC', borderRadius:8, padding:'6px 10px', marginBottom:10 }}>
@@ -4193,6 +4205,8 @@ export default function App() {
                             style={{ width:'100%', padding:'10px', background: gd.nf ? '#1A6B4A' : '#ccc', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor: gd.nf ? 'pointer' : 'default' }}>
                             ✓ Marcar grupo inteiro como Faturado ({g.obras.length})
                           </button>
+                          </div>
+                          )}
                         </div>
                       )
                     })}
