@@ -6081,9 +6081,9 @@ export default function App() {
             {temTelaOperacaoCampo(modal.rede, modal.tipo) && (
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
               <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>
-                {REDES_SEM_ARS.includes(modal.rede) ? '📑 Contato e agendamento' : '📑 Consulta ARS e agendamento'}
+                {REDES_SEM_ARS.includes(modal.rede) || modal.tipo === 'SINALIZAÇÃO ATM' ? '📑 Contato e agendamento' : '📑 Consulta ARS e agendamento'}
               </div>
-              {!REDES_SEM_ARS.includes(modal.rede) && (
+              {!REDES_SEM_ARS.includes(modal.rede) && modal.tipo !== 'SINALIZAÇÃO ATM' && (
               <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginBottom:10 }}>
                 <input type="checkbox" checked={arsVerificado} onChange={e => setArsVerificado(e.target.checked)} />
                 <span style={{ fontSize:13, color:'#1A2340', fontWeight:600 }}>Entrou no ARS e conferiu as informações</span>
@@ -6112,7 +6112,7 @@ export default function App() {
                 </div>
                 <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>A OS da Tecban sugere uma data/hora, mas o que vale aqui é a data confirmada com o cliente final (EC) — não usar a data do relatório SIGE.</div>
               </div>
-              {modal.tipo !== 'DESATIVAÇÃO ATM' && !REDES_SEM_ARS.includes(modal.rede) && (
+              {modal.tipo !== 'DESATIVAÇÃO ATM' && modal.tipo !== 'SINALIZAÇÃO ATM' && !REDES_SEM_ARS.includes(modal.rede) && (
               <>
               <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:6 }}>Critérios de segurança — o que o ARS indica x o que foi realizado em campo</div>
               <div style={{ marginBottom:12, overflowX:'auto' }}>
