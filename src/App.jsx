@@ -1244,7 +1244,10 @@ const ETAPAS_BDN_BRADESCO = ['OS ABERTA', 'VISTORIA', 'AGENDAMENTO', 'OPERAÇÃO
 const TIPOS_BDN = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM', 'REMANEJAMENTO ATM', 'SINALIZAÇÃO ATM', 'MANUTENÇÃO ATM', 'PINTURA ATM']
 // Instalação, Desativação, Substituição (troca) e Remanejamento de Banco24Horas não têm fase de
 // vistoria no processo real (Shirley, 2026-08-13) - diferente de Bradesco, que tem vistoria própria.
-const SEM_VISTORIA_BANCO24H = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM', 'REMANEJAMENTO ATM']
+// Sinalização também não tem vistoria (Shirley, 2026-08-26) - entrou na lista pra sumir o campo
+// "Data da vistoria" e, no lugar, ganhar a tela de "Data e hora de início da obra" (data da
+// operação), igual as demais desse grupo.
+const SEM_VISTORIA_BANCO24H = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM', 'REMANEJAMENTO ATM', 'SINALIZAÇÃO ATM']
 // Tela "Consulta ARS e agendamento" + "Dia da obra - visitas de campo" (ARS, EC, registros de
 // atividade) estendida de Banco24Horas pra AgiBank/Crefisa também (Shirley, 2026-08-19) - essas redes
 // SEGUEM tendo vistoria própria (diferente de Banco24Horas), então SEM_VISTORIA_BANCO24H continua
@@ -1342,16 +1345,20 @@ const ATIVIDADES_OPERACAO_CAMPO_DESATIVACAO_OBRIGATORIAS = ['Remoção de ATM', 
 // Bradesco (BDN) tem "o que foi feito" próprio - abertura de cofre e remoção/instalação do BDN, com
 // troca de fechadura quando coincide com a TRANSF UN da mesma agência (Shirley, 2026-08-20).
 const ATIVIDADES_OPERACAO_CAMPO_BRADESCO_OBRIGATORIAS = ['Abertura de cofre', 'Remoção/Instalação de BDN']
+// Sinalização pode ser instalação OU remoção da placa/sinalização em si (Shirley, 2026-08-26) -
+// nenhuma obrigatória (não trava relatório), mas com "o que foi feito" próprio, igual Desativação.
+const ATIVIDADES_OPERACAO_CAMPO_SINALIZACAO = ['Instalação da sinalização', 'Remoção da sinalização']
 function atividadesOperacaoCampoObrigatorias(rede, tipo) {
   if (tipo === 'TRANSF UN' || tipo === 'MANUTENÇÃO ATM' || tipo === 'SINALIZAÇÃO ATM' || tipo === 'PINTURA ATM') return []
   if (rede === 'BRADESCO') return ATIVIDADES_OPERACAO_CAMPO_BRADESCO_OBRIGATORIAS
   return tipo === 'DESATIVAÇÃO ATM' ? ATIVIDADES_OPERACAO_CAMPO_DESATIVACAO_OBRIGATORIAS : ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS
 }
 function atividadesOperacaoCampo(rede, tipo) {
-  // TRANSF UN, Manutenção ATM, Sinalização ATM e Pintura ATM: só "Outros" (visita avulsa, descrita
-  // em texto livre) - Shirley, 2026-08-20 (TRANSF UN), 2026-08-25 (demais), sem lista fechada de
-  // motivo ainda (mesmo padrão de deixar crescer com o tempo).
-  if (tipo === 'TRANSF UN' || tipo === 'MANUTENÇÃO ATM' || tipo === 'SINALIZAÇÃO ATM' || tipo === 'PINTURA ATM') return ['Outros']
+  // TRANSF UN, Manutenção ATM e Pintura ATM: só "Outros" (visita avulsa, descrita em texto livre) -
+  // Shirley, 2026-08-20 (TRANSF UN), 2026-08-25 (demais), sem lista fechada de motivo ainda (mesmo
+  // padrão de deixar crescer com o tempo). Sinalização ganhou lista própria em 2026-08-26 (ver acima).
+  if (tipo === 'SINALIZAÇÃO ATM') return [...ATIVIDADES_OPERACAO_CAMPO_SINALIZACAO, 'Outros']
+  if (tipo === 'TRANSF UN' || tipo === 'MANUTENÇÃO ATM' || tipo === 'PINTURA ATM') return ['Outros']
   if (rede === 'BRADESCO') return [...ATIVIDADES_OPERACAO_CAMPO_BRADESCO_OBRIGATORIAS, 'Troca de fechadura', 'Vistoria', 'Outros']
   return tipo === 'DESATIVAÇÃO ATM'
     ? [...ATIVIDADES_OPERACAO_CAMPO_DESATIVACAO_OBRIGATORIAS, 'Outros']
@@ -1360,6 +1367,9 @@ function atividadesOperacaoCampo(rede, tipo) {
 // Motivos de impedimento pra Base já definidos (Shirley, 2026-08-13). Motivos das outras atividades
 // ainda não foram levantados - usar texto livre até ela trazer a lista fechada.
 const MOTIVOS_IMPEDIMENTO_BASE = ['Não autorizado o tipo de fixação', 'Local incompatível — laje', 'Local incompatível — interfere elétrica ou hidráulica', 'Piso em concreto armado usinado']
+// Motivo de impedimento da Sinalização (Shirley, 2026-08-26) - indica se a atividade precisou de
+// demolição/reconstituição de piso, em vez de ocorrer conforme previsto (sem isso).
+const MOTIVOS_IMPEDIMENTO_SINALIZACAO = ['Demolição e reconstituição de piso', 'Outro']
 // Motivos de impedimento do Bradesco (BDN) - lista fechada pra qualquer atividade dessa rede, ao
 // contrário de Base (só se aplica àquela atividade específica) - Shirley, 2026-08-20.
 const MOTIVOS_IMPEDIMENTO_BRADESCO = ['Sem senha do cofre (Taurus/robô)', 'Atraso de transporte', 'Outro']
@@ -2219,6 +2229,7 @@ export default function App() {
   const [agendamentoData, setAgendamentoData] = useState('')
   const [registrosOperacaoCampo, setRegistrosOperacaoCampo] = useState([])
   const [novoRegistroData, setNovoRegistroData] = useState('')
+  const [novoRegistroHora, setNovoRegistroHora] = useState('')
   const [novoRegistroEquipe, setNovoRegistroEquipe] = useState([])
   const [novoRegistroTerceirizado, setNovoRegistroTerceirizado] = useState(false)
   const [novoRegistroTerceirizadoTexto, setNovoRegistroTerceirizadoTexto] = useState('')
@@ -3442,6 +3453,7 @@ export default function App() {
     setAgendamentoData('')
     setRegistrosOperacaoCampo([])
     setNovoRegistroData('')
+    setNovoRegistroHora('')
     setNovoRegistroEquipe([])
     setNovoRegistroTerceirizado(false)
     setNovoRegistroTerceirizadoTexto('')
@@ -5527,6 +5539,7 @@ export default function App() {
                         setAgendamentoData(obra.agendamento_data || '')
                         setRegistrosOperacaoCampo(Array.isArray(obra.registros_operacao_campo) ? obra.registros_operacao_campo : [])
                         setNovoRegistroData('')
+                        setNovoRegistroHora('')
                         setNovoRegistroEquipe([])
                         setNovoRegistroTerceirizado(false)
                         setNovoRegistroTerceirizadoTexto('')
@@ -6154,11 +6167,12 @@ export default function App() {
                   {registrosOperacaoCampo.map((r, idx) => (
                     <div key={idx} style={{ background:'#fff', border:'1px solid #CDD8E3', borderRadius:8, padding:10 }}>
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                        <div style={{ fontSize:12, fontWeight:600, color:'#1A2340' }}>{r.data ? isoToBr(r.data) : '(sem data)'} — {(r.equipe||[]).join(', ') || '—'}</div>
+                        <div style={{ fontSize:12, fontWeight:600, color:'#1A2340' }}>{r.data ? isoToBr(r.data) : '(sem data)'}{r.hora ? ` ${r.hora}` : ''} — {(r.equipe||[]).join(', ') || '—'}</div>
                         <div style={{ display:'flex', gap:10 }}>
                           <span onClick={() => {
                             setEditandoVisitaIdx(idx)
                             setNovoRegistroData(r.data || '')
+                            setNovoRegistroHora(r.hora || '')
                             setNovoRegistroEquipe((r.equipe || []).filter(e => !e.startsWith(TERCEIRIZADO_PREFIXO)))
                             const terceirizadoNome = (r.equipe || []).find(e => e.startsWith(TERCEIRIZADO_PREFIXO))
                             setNovoRegistroTerceirizado(!!terceirizadoNome)
@@ -6200,6 +6214,7 @@ export default function App() {
                     <span onClick={() => {
                       setEditandoVisitaIdx(null)
                       setNovoRegistroData('')
+                      setNovoRegistroHora('')
                       setNovoRegistroEquipe([])
                       setNovoRegistroTerceirizado(false)
                       setNovoRegistroTerceirizadoTexto('')
@@ -6207,12 +6222,19 @@ export default function App() {
                     }} style={{ fontSize:11, color:'#64748B', cursor:'pointer', fontWeight:600 }}>Cancelar edição</span>
                   )}
                 </div>
-                <div style={{ marginBottom:8 }}>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data</label>
-                  <input type="date" value={novoRegistroData || (paraIsoDataObraTexto(dataInicioObraTexto) || '')} onChange={e => setNovoRegistroData(e.target.value)}
-                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
-                  <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Preenchido a partir da data de início da obra confirmada — ajuste se essa visita for em outro dia.</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
+                  <div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data</label>
+                    <input type="date" value={novoRegistroData || (paraIsoDataObraTexto(dataInicioObraTexto) || '')} onChange={e => setNovoRegistroData(e.target.value)}
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Hora</label>
+                    <input type="time" value={novoRegistroHora} onChange={e => setNovoRegistroHora(e.target.value)}
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
                 </div>
+                <div style={{ fontSize:10, color:'#64748B', marginTop:-4, marginBottom:8 }}>Data preenchida a partir da data de início da obra confirmada — ajuste se essa visita for em outro dia. Hora é opcional.</div>
                 <SeletorEquipe titulo="Quem foi na obra" selecionados={novoRegistroEquipe} onChangeSelecionados={setNovoRegistroEquipe}
                   terceirizado={novoRegistroTerceirizado} onChangeTerceirizado={setNovoRegistroTerceirizado}
                   terceirizadoTexto={novoRegistroTerceirizadoTexto} onChangeTerceirizadoTexto={setNovoRegistroTerceirizadoTexto} />
@@ -6262,6 +6284,12 @@ export default function App() {
                                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
                                   <option value="">Selecione o motivo...</option>
                                   {MOTIVOS_IMPEDIMENTO_BRADESCO.map(m => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                              ) : modal.tipo === 'SINALIZAÇÃO ATM' ? (
+                                <select value={dados.motivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], motivo: e.target.value } }))}
+                                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
+                                  <option value="">Selecione o motivo...</option>
+                                  {MOTIVOS_IMPEDIMENTO_SINALIZACAO.map(m => <option key={m} value={m}>{m}</option>)}
                                 </select>
                               ) : (
                                 <input value={dados.motivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], motivo: up(e.target.value) } }))}
@@ -6341,6 +6369,7 @@ export default function App() {
                   function limparFormularioVisita() {
                     setEditandoVisitaIdx(null)
                     setNovoRegistroData('')
+                    setNovoRegistroHora('')
                     setNovoRegistroEquipe([])
                     setNovoRegistroTerceirizado(false)
                     setNovoRegistroTerceirizadoTexto('')
@@ -6358,7 +6387,7 @@ export default function App() {
                         } : {}),
                       }))
                       const equipe = [...novoRegistroEquipe, ...(novoRegistroTerceirizado ? [TERCEIRIZADO_PREFIXO + (novoRegistroTerceirizadoTexto.trim() || '(não informado)')] : [])]
-                      const registro = { data: dataVisita || null, equipe, atividades }
+                      const registro = { data: dataVisita || null, hora: novoRegistroHora || null, equipe, atividades }
                       if (editandoVisitaIdx !== null) {
                         setRegistrosOperacaoCampo(prev => prev.map((r, i) => i === editandoVisitaIdx ? registro : r))
                       } else {
