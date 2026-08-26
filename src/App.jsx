@@ -273,6 +273,7 @@ function agruparParaFaturamento(obrasProntas) {
         cnpjFornecedor,
         cnpjTomador,
         nomeTecban: fatia[0].pedido_tecban_nome || '',
+        enderecoTomador: fatia[0].pedido_tecban_endereco || '',
         obras: fatia,
         total: fatia.reduce((s, o) => s + (Number(o.valor) || 0), 0),
       })
@@ -282,15 +283,18 @@ function agruparParaFaturamento(obrasProntas) {
 }
 
 // Texto pronto pra colar no corpo da NF no site da prefeitura (Shirley, 2026-08-26) - sem endereço
-// da obra: o endereço do tomador usado ali é sempre o endereço "padrão" da unidade, não o da obra,
-// então o texto só lista pedido + valor de cada serviço do grupo, mais o INSS (sempre 11% sobre o
-// valor total da NF) e o vencimento já preenchido no campo do grupo.
+// da obra: o endereço do tomador usado ali é sempre o endereço "padrão" da unidade (o mesmo que sai
+// impresso no pedido, em "Dados para Faturamento"), não o endereço físico da obra - por isso vem do
+// campo pedido_tecban_endereco (capturado na conferência do pedido), não da obra em si. Todas as
+// obras de um grupo compartilham o mesmo CNPJ tomador, então o endereço também é o mesmo pro grupo
+// inteiro - usa o do primeiro serviço da lista.
 function montaTextoNF(g, vencimentoIso) {
+  const endereco = g.enderecoTomador || '(endereço do tomador não informado na conferência do pedido)'
   const pedidos = g.obras.map(o => o.pedido || '(sem pedido)').join(', ')
   const valores = g.obras.map(o => `${fmt(o.valor)} ${o.pedido || o.nome}`).join('\n')
   const inss = g.total * 0.11
   const vencimentoTexto = vencimentoIso ? isoToBr(vencimentoIso) : '(preencher vencimento)'
-  return `PEDIDOS: ${pedidos}\nVALORES:\n${valores}\nINSS - RETER 11% COM BASE NO VALOR TOTAL DA NF: ${fmt(inss)}\nVENCIMENTO ${vencimentoTexto}`
+  return `ENDEREÇO DO TOMADOR: ${endereco}\nPEDIDOS: ${pedidos}\nVALORES:\n${valores}\nINSS - RETER 11% COM BASE NO VALOR TOTAL DA NF: ${fmt(inss)}\nVENCIMENTO ${vencimentoTexto}`
 }
 
 function montaLocal(cidade, ufSigla) {
@@ -2220,7 +2224,7 @@ export default function App() {
   const [entregaveisVistoria, setEntregaveisVistoria] = useState([])
   const [novoLembreteEtapa, setNovoLembreteEtapa] = useState('')
   const [novoLembreteTexto, setNovoLembreteTexto] = useState('')
-  const [editDados, setEditDados] = useState({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'', pedido_tecban_cnpj:'', pedido_tecban_nome:'' })
+  const [editDados, setEditDados] = useState({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'', pedido_tecban_cnpj:'', pedido_tecban_nome:'', pedido_tecban_endereco:'' })
   const [adesivos, setAdesivos] = useState([])
   const [vidros, setVidros] = useState([])
   const [novoVidro, setNovoVidro] = useState('')
@@ -3363,6 +3367,7 @@ export default function App() {
       pedido_cnpj: editDados.pedido_cnpj || null,
       pedido_tecban_cnpj: editDados.pedido_tecban_cnpj || null,
       pedido_tecban_nome: editDados.pedido_tecban_nome || null,
+      pedido_tecban_endereco: editDados.pedido_tecban_endereco || null,
     }
     const listaVistoria = [...colabsVistoria, ...(terceirizadoVistoria ? [TERCEIRIZADO_PREFIXO + (terceirizadoVistoriaTexto.trim() || '(não informado)')] : [])]
     if (modal.tipo === 'TRANSF UN') {
@@ -3451,7 +3456,7 @@ export default function App() {
     setItensEspeciais([])
     setBiomboFila('')
     setPortaGiratoria('')
-    setEditDados({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'', pedido_tecban_cnpj:'', pedido_tecban_nome:'' })
+    setEditDados({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'', pedido_tecban_cnpj:'', pedido_tecban_nome:'', pedido_tecban_endereco:'' })
     setDataCadastroModal('')
     setDataVistoria('')
     setColabsVistoria([])
@@ -4116,7 +4121,7 @@ export default function App() {
                             </button>
                             <button onClick={() => {
                               setModal(o)
-                              setEditDados({ tipo: o.tipo||'', nome: o.nome||'', endereco: o.endereco||'', cidade: o.cidade||'', uf: o.uf||'', valor: o.valor!=null ? String(o.valor) : '', sige: o.sige||'', numero_pc: o.numero_pc||'', pedido: o.pedido||'', nf: o.nf||'', os_tecban: o.os_tecban||'', pedido_valor: o.pedido_valor!=null ? String(o.pedido_valor) : '', pedido_os: o.pedido_os||'', pedido_cnpj: o.pedido_cnpj||'', pedido_tecban_cnpj: o.pedido_tecban_cnpj||'', pedido_tecban_nome: o.pedido_tecban_nome||'' })
+                              setEditDados({ tipo: o.tipo||'', nome: o.nome||'', endereco: o.endereco||'', cidade: o.cidade||'', uf: o.uf||'', valor: o.valor!=null ? String(o.valor) : '', sige: o.sige||'', numero_pc: o.numero_pc||'', pedido: o.pedido||'', nf: o.nf||'', os_tecban: o.os_tecban||'', pedido_valor: o.pedido_valor!=null ? String(o.pedido_valor) : '', pedido_os: o.pedido_os||'', pedido_cnpj: o.pedido_cnpj||'', pedido_tecban_cnpj: o.pedido_tecban_cnpj||'', pedido_tecban_nome: o.pedido_tecban_nome||'', pedido_tecban_endereco: o.pedido_tecban_endereco||'' })
                               setMostrarEnvioCorrecaoPedido(true)
                             }}
                               style={{ flex:1, padding:'10px', background:'#EA580C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer' }}>
@@ -5569,7 +5574,7 @@ export default function App() {
                         setItensEspeciais(Array.isArray(obra.itens_especiais) ? obra.itens_especiais : [])
                         setBiomboFila(obra.biombo_fila != null ? String(obra.biombo_fila) : '')
                         setPortaGiratoria(obra.porta_giratoria != null ? String(obra.porta_giratoria) : '')
-                        setEditDados({ tipo: obra.tipo||'', nome: obra.nome||'', endereco: obra.endereco||'', cidade: obra.cidade||'', uf: obra.uf||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', numero_pc: obra.numero_pc||'', pedido: obra.pedido||'', nf: obra.nf||'', os_tecban: obra.os_tecban||'', pedido_valor: obra.pedido_valor!=null ? String(obra.pedido_valor) : '', pedido_os: obra.pedido_os||'', pedido_cnpj: obra.pedido_cnpj||'', pedido_tecban_cnpj: obra.pedido_tecban_cnpj||'', pedido_tecban_nome: obra.pedido_tecban_nome||'' })
+                        setEditDados({ tipo: obra.tipo||'', nome: obra.nome||'', endereco: obra.endereco||'', cidade: obra.cidade||'', uf: obra.uf||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', numero_pc: obra.numero_pc||'', pedido: obra.pedido||'', nf: obra.nf||'', os_tecban: obra.os_tecban||'', pedido_valor: obra.pedido_valor!=null ? String(obra.pedido_valor) : '', pedido_os: obra.pedido_os||'', pedido_cnpj: obra.pedido_cnpj||'', pedido_tecban_cnpj: obra.pedido_tecban_cnpj||'', pedido_tecban_nome: obra.pedido_tecban_nome||'', pedido_tecban_endereco: obra.pedido_tecban_endereco||'' })
                         setDataCadastroModal(obra.data_cadastro || '')
                         setDataVistoria(obra.data_vistoria || '')
                         const listaVistoria = Array.isArray(obra.colaboradores_vistoria) ? obra.colaboradores_vistoria : []
@@ -6047,7 +6052,13 @@ export default function App() {
                       style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                   </div>
                 </div>
-                <div style={{ fontSize:10, color:'#64748B', marginTop:-6, marginBottom:10 }}>Dado informativo pro faturamento (Aline) — não entra na conferência de bate/não bate.</div>
+                <div style={{ marginBottom:10 }}>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Endereço do tomador no pedido ("Dados para Faturamento")</label>
+                  <input value={editDados.pedido_tecban_endereco} onChange={e => setEditDados(d => ({...d, pedido_tecban_endereco:up(e.target.value)}))}
+                    placeholder="Ex: AV PROFESSOR JOAO FIUSA 1901 - JD BOTANICO - RIBEIRAO PRETO - SP - CEP: 14024-250"
+                    style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+                <div style={{ fontSize:10, color:'#64748B', marginTop:-6, marginBottom:10 }}>Dado informativo pro faturamento (Aline) — não entra na conferência de bate/não bate. O endereço é o "padrão" da unidade tomadora (o mesmo do pedido), não o endereço físico da obra.</div>
                 {(editDados.pedido_valor !== '' || editDados.pedido_os.trim() || editDados.pedido_cnpj) && (() => {
                   const valorObra = parseFloat(String(editDados.valor).replace(',', '.')) || 0
                   const valorPedido = parseFloat(String(editDados.pedido_valor).replace(',', '.')) || 0
