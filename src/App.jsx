@@ -275,6 +275,18 @@ function agruparParaFaturamento(obrasProntas) {
   return grupos
 }
 
+// Texto pronto pra colar no corpo da NF no site da prefeitura (Shirley, 2026-08-26) - sem endereço
+// da obra: o endereço do tomador usado ali é sempre o endereço "padrão" da unidade, não o da obra,
+// então o texto só lista pedido + valor de cada serviço do grupo, mais o INSS (sempre 11% sobre o
+// valor total da NF) e o vencimento já preenchido no campo do grupo.
+function montaTextoNF(g, vencimentoIso) {
+  const pedidos = g.obras.map(o => o.pedido || '(sem pedido)').join(', ')
+  const valores = g.obras.map(o => `${fmt(o.valor)} ${o.pedido || o.nome}`).join('\n')
+  const inss = g.total * 0.11
+  const vencimentoTexto = vencimentoIso ? isoToBr(vencimentoIso) : '(preencher vencimento)'
+  return `PEDIDOS: ${pedidos}\nVALORES:\n${valores}\nINSS - RETER 11% COM BASE NO VALOR TOTAL DA NF: ${fmt(inss)}\nVENCIMENTO ${vencimentoTexto}`
+}
+
 function montaLocal(cidade, ufSigla) {
   const c = (cidade||'').trim(), u = (ufSigla||'').trim()
   if (c && u) return `${c}-${u}`
@@ -4150,6 +4162,31 @@ export default function App() {
                                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                               </div>
                             </div>
+                          </div>
+                          <div style={{ marginBottom:10 }}>
+                            <button onClick={() => setGrupoFaturarDados(prev => ({...prev, [g.chave]: {...(prev[g.chave]||{}), mostrarTextoNF: !gd.mostrarTextoNF}}))}
+                              style={{ width:'100%', padding:'8px 10px', background:'#EFF6FF', color:'#1E40AF', border:'1px solid #BFDBFE', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                              📄 {gd.mostrarTextoNF ? 'Esconder' : 'Gerar'} texto para NF
+                            </button>
+                            {gd.mostrarTextoNF && (() => {
+                              const textoNF = montaTextoNF(g, gd.vencimento)
+                              return (
+                                <div style={{ marginTop:8 }}>
+                                  <textarea readOnly value={textoNF} rows={g.obras.length + 4}
+                                    style={{ width:'100%', padding:10, border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', fontFamily:'monospace', resize:'vertical' }} />
+                                  <button onClick={async () => {
+                                    try {
+                                      await navigator.clipboard.writeText(textoNF)
+                                      setGrupoFaturarDados(prev => ({...prev, [g.chave]: {...(prev[g.chave]||{}), copiado: true}}))
+                                      setTimeout(() => setGrupoFaturarDados(prev => ({...prev, [g.chave]: {...(prev[g.chave]||{}), copiado: false}})), 2000)
+                                    } catch (err) {}
+                                  }}
+                                    style={{ width:'100%', marginTop:6, padding:'8px 10px', background:'#1E40AF', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                                    {gd.copiado ? '✓ Copiado!' : '📋 Copiar texto'}
+                                  </button>
+                                </div>
+                              )
+                            })()}
                           </div>
                           <button onClick={() => marcarFaturadoGrupo(g.chave, g.obras.map(o => o.id))}
                             disabled={!gd.nf}
