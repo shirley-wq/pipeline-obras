@@ -1321,9 +1321,13 @@ function proximaAtividadeObra(o) {
       ;(r.atividades || []).forEach(a => candidatos.push({ data: r.data, hora: null, label: `Visita: ${a.atividade}` }))
     })
   }
-  const futuros = candidatos.filter(c => c.data >= hoje)
-    .sort((a, b) => a.data === b.data ? (a.hora || '').localeCompare(b.hora || '') : a.data.localeCompare(b.data))
-  return futuros[0] || null
+  if (!candidatos.length) return null
+  // Mostra sempre a data mais próxima de hoje (passada ou futura) - não só futura -, igual o
+  // Entrada Pipeline nunca some (Shirley, 2026-08-26): quando a obra já passou da execução, mostra
+  // a última data registrada; quando ainda não chegou lá, mostra a data agendada mais próxima.
+  const comDistancia = candidatos.map(c => ({ ...c, dist: Math.abs(Math.floor((new Date(c.data) - new Date(hoje)) / 86400000)) }))
+  comDistancia.sort((a, b) => a.dist === b.dist ? (a.hora || '').localeCompare(b.hora || '') : a.dist - b.dist)
+  return comDistancia[0]
 }
 // Itens do ARS que descrevem onde/como a máquina fica fixada - mais de um pode se aplicar
 // ao mesmo tempo (ex: "encostada em pilar" + "fixação química").
@@ -5325,7 +5329,9 @@ export default function App() {
                           {estaSelecionada && <span style={{ color:'#fff', fontSize:11, fontWeight:700 }}>✓</span>}
                         </div>
                         <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', flex:1, lineHeight:1.4 }}>
-                          {proxima && <span style={{ fontSize:11, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#DBEAFE', color:'#1E40AF', marginRight:6, whiteSpace:'nowrap', display:'inline-block' }}>📅 {isoToBr(proxima.data)}{proxima.hora ? ` ${proxima.hora}` : ''}</span>}
+                          {proxima
+                            ? <span style={{ fontSize:11, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#DBEAFE', color:'#1E40AF', marginRight:6, whiteSpace:'nowrap', display:'inline-block' }}>📅 {isoToBr(proxima.data)}{proxima.hora ? ` ${proxima.hora}` : ''}</span>
+                            : <span style={{ fontSize:11, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#F1F5F9', color:'#64748B', marginRight:6, whiteSpace:'nowrap', display:'inline-block' }}>SEM PROGRAMAÇÃO</span>}
                           {obra.nome}
                         </div>
                       </div>
