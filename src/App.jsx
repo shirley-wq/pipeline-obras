@@ -1425,6 +1425,17 @@ const CENARIO_CORES = ['#2D3A8C', '#0F766E', '#C2410C', '#7C3AED', '#0369A1', '#
 
 // ===== Importação de obras novas de movimentação a partir do relatório "ReportPersonalizado" do SIGE =====
 // (alinhado com a Shirley em 2026-08-12, mesma família de regras da importação de 06-07/08)
+// O SIGE exporta esse relatório em pelo menos 2 formatos de coluna diferentes - um com prefixo
+// "AtributosId_" (ex: AtributosId_TIPODESERVICO) e outro sem (ex: TIPODESERVICO) - dependendo de
+// como o relatório é gerado. Sem isso a planilha "sem prefixo" lia tudo como vazio e a importação
+// não trazia nenhuma linha, sem avisar (Shirley, 2026-08-27).
+function campoSige(linha, ...nomes) {
+  for (const nome of nomes) {
+    const v = linha[nome]
+    if (v !== undefined && v !== null && String(v).trim() !== '') return v
+  }
+  return ''
+}
 const REDE_24H_VARIANTES_SIGE = ['BANCO24HORAS', 'BANCXO24HORAS', 'B24HS', 'BANCO24OHRAS', 'BRANCO24HORAS', 'BANC24HORAS', 'B24HORAS', 'BANCO 24 HORAS']
 function normalizaRedeImportacaoSige(bruto) {
   const s = String(bruto || '').toUpperCase().trim()
@@ -3866,7 +3877,7 @@ export default function App() {
       const pcPorCodigo = {}
       linhas.forEach(l => {
         const codigo = String(l['Código'] || '').trim()
-        const pc = String(l['AtributosId_NdoPC'] || '').trim()
+        const pc = String(campoSige(l, 'AtributosId_NdoPC', 'NdoPC', 'PC') || '').trim()
         if (codigo && pc) pcPorCodigo[codigo] = pc
       })
       const encontrados = []
@@ -3929,38 +3940,39 @@ export default function App() {
       linhasPlanilha.forEach(l => {
         const codigo = String(l['Código'] || '').trim()
         if (!codigo || sigesExistentes.has(codigo)) return
-        const tipo = classificaTipoMovimentacaoSige(l['AtributosId_TIPODESERVICO'])
+        const tipoServicoBruto = campoSige(l, 'AtributosId_TIPODESERVICO', 'TIPODESERVICO')
+        const tipo = classificaTipoMovimentacaoSige(tipoServicoBruto)
         if (tipo === null) { excluidosPorTipo++; return }
         if (tipo === undefined) {
-          const chave = String(l['AtributosId_TIPODESERVICO'] || '(vazio)').trim()
+          const chave = String(tipoServicoBruto || '(vazio)').trim()
           naoClassificados[chave] = (naoClassificados[chave] || 0) + 1
           return
         }
-        const rede = normalizaRedeImportacaoSige(l['AtributosId_REDE'])
+        const redeBruta = campoSige(l, 'AtributosId_REDE', 'REDE')
+        const rede = normalizaRedeImportacaoSige(redeBruta)
         const ehBradesco = rede === 'BRADESCO'
         const statusBruto = String(l['Status'] || '').trim().toUpperCase()
         const mapa = ehBradesco ? STATUS_MOVIMENTACAO_BRADESCO_SIGE : STATUS_MOVIMENTACAO_NAO_BRADESCO_SIGE
         const status = mapa[statusBruto] || 'OS ABERTA'
 
-        let cidade = String(l['AtributosId_CIDADE'] || '').trim()
-        const uf = String(l['AtributosId_UF'] || '').trim()
+        let cidade = String(campoSige(l, 'AtributosId_CIDADE', 'CIDADE') || '').trim()
+        const uf = String(campoSige(l, 'AtributosId_UF', 'UF') || '').trim()
         cidade = cidade.replace(new RegExp(`\\s*-\\s*${uf}$`, 'i'), '').trim()
-        let nome = String(l['AtributosId_NomedoPC'] || '').trim()
+        let nome = String(campoSige(l, 'AtributosId_NomedoPC', 'NomedoPC') || '').trim()
         if (!nome || nome === 'NA' || nome === 'ND') nome = cidade || codigo
 
-        const pedidoBruto = String(l['AtributosId_PedidoTB'] || '').trim()
+        const pedidoBruto = String(campoSige(l, 'AtributosId_PedidoTB', 'PedidoTB') || '').trim()
         const pedido = /^\d+$/.test(pedidoBruto) ? pedidoBruto : null
-        const nfBruto = String(l['AtributosId_NF'] || '').trim()
+        const nfBruto = String(campoSige(l, 'AtributosId_NF', 'NF') || '').trim()
         const nf = /^\d+$/.test(nfBruto) ? nfBruto : null
-        const osTecban = String(l['AtributosId_OrdemdeservicosTB'] || '').trim() || null
-        const numeroPc = String(l['AtributosId_NdoPC'] || '').trim() || null
+        const osTecban = String(campoSige(l, 'AtributosId_OrdemdeservicosTB', 'OrdemdeservicosTB') || '').trim() || null
+        const numeroPc = String(campoSige(l, 'AtributosId_NdoPC', 'NdoPC', 'PC') || '').trim() || null
         const valor = Number(l['Valor Total']) || 0
-        const dataCadastro = excelSerialParaIso(l['Data']) || excelSerialParaIso(l['AtributosId_DATAINICIO']) || hojeIso()
-        const redeOriginal = String(l['AtributosId_REDE'] || '').trim()
+        const dataCadastro = excelSerialParaIso(l['Data']) || excelSerialParaIso(campoSige(l, 'AtributosId_DATAINICIO', 'DATAINICIO')) || hojeIso()
 
         candidatos.push({
           tipo, rede, status, nome, cidade, uf, sige: codigo, pedido, nf, os_tecban: osTecban, numero_pc: numeroPc, valor, data_cadastro: dataCadastro,
-          obs: `Importado do relatório SIGE (${new Date().toLocaleDateString('pt-BR')}) - tipo original: ${l['AtributosId_TIPODESERVICO'] || '—'} - status original: ${l['Status'] || '—'}${rede !== redeOriginal ? ` - rede original: ${redeOriginal}` : ''}`,
+          obs: `Importado do relatório SIGE (${new Date().toLocaleDateString('pt-BR')}) - tipo original: ${tipoServicoBruto || '—'} - status original: ${l['Status'] || '—'}${rede !== redeBruta ? ` - rede original: ${redeBruta}` : ''}`,
         })
         sigesExistentes.add(codigo)
       })
