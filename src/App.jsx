@@ -1402,7 +1402,7 @@ const EMAIL_CC_OPERACAO_GRUPOPG = 'operacao@grupopg.com.br'
 // E-mail de solicitação de correção de pedido divergente (Shirley, 2026-08-20) - endereço diferente
 // do relatório ao cliente acima, é o time de pagamentos/gestão de pedidos da Tecban.
 const EMAIL_CORRECAO_PEDIDO_TECBAN = 'gestaopagamentos2026@tecban.com.br'
-const EMAIL_CC_CORRECAO_PEDIDO = 'rayan.miranda@servicosintegradostecban.com.br'
+const EMAIL_CC_CORRECAO_PEDIDO = `rayan.miranda@servicosintegradostecban.com.br,${EMAIL_CC_OPERACAO_GRUPOPG}`
 // Envio de e-mail à Tecban passa por uma Edge Function no Supabase (não fala direto com o Apps
 // Script) - assim o segredo do webhook nunca fica exposto no código do navegador (Shirley/Claude,
 // 2026-08-25). A Edge Function confere a sessão de quem chama antes de repassar o pedido.
