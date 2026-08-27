@@ -138,7 +138,6 @@ function entregaveisObrigatorios(tipo) {
 }
 const ENTREGAVEIS_VISTORIA = [
   'Book Checklist Fácil',
-  'ORÇAMENTO PRA UN/EN',
 ]
 
 const COLABORADORES = [
@@ -3587,7 +3586,7 @@ export default function App() {
   }
 
   const vistoriaCompleta = (Boolean(dataVistoria) && (colabsVistoria.length > 0 || (terceirizadoVistoria && terceirizadoVistoriaTexto.trim() !== '')))
-    || (modal?.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal?.tipo))
+    || (modal?.rede && modal?.rede !== 'BRADESCO' && SEM_VISTORIA_BANCO24H.includes(modal?.tipo))
   const atividadesCobertas = new Set()
   registrosOperacaoCampo.forEach(r => (r.atividades || []).forEach(a => { if (typeof a.feita === 'boolean') atividadesCobertas.add(a.atividade) }))
   // Vistoria que fracassou (visita improdutiva - ex: gerente desistiu da instalação porque o local
@@ -5417,6 +5416,7 @@ export default function App() {
                           </span>
                         )
                       )}
+                      {obra.rede && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#EEF2FF', color:'#3730A3' }}>{obra.rede}</span>}
                       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:tc.bg, color:tc.text }}>{obra.tipo}</span>
                       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text }}>{obra.status}</span>
                       {obra.em_negociacao && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FEF3C7', color:'#92400E' }}>Em negociação</span>}
@@ -6110,7 +6110,7 @@ export default function App() {
               </div>
             )}
 
-            {!(modal.rede === 'BANCO24HORAS' && SEM_VISTORIA_BANCO24H.includes(modal.tipo)) && (
+            {!(modal.rede && modal.rede !== 'BRADESCO' && SEM_VISTORIA_BANCO24H.includes(modal.tipo)) && (
             <>
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
               <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data da vistoria</label>
