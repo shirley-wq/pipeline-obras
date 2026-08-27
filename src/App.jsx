@@ -3262,7 +3262,7 @@ export default function App() {
   function montaAssuntoCorrecaoPedido() {
     const pedido = (editDados.pedido || '').trim() || '(sem número)'
     const os = (editDados.os_tecban || '').trim() || '(sem OS)'
-    return `Pedido divergente - ${pedido} - OS ${os}`
+    return `Grupo PG Pedido Divergente ${pedido} OS ${os}`
   }
 
   function montaCorpoCorrecaoPedido() {
