@@ -3293,6 +3293,13 @@ export default function App() {
       })
       const resultado = await resp.json()
       if (!resultado.ok) throw new Error(resultado.error || 'Falha no envio')
+      const agora = new Date().toISOString()
+      await supabase.from('pipeline_obras').update({
+        correcao_pedido_solicitada_em: agora,
+        correcao_pedido_solicitada_por: usuario.email,
+      }).eq('id', modal.id)
+      setObras(prev => prev.map(o => o.id === modal.id ? { ...o, correcao_pedido_solicitada_em: agora, correcao_pedido_solicitada_por: usuario.email } : o))
+      setModal(m => m ? { ...m, correcao_pedido_solicitada_em: agora, correcao_pedido_solicitada_por: usuario.email } : m)
       setMostrarEnvioCorrecaoPedido(false)
       alert('Solicitação de correção enviada para a Tecban.')
     } catch (err) {
@@ -6081,6 +6088,11 @@ export default function App() {
                 })()}
                 {divergenciasPedido().length > 0 && (
                   <div style={{ marginTop:10 }}>
+                    {modal.correcao_pedido_solicitada_em && (
+                      <div style={{ fontSize:11, color:'#92400E', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'6px 10px', marginBottom:6 }}>
+                        ⚠ Correção já solicitada em {new Date(modal.correcao_pedido_solicitada_em).toLocaleString('pt-BR')} por {modal.correcao_pedido_solicitada_por} — confira antes de enviar de novo.
+                      </div>
+                    )}
                     <button onClick={() => { setMostrarEnvioCorrecaoPedido(true); setErroEnvioCorrecaoPedido('') }}
                       style={{ width:'100%', padding:10, background:'#DC2626', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                       📧 Solicitar correção à Tecban
