@@ -2314,6 +2314,7 @@ export default function App() {
   const [filtroHistRegiao, setFiltroHistRegiao] = useState('')
   const [filtroHistDe, setFiltroHistDe] = useState('')
   const [filtroHistAte, setFiltroHistAte] = useState('')
+  const [buscaHist, setBuscaHist] = useState('')
   const [rhColaboradores, setRhColaboradores] = useState([])
   const [emailsLogin, setEmailsLogin] = useState([])
   const [perfisLogin, setPerfisLogin] = useState([])
@@ -3688,6 +3689,15 @@ export default function App() {
     if (o.status !== 'NF EMITIDO') return false
     if (filtroHistTipo && o.tipo !== filtroHistTipo) return false
     if (filtroHistRegiao && uf(o.local) !== filtroHistRegiao) return false
+    if (buscaHist) {
+      // mesma logica de busca por palavras da aba Pipeline - sem isso não tinha nenhum jeito de
+      // achar uma obra já faturada por PC/SIGE/nome, já que ela some da aba Pipeline assim que
+      // vira NF EMITIDO (Shirley, 2026-08-27 - "não encontro o PC 98813").
+      const campos = [o.nome, o.local, o.cidade, o.uf, o.os_tecban, o.pedido, o.sige, o.numero_pc]
+        .map(c => (c || '').toLowerCase()).join(' ')
+      const palavras = buscaHist.toLowerCase().trim().split(/\s+/).filter(Boolean)
+      if (!palavras.every(p => campos.includes(p))) return false
+    }
     if (filtroHistDe || filtroHistAte) {
       const d = o.atualizado_em ? o.atualizado_em.split('T')[0] : ''
       if (filtroHistDe && d < filtroHistDe) return false
@@ -4309,6 +4319,8 @@ export default function App() {
       {aba === 'historico' && (
         <div style={{ padding:12 }}>
           <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:12 }}>
+            <input value={buscaHist} onChange={e=>setBuscaHist(e.target.value)} placeholder="🔎 Buscar por nome, PC, SIGE, OS, pedido, cidade..." title="Busca"
+              style={{ flex:2, minWidth:180, padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340' }} />
             <select value={filtroHistTipo} onChange={e=>setFiltroHistTipo(e.target.value)}
               style={{ flex:1, minWidth:100, padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
               <option value="">Todos tipos</option>
@@ -4323,8 +4335,8 @@ export default function App() {
               style={{ flex:1, minWidth:120, padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340' }} />
             <input type="date" value={filtroHistAte} onChange={e=>setFiltroHistAte(e.target.value)}
               style={{ flex:1, minWidth:120, padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340' }} />
-            {(filtroHistTipo||filtroHistRegiao||filtroHistDe||filtroHistAte) && (
-              <button onClick={()=>{setFiltroHistTipo('');setFiltroHistRegiao('');setFiltroHistDe('');setFiltroHistAte('')}}
+            {(buscaHist||filtroHistTipo||filtroHistRegiao||filtroHistDe||filtroHistAte) && (
+              <button onClick={()=>{setBuscaHist('');setFiltroHistTipo('');setFiltroHistRegiao('');setFiltroHistDe('');setFiltroHistAte('')}}
                 style={{ padding:'7px 10px', background:'#F1F5F9', border:'1px solid #CDD8E3', borderRadius:8, fontSize:11, color:'#64748B', cursor:'pointer' }}>✕ limpar</button>
             )}
           </div>
