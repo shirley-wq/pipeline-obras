@@ -5376,7 +5376,7 @@ export default function App() {
               return (
                 <div key={obra.id} style={{ background: estaSelecionada ? '#EEF2FF' : '#fff', borderRadius:12, marginBottom:10, border: estaSelecionada ? '2px solid #2D3A8C' : alerta ? `2px solid ${alerta.cor}` : '1px solid #E0E8F0', overflow:'hidden' }}>
                   <div style={{ position:'relative' }}>
-                  {['shirley@grupopg.com.br', 'bruna@grupopg.com.br'].includes(usuario?.email) && (
+                  {['shirley@grupopg.com.br', 'bruna@grupopg.com.br', 'aline.roza@grupopg.com.br'].includes(usuario?.email) && (
                     <button onClick={e => { e.stopPropagation(); setMenuAberto(menuAberto === obra.id ? null : obra.id) }}
                       style={{ position:'absolute', top:8, right:8, background:'none', border:'none', fontSize:18, cursor:'pointer', color:'#888', zIndex:2, lineHeight:1 }}>•••</button>
                   )}
