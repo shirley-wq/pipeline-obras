@@ -3654,7 +3654,10 @@ export default function App() {
   )
 
   const obrasFiltradas = obras.filter(o => {
-    if (o.status === 'NF EMITIDO') return false
+    // Com busca ativa, mostra também as já faturadas (NF EMITIDO) - sem isso não tinha como
+    // confirmar pela aba Pipeline (a que todo mundo usa por padrão) se uma obra recém-importada
+    // já chegou faturada, precisava trocar pra aba Histórico separada (Shirley, 2026-08-27).
+    if (o.status === 'NF EMITIDO' && !busca) return false
     if (filtroTipo && o.tipo !== filtroTipo) return false
     if (filtroRede && o.rede !== filtroRede) return false
     if (filtroStatus && o.status !== filtroStatus) return false
