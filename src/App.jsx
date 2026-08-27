@@ -212,7 +212,8 @@ function estadoDaObra(o) {
 }
 
 // CNPJs próprios do Grupo PG usados pra faturar a Tecban - SP fatura o próprio estado
-// e qualquer outro que não seja RJ/MG (é o "coringa"); RJ e MG só faturam o próprio estado.
+// e qualquer outro que não seja RJ/MG/ES (é o "coringa"); RJ e MG só faturam o próprio estado;
+// ES fatura pelo CNPJ da filial BHZ (mesmo CNPJ de MG), regra pedida pela Shirley em 2026-08-27.
 const CNPJS_GRUPOPG = {
   SP: '19.786.849/0001-60',
   RJ: '19.786.849/0002-41',
@@ -221,6 +222,7 @@ const CNPJS_GRUPOPG = {
 function cnpjEsperadoParaUF(ufSigla) {
   if (ufSigla === 'RJ') return CNPJS_GRUPOPG.RJ
   if (ufSigla === 'MG') return CNPJS_GRUPOPG.MG
+  if (ufSigla === 'ES') return CNPJS_GRUPOPG.MG
   return CNPJS_GRUPOPG.SP
 }
 // Caminho inverso do de cima - a partir do CNPJ fornecedor de um grupo de faturamento, descobre de
