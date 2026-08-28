@@ -2421,6 +2421,19 @@ export default function App() {
     if (papel && usuario) { carregarMeuRH(); carregarMinhasJantas() }
   }, [papel, usuario])
 
+  useEffect(() => {
+    function handleKeyDown(e) {
+      const isSave = (e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')
+      if (!isSave || !modal) return
+      e.preventDefault()
+      if (novoStatus && !salvando && responsavelEscritorio.trim() && !(novoStatus === 'RM ENVIADA' && !editDados.os_tecban.trim())) {
+        salvarStatus()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [modal, novoStatus, salvando, responsavelEscritorio, editDados])
+
   async function carregarRH() {
     const { data } = await supabase.from('rh_colaboradores').select('*').order('nome')
     setRhColaboradores(data || [])
@@ -5943,7 +5956,8 @@ export default function App() {
       {modal && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:100, display:'flex', alignItems:'flex-end' }}
           onClick={e => { if(e.target === e.currentTarget) setModal(null) }}>
-          <div style={{ background:'#fff', borderRadius:'16px 16px 0 0', padding:20, width:'100%', maxHeight:'80vh', overflowY:'auto' }}>
+          <div style={{ background:'#fff', borderRadius:'16px 16px 0 0', width:'100%', maxHeight:'80vh', display:'flex', flexDirection:'column' }}>
+          <div style={{ padding:20, overflowY:'auto', flex:'1 1 auto', minHeight:0 }}>
             <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:4 }}>{modal.nome}</div>
             <div style={{ fontSize:11, color:'#888', marginBottom:12 }}>{modal.tipo}</div>
 
@@ -6990,9 +7004,11 @@ export default function App() {
                 </button>
               </div>
             </div>
+          </div>
+          <div style={{ padding:'12px 20px 20px', borderTop:'1px solid #E0E8F0', background:'#fff', boxShadow:'0 -6px 12px rgba(0,0,0,.06)', flexShrink:0 }}>
             <button onClick={salvarStatus} disabled={!novoStatus || salvando || !responsavelEscritorio.trim() || (novoStatus === 'RM ENVIADA' && !editDados.os_tecban.trim())}
               style={{ width:'100%', padding:13, background: (!novoStatus||salvando||!responsavelEscritorio.trim()||(novoStatus === 'RM ENVIADA' && !editDados.os_tecban.trim())) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor: (!novoStatus||salvando) ? 'default' : 'pointer' }}>
-              {salvando ? 'Salvando...' : 'Salvar'}
+              {salvando ? 'Salvando...' : '💾 Salvar  (Ctrl+S)'}
             </button>
             {!responsavelEscritorio.trim() && (
               <div style={{ fontSize:11, color:'#92400E', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'6px 10px', marginTop:8 }}>
@@ -7003,6 +7019,7 @@ export default function App() {
               style={{ width:'100%', padding:11, background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:12, fontSize:13, cursor:'pointer', marginTop:8 }}>
               Cancelar
             </button>
+          </div>
           </div>
         </div>
       )}
