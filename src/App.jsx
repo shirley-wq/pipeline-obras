@@ -179,6 +179,20 @@ const COLABORADORES = [
   'Willian do Sacramento Elias',
 ]
 
+// Time do escritório (papéis admin/administrativo) - usado nos seletores de "Responsável"/
+// "Auxiliar do escritório", que antes listavam todo mundo (inclusive equipe de campo) sem
+// necessidade (Shirley, 2026-08-28).
+const COLABORADORES_ESCRITORIO = [
+  'Shirley de Carvalho Santos',
+  'Daniela Leite Ferreira',
+  'Glauce Lourenço Teixeira',
+  'Carolina Carvalho dos Santos',
+  'Victhor Mazella Costa Oliveira',
+  'Bruna Carvalho de Oliveira',
+  'Anderson Santos',
+  'Fabio Esteves',
+]
+
 const TERCEIRIZADO_PREFIXO = 'Terceirizado: '
 
 const TIPO_COR = {
@@ -6105,7 +6119,7 @@ export default function App() {
                   <select value={responsavelEscritorio} onChange={e => setResponsavelEscritorio(e.target.value)}
                     style={{ width:'100%', padding:'8px 6px', border: !responsavelEscritorio.trim() ? '1px solid #DC2626' : '1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
                     <option value="">—</option>
-                    {COLABORADORES.map(nome => <option key={nome} value={nome}>{nome}</option>)}
+                    {COLABORADORES_ESCRITORIO.map(nome => <option key={nome} value={nome}>{nome}</option>)}
                   </select>
                 </div>
                 <div>
@@ -6113,7 +6127,7 @@ export default function App() {
                   <select value={auxiliarEscritorio} onChange={e => setAuxiliarEscritorio(e.target.value)}
                     style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
                     <option value="">—</option>
-                    {COLABORADORES.map(nome => <option key={nome} value={nome}>{nome}</option>)}
+                    {COLABORADORES_ESCRITORIO.map(nome => <option key={nome} value={nome}>{nome}</option>)}
                   </select>
                 </div>
               </div>
