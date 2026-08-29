@@ -184,6 +184,7 @@ const COLABORADORES = [
 // necessidade (Shirley, 2026-08-28).
 const COLABORADORES_ESCRITORIO = [
   'Shirley de Carvalho Santos',
+  'Aline do Nascimento Roza',
   'Daniela Leite Ferreira',
   'Glauce Lourenço Teixeira',
   'Carolina Carvalho dos Santos',
