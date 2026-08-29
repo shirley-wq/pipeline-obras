@@ -2315,6 +2315,8 @@ export default function App() {
   const [filtroHistDe, setFiltroHistDe] = useState('')
   const [filtroHistAte, setFiltroHistAte] = useState('')
   const [buscaHist, setBuscaHist] = useState('')
+  const [buscaFaturar, setBuscaFaturar] = useState('')
+  const [ajusteDivergencia, setAjusteDivergencia] = useState({})
   const [rhColaboradores, setRhColaboradores] = useState([])
   const [emailsLogin, setEmailsLogin] = useState([])
   const [perfisLogin, setPerfisLogin] = useState([])
@@ -3699,7 +3701,16 @@ export default function App() {
     return true
   })
 
-  const obrasFaturar = obras.filter(o => STATUS_FATURAR.includes(o.status) && !(Array.isArray(o.lembretes) && o.lembretes.length > 0))
+  const obrasFaturar = obras.filter(o => {
+    if (!STATUS_FATURAR.includes(o.status) || (Array.isArray(o.lembretes) && o.lembretes.length > 0)) return false
+    if (buscaFaturar) {
+      const campos = [o.nome, o.local, o.cidade, o.uf, o.os_tecban, o.pedido, o.sige, o.numero_pc]
+        .map(c => (c || '').toLowerCase()).join(' ')
+      const palavras = buscaFaturar.toLowerCase().trim().split(/\s+/).filter(Boolean)
+      if (!palavras.every(p => campos.includes(p))) return false
+    }
+    return true
+  })
 
   const obrasHistorico = obras.filter(o => {
     if (o.status !== 'NF EMITIDO') return false
@@ -4111,8 +4122,10 @@ export default function App() {
       {/* ====== ABA: DISPONÍVEL PARA FATURAR ====== */}
       {aba === 'faturar' && (
         <div style={{ padding:12 }}>
+          <input value={buscaFaturar} onChange={e=>setBuscaFaturar(e.target.value)} placeholder="🔎 Buscar por nome, PC, SIGE, OS, pedido, cidade..." title="Busca"
+            style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', marginBottom:12 }} />
           {obrasFaturar.length === 0 ? (
-            <div style={{ textAlign:'center', color:'#1A6B4A', marginTop:40, fontSize:14 }}>Nenhuma obra pronta para faturar</div>
+            <div style={{ textAlign:'center', color:'#1A6B4A', marginTop:40, fontSize:14 }}>{buscaFaturar ? 'Nenhuma obra encontrada' : 'Nenhuma obra pronta para faturar'}</div>
           ) : (
             <>
               <div style={{ fontSize:11, color:'#1A6B4A', fontWeight:700, marginBottom:10, padding:'8px 12px', background:'#D1FAE5', borderRadius:8 }}>
@@ -4123,6 +4136,7 @@ export default function App() {
                 const obrasProntas = obrasFaturar.filter(o => conferePedidoObra(o).completo)
                 const idsProntas = new Set(obrasProntas.map(o => o.id))
                 const obrasOutras = obrasFaturar.filter(o => !conferePedidoObra(o).precisaCorrecao && !idsProntas.has(o.id))
+                const obrasSemConferencia = obrasFaturar.filter(o => o.pedido && !conferePedidoObra(o).temConferencia)
                 const grupos = agruparParaFaturamento(obrasProntas)
                 return (
                   <>
@@ -4155,6 +4169,56 @@ export default function App() {
                           <div style={{ fontSize:11, background:'#FFF7ED', borderLeft:'3px solid #EA580C', padding:'5px 8px', borderRadius:4, color:'#9A3412', marginBottom:10 }}>
                             ⚠ Divergência no pedido:{conf.temValor && !conf.valorBate && ' valor'}{conf.temOs && !conf.osBate && ' · OS'}{conf.temCnpj && !conf.cnpjBate && ' · CNPJ'}
                           </div>
+                          {(() => {
+                            const aj = ajusteDivergencia[o.id] || {}
+                            if (!aj.editando) {
+                              return (
+                                <button onClick={() => setAjusteDivergencia(prev => ({...prev, [o.id]: { editando:true }}))}
+                                  style={{ width:'100%', padding:'8px', background:'#fff', color:'#475569', border:'1px dashed #CBD5E1', borderRadius:8, fontSize:12, fontWeight:600, cursor:'pointer', marginBottom:10 }}>
+                                  ✏ Ajustar valor/OS direto (corrigir sem enviar e-mail)
+                                </button>
+                              )
+                            }
+                            return (
+                              <div style={{ background:'#F8FAFC', borderRadius:8, padding:10, marginBottom:10 }}>
+                                {conf.temValor && !conf.valorBate && (
+                                  <div style={{ marginBottom:8 }}>
+                                    <label style={{ fontSize:10, color:'#64748B', fontWeight:600, display:'block', marginBottom:3 }}>Valor correto (R$) — pedido: R$ {Number(o.pedido_valor).toFixed(2)}</label>
+                                    <input type="number" value={aj.valor !== undefined ? aj.valor : (o.valor||'')}
+                                      onChange={e => setAjusteDivergencia(prev => ({...prev, [o.id]: {...(prev[o.id]||{}), valor: e.target.value}}))}
+                                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                                  </div>
+                                )}
+                                {conf.temOs && !conf.osBate && (
+                                  <div style={{ marginBottom:8 }}>
+                                    <label style={{ fontSize:10, color:'#64748B', fontWeight:600, display:'block', marginBottom:3 }}>OS correta — pedido: {o.pedido_os}</label>
+                                    <input value={aj.os_tecban !== undefined ? aj.os_tecban : (o.os_tecban||'')}
+                                      onChange={e => setAjusteDivergencia(prev => ({...prev, [o.id]: {...(prev[o.id]||{}), os_tecban: e.target.value}}))}
+                                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                                  </div>
+                                )}
+                                <div style={{ display:'flex', gap:8 }}>
+                                  <button onClick={() => setAjusteDivergencia(prev => ({...prev, [o.id]: { editando:false }}))}
+                                    style={{ flex:1, padding:'8px', background:'#fff', color:'#64748B', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                                    Cancelar
+                                  </button>
+                                  <button onClick={async () => {
+                                    const campos = { atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+                                    if (aj.valor !== undefined) campos.valor = parseFloat(String(aj.valor).replace(',', '.')) || 0
+                                    if (aj.os_tecban !== undefined) campos.os_tecban = aj.os_tecban
+                                    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', o.id)
+                                    if (!error) {
+                                      setObras(prev => prev.map(ob => ob.id === o.id ? { ...ob, ...campos } : ob))
+                                      setAjusteDivergencia(prev => ({...prev, [o.id]: { editando:false }}))
+                                    }
+                                  }}
+                                    style={{ flex:1, padding:'8px', background:'#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                                    ✓ Salvar ajuste
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })()}
                           <div style={{ display:'flex', gap:8 }}>
                             <button onClick={async () => {
                               const campos = { status:'RM ENVIADA', atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
@@ -4172,6 +4236,38 @@ export default function App() {
                               style={{ flex:1, padding:'10px', background:'#EA580C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer' }}>
                               📧 Solicitar correção à Tecban
                             </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+
+                    {obrasSemConferencia.length > 0 && (
+                      <div style={{ fontSize:11, color:'#1E40AF', fontWeight:700, marginTop:16, marginBottom:10, padding:'8px 12px', background:'#EFF6FF', borderRadius:8, border:'1px solid #BFDBFE' }}>
+                        📋 Pedido recebido, aguardando conferência ({obrasSemConferencia.length})
+                      </div>
+                    )}
+                    {obrasSemConferencia.map(o => {
+                      const tc = TIPO_COR[o.tipo] || { bg:'#F1F5F9', text:'#475569' }
+                      const sc = STATUS_COR[o.status] || { bg:'#F1F5F9', text:'#475569' }
+                      return (
+                        <div key={o.id} style={{ background:'#fff', border:'1px solid #BFDBFE', borderRadius:12, marginBottom:10, padding:'12px 14px' }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8, marginBottom:6 }}>
+                            <div style={{ fontSize:13, fontWeight:600, color:'#1A2340', flex:1, lineHeight:1.4 }}>{o.nome}</div>
+                            <div style={{ fontSize:14, fontWeight:700, color:'#1A6B4A', whiteSpace:'nowrap' }}>{fmt(o.valor)}</div>
+                          </div>
+                          <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
+                            <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:tc.bg, color:tc.text }}>{o.tipo}</span>
+                            <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text }}>{o.status}</span>
+                            {o.local && <span style={{ fontSize:11, color:'#64748B' }}>{o.local}</span>}
+                          </div>
+                          <div style={{ display:'flex', gap:12, flexWrap:'wrap', fontSize:11, color:'#475569' }}>
+                            {o.sige && <span>SIGE: <b>{o.sige}</b></span>}
+                            {o.numero_pc && <span>PC: <b>{o.numero_pc}</b></span>}
+                            {o.pedido && <span>Pedido: <b>{o.pedido}</b></span>}
+                            {o.os_tecban && <span>OS: <b>{o.os_tecban}</b></span>}
+                          </div>
+                          <div style={{ fontSize:11, background:'#EFF6FF', borderLeft:'3px solid #1E40AF', padding:'5px 8px', borderRadius:4, color:'#1E40AF', marginTop:8 }}>
+                            📋 Ainda não tem o PDF do pedido processado (sem valor/OS/CNPJ conferidos) — alimente na pasta "PEDIDOS IA" pra rodar a conferência de verdade.
                           </div>
                         </div>
                       )
