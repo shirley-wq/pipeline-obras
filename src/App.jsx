@@ -3831,6 +3831,34 @@ export default function App() {
   })
   const despesasPorObraLista = Object.values(despesasPorObraMap).sort((a, b) => b.total - a.total)
 
+  // Relatório só das obras com pedido divergente (aba Disponível para Faturar), pra não precisar
+  // abrir uma por uma - pedido da Shirley, 2026-08-31.
+  function exportarDivergenciasCSV() {
+    const divergentes = obrasFaturar.filter(o => conferePedidoObra(o).precisaCorrecao)
+    const cab = ['Tipo','Nome','Local','Status','SIGE','PC/BDN','Pedido','Valor cadastrado','Valor no pedido','OS cadastrada','OS no pedido','CNPJ esperado','CNPJ no pedido','Motivo da divergência','Correção solicitada em','Solicitada por']
+    const linhas = divergentes.map(o => {
+      const conf = conferePedidoObra(o)
+      const motivos = []
+      if (conf.temValor && !conf.valorBate) motivos.push('Valor')
+      if (conf.temOs && !conf.osBate) motivos.push('OS')
+      if (conf.temCnpj && !conf.cnpjBate) motivos.push('CNPJ')
+      return [
+        o.tipo, o.nome, o.local||'', o.status, o.sige||'', o.numero_pc||'', o.pedido||'',
+        Number(o.valor||0), o.pedido_valor!=null ? Number(o.pedido_valor) : '',
+        o.os_tecban||'', o.pedido_os||'',
+        cnpjEsperadoParaUF(uf(o.local).toUpperCase())||'', o.pedido_cnpj||'',
+        motivos.join(' + '),
+        o.correcao_pedido_solicitada_em ? new Date(o.correcao_pedido_solicitada_em).toLocaleString('pt-BR') : '',
+        o.correcao_pedido_solicitada_por || '',
+      ]
+    })
+    const ws = XLSXStyle.utils.aoa_to_sheet([cab, ...linhas])
+    ws['!cols'] = cab.map(() => ({ wch: 18 }))
+    const wb = XLSXStyle.utils.book_new()
+    XLSXStyle.utils.book_append_sheet(wb, ws, 'Pedidos divergentes')
+    XLSXStyle.writeFile(wb, `pedidos-divergentes-${new Date().toISOString().slice(0,10)}.xlsx`)
+  }
+
   function exportarCSV() {
     const cab = ['Tipo','Nome','Local','Status','Valor','SIGE','PC/BDN','Pedido','NF','Início','Término','ART pronta','Em negociação','Observação','Post-its Régua','Data Entrada Pipeline','Dias no Pipeline','Vidros','Divisórias','Itens Especiais','Biombo de Fila','Porta Giratória','Atualizado por','Atualizado em']
     const linhasObras = obrasFiltradas.map(o => {
@@ -4164,8 +4192,14 @@ export default function App() {
                 return (
                   <>
                     {obrasCorrecao.length > 0 && (
-                      <div style={{ fontSize:11, color:'#9A3412', fontWeight:700, marginTop:6, marginBottom:10, padding:'8px 12px', background:'#FFF7ED', borderRadius:8, border:'1px solid #FED7AA' }}>
-                        ⚠ Precisa de correção antes de faturar ({obrasCorrecao.length})
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, marginTop:6, marginBottom:10, padding:'8px 12px', background:'#FFF7ED', borderRadius:8, border:'1px solid #FED7AA' }}>
+                        <div style={{ fontSize:11, color:'#9A3412', fontWeight:700 }}>
+                          ⚠ Precisa de correção antes de faturar ({obrasCorrecao.length})
+                        </div>
+                        <button onClick={exportarDivergenciasCSV}
+                          style={{ padding:'5px 10px', background:'#fff', color:'#9A3412', border:'1px solid #FED7AA', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                          ↓ Exportar
+                        </button>
                       </div>
                     )}
                     {obrasCorrecao.map(o => {
