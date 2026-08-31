@@ -4205,11 +4205,6 @@ export default function App() {
                 const grupos = agruparParaFaturamento(obrasProntas)
                 return (
                   <>
-                    {obrasCorrecao.length > 0 && (
-                      <div style={{ fontSize:11, color:'#9A3412', fontWeight:700, marginTop:6, marginBottom:10, padding:'8px 12px', background:'#FFF7ED', borderRadius:8, border:'1px solid #FED7AA' }}>
-                        ⚠ Precisa de correção antes de faturar ({obrasCorrecao.length})
-                      </div>
-                    )}
                     {obrasCorrecao.map(o => {
                       const conf = conferePedidoObra(o)
                       const tc = TIPO_COR[o.tipo] || { bg:'#F1F5F9', text:'#475569' }
