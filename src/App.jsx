@@ -247,6 +247,18 @@ function ufDoCnpjFornecedor(cnpj) {
   return par ? par[0] : ''
 }
 
+// Regra de recebimento: a Tecban paga cada CNPJ do Grupo PG por um banco fixo - base pro futuro
+// módulo de Contas a Pagar/Receber, que vai conciliar o extrato bancário com as NFs emitidas
+// (Shirley, 2026-08-31).
+const BANCO_RECEBIMENTO_POR_CNPJ = {
+  [CNPJS_GRUPOPG.SP]: 'ITAÚ',
+  [CNPJS_GRUPOPG.RJ]: 'BRADESCO',
+  [CNPJS_GRUPOPG.MG]: 'ITAÚ',
+}
+function bancoRecebimentoParaCnpjFornecedor(cnpj) {
+  return BANCO_RECEBIMENTO_POR_CNPJ[cnpj] || ''
+}
+
 // Conferência do pedido a partir dos campos já salvos na obra (não dos campos do formulário
 // em edição) - usada pra decidir se uma obra "disponível pra faturar" está 100% conferida
 // ou se tem alguma divergência precisando de correção antes de faturar de verdade.
@@ -4271,6 +4283,11 @@ export default function App() {
                             <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', flex:1, lineHeight:1.4, minWidth:0 }}>
                               {ufGrupo ? `${ufGrupo} – ` : ''}{g.nomeTecban || 'Tecban'} <span style={{ fontWeight:400, color:'#64748B' }}>· tomador {g.cnpjTomador || '(sem CNPJ)'}</span>
                             </div>
+                            {bancoRecebimentoParaCnpjFornecedor(g.cnpjFornecedor) && (
+                              <div style={{ fontSize:10, fontWeight:700, color:'#0369A1', background:'#E0F2FE', padding:'2px 7px', borderRadius:6, whiteSpace:'nowrap' }}>
+                                🏦 {bancoRecebimentoParaCnpjFornecedor(g.cnpjFornecedor)}
+                              </div>
+                            )}
                             <div style={{ fontSize:11, color:'#64748B', fontWeight:700, whiteSpace:'nowrap' }}>QTD {g.obras.length}</div>
                             <div style={{ fontSize:14, fontWeight:700, color:'#1A6B4A', whiteSpace:'nowrap' }}>{fmt(g.total)}</div>
                             <span style={{ fontSize:12, color:'#64748B', transform: gd.expandido ? 'rotate(180deg)' : 'none', display:'inline-block' }}>▼</span>
@@ -4279,6 +4296,9 @@ export default function App() {
                           <div style={{ padding:'0 14px 14px', borderTop:'1px solid #F0F4F8' }}>
                           <div style={{ fontSize:11, color:'#475569', margin:'10px 0' }}>
                             Fornecedor (Grupo PG): <b>{g.cnpjFornecedor}</b> · {g.obras.length} serviço{g.obras.length===1?'':'s'} (máx. {MAX_SERVICOS_POR_GRUPO_FATURAMENTO}/grupo)
+                            {bancoRecebimentoParaCnpjFornecedor(g.cnpjFornecedor) && (
+                              <> · Recebimento via <b>{bancoRecebimentoParaCnpjFornecedor(g.cnpjFornecedor)}</b></>
+                            )}
                           </div>
                           <div style={{ background:'#F8FAFC', borderRadius:8, padding:'6px 10px', marginBottom:10 }}>
                             {g.obras.map(o => (
