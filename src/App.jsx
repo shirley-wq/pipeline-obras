@@ -3833,10 +3833,16 @@ export default function App() {
 
   // Relatório só das obras com pedido divergente (aba Disponível para Faturar), pra não precisar
   // abrir uma por uma - pedido da Shirley, 2026-08-31.
+  // Histórico de TODAS as obras que já tiveram uma correção de pedido solicitada à Tecban por
+  // e-mail, independente do status atual - antes só pegava quem ainda estava com divergência
+  // ativa em "Disponível para Faturar", mas obras já corrigidas/avançadas saem dessa lista e a
+  // Shirley precisa do histórico completo de e-mails já enviados (Shirley, 2026-08-31).
   function exportarDivergenciasCSV() {
-    const divergentes = obrasFaturar.filter(o => conferePedidoObra(o).precisaCorrecao)
-    const cab = ['Tipo','Nome','Local','Status','SIGE','PC/BDN','Pedido','Valor cadastrado','Valor no pedido','OS cadastrada','OS no pedido','CNPJ esperado','CNPJ no pedido','Motivo da divergência','Correção solicitada em','Solicitada por']
-    const linhas = divergentes.map(o => {
+    const comCorrecaoEnviada = obras
+      .filter(o => o.correcao_pedido_solicitada_em)
+      .sort((a, b) => new Date(b.correcao_pedido_solicitada_em) - new Date(a.correcao_pedido_solicitada_em))
+    const cab = ['Tipo','Nome','Local','Status atual','SIGE','PC/BDN','Pedido','Correção solicitada em','Solicitada por','Ainda com divergência?','Motivo (se ainda houver)','Valor cadastrado','Valor no pedido','OS cadastrada','OS no pedido','CNPJ esperado','CNPJ no pedido']
+    const linhas = comCorrecaoEnviada.map(o => {
       const conf = conferePedidoObra(o)
       const motivos = []
       if (conf.temValor && !conf.valorBate) motivos.push('Valor')
@@ -3844,19 +3850,20 @@ export default function App() {
       if (conf.temCnpj && !conf.cnpjBate) motivos.push('CNPJ')
       return [
         o.tipo, o.nome, o.local||'', o.status, o.sige||'', o.numero_pc||'', o.pedido||'',
+        new Date(o.correcao_pedido_solicitada_em).toLocaleString('pt-BR'),
+        o.correcao_pedido_solicitada_por || '',
+        conf.precisaCorrecao ? 'Sim' : 'Não (já corrigido/avançado)',
+        motivos.join(' + '),
         Number(o.valor||0), o.pedido_valor!=null ? Number(o.pedido_valor) : '',
         o.os_tecban||'', o.pedido_os||'',
         cnpjEsperadoParaUF(uf(o.local).toUpperCase())||'', o.pedido_cnpj||'',
-        motivos.join(' + '),
-        o.correcao_pedido_solicitada_em ? new Date(o.correcao_pedido_solicitada_em).toLocaleString('pt-BR') : '',
-        o.correcao_pedido_solicitada_por || '',
       ]
     })
     const ws = XLSXStyle.utils.aoa_to_sheet([cab, ...linhas])
     ws['!cols'] = cab.map(() => ({ wch: 18 }))
     const wb = XLSXStyle.utils.book_new()
-    XLSXStyle.utils.book_append_sheet(wb, ws, 'Pedidos divergentes')
-    XLSXStyle.writeFile(wb, `pedidos-divergentes-${new Date().toISOString().slice(0,10)}.xlsx`)
+    XLSXStyle.utils.book_append_sheet(wb, ws, 'Correções solicitadas à Tecban')
+    XLSXStyle.writeFile(wb, `correcoes-solicitadas-tecban-${new Date().toISOString().slice(0,10)}.xlsx`)
   }
 
   function exportarCSV() {
@@ -4180,8 +4187,15 @@ export default function App() {
             <div style={{ textAlign:'center', color:'#1A6B4A', marginTop:40, fontSize:14 }}>Nenhuma obra pronta para faturar</div>
           ) : (
             <>
-              <div style={{ fontSize:11, color:'#1A6B4A', fontWeight:700, marginBottom:10, padding:'8px 12px', background:'#D1FAE5', borderRadius:8 }}>
-                {obrasFaturar.length} obra(s) · Total: R$ {totalFaturar.toLocaleString('pt-BR',{minimumFractionDigits:2})}
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, marginBottom:10, padding:'8px 12px', background:'#D1FAE5', borderRadius:8 }}>
+                <div style={{ fontSize:11, color:'#1A6B4A', fontWeight:700 }}>
+                  {obrasFaturar.length} obra(s) · Total: R$ {totalFaturar.toLocaleString('pt-BR',{minimumFractionDigits:2})}
+                </div>
+                <button onClick={exportarDivergenciasCSV}
+                  style={{ padding:'5px 10px', background:'#fff', color:'#1A6B4A', border:'1px solid #A7F3D0', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}
+                  title="Exporta o histórico completo de correções já solicitadas à Tecban, mesmo as obras que já saíram dessa lista">
+                  ↓ Correções já solicitadas à Tecban
+                </button>
               </div>
               {(() => {
                 const obrasCorrecao = obrasFaturar.filter(o => conferePedidoObra(o).precisaCorrecao)
@@ -4192,14 +4206,8 @@ export default function App() {
                 return (
                   <>
                     {obrasCorrecao.length > 0 && (
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, marginTop:6, marginBottom:10, padding:'8px 12px', background:'#FFF7ED', borderRadius:8, border:'1px solid #FED7AA' }}>
-                        <div style={{ fontSize:11, color:'#9A3412', fontWeight:700 }}>
-                          ⚠ Precisa de correção antes de faturar ({obrasCorrecao.length})
-                        </div>
-                        <button onClick={exportarDivergenciasCSV}
-                          style={{ padding:'5px 10px', background:'#fff', color:'#9A3412', border:'1px solid #FED7AA', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
-                          ↓ Exportar
-                        </button>
+                      <div style={{ fontSize:11, color:'#9A3412', fontWeight:700, marginTop:6, marginBottom:10, padding:'8px 12px', background:'#FFF7ED', borderRadius:8, border:'1px solid #FED7AA' }}>
+                        ⚠ Precisa de correção antes de faturar ({obrasCorrecao.length})
                       </div>
                     )}
                     {obrasCorrecao.map(o => {
