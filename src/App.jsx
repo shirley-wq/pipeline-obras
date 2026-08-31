@@ -1298,6 +1298,26 @@ const TIPOS_BDN = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM'
 function tiposDaMesmaFamilia(tipo) {
   return TIPOS_BDN.includes(tipo) ? TIPOS_BDN : Object.keys(TIPO_COR)
 }
+
+// Sugestão do "Número da operação" que vai na RM, a partir da rede/tipo - preenchido pelas meninas
+// do escritório, mas com um número sugerido de partida pra agilizar (podem sempre trocar na mão).
+// Regra da Shirley (2026-08-31): Bradesco é sempre 10, não importa o tipo. Fora Bradesco, cada tipo
+// ATM tem seu número. Não dá pra sugerir sozinho pra obra de agência fora Bradesco, nem pros casos
+// de "instalação de modem" (30) e "habilitação/remoção de parede" (80), que não são um "tipo" do
+// sistema - esses ficam em branco pra preencher na mão.
+function sugereOperacao(rede, tipo) {
+  if (rede === 'BRADESCO') return '10'
+  const mapa = {
+    'MANUTENÇÃO ATM': '10',
+    'PINTURA ATM': '10',
+    'SINALIZAÇÃO ATM': '10',
+    'DESATIVAÇÃO ATM': '40',
+    'INSTALAÇÃO ATM': '20',
+    'REMANEJAMENTO ATM': '50',
+    'SUBSTITUIÇÃO ATM': '60',
+  }
+  return mapa[tipo] || ''
+}
 // Instalação, Desativação, Substituição (troca) e Remanejamento de Banco24Horas não têm fase de
 // vistoria no processo real (Shirley, 2026-08-13) - diferente de Bradesco, que tem vistoria própria.
 // Sinalização também não tem vistoria (Shirley, 2026-08-26) - entrou na lista pra sumir o campo
@@ -2269,7 +2289,7 @@ export default function App() {
   const [entregaveisVistoria, setEntregaveisVistoria] = useState([])
   const [novoLembreteEtapa, setNovoLembreteEtapa] = useState('')
   const [novoLembreteTexto, setNovoLembreteTexto] = useState('')
-  const [editDados, setEditDados] = useState({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'', pedido_tecban_cnpj:'', pedido_tecban_nome:'', pedido_tecban_endereco:'' })
+  const [editDados, setEditDados] = useState({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', numero_operacao:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'', pedido_tecban_cnpj:'', pedido_tecban_nome:'', pedido_tecban_endereco:'' })
   const [adesivos, setAdesivos] = useState([])
   const [vidros, setVidros] = useState([])
   const [novoVidro, setNovoVidro] = useState('')
@@ -3430,6 +3450,7 @@ export default function App() {
       pedido: editDados.pedido || null,
       nf: editDados.nf || null,
       os_tecban: editDados.os_tecban || null,
+      numero_operacao: editDados.numero_operacao || null,
       pedido_valor: editDados.pedido_valor !== '' ? parseFloat(String(editDados.pedido_valor).replace(',', '.')) || 0 : null,
       pedido_os: editDados.pedido_os || null,
       pedido_cnpj: editDados.pedido_cnpj || null,
@@ -3524,7 +3545,7 @@ export default function App() {
     setItensEspeciais([])
     setBiomboFila('')
     setPortaGiratoria('')
-    setEditDados({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'', pedido_tecban_cnpj:'', pedido_tecban_nome:'', pedido_tecban_endereco:'' })
+    setEditDados({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', numero_operacao:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'', pedido_tecban_cnpj:'', pedido_tecban_nome:'', pedido_tecban_endereco:'' })
     setDataCadastroModal('')
     setDataVistoria('')
     setColabsVistoria([])
@@ -4257,7 +4278,7 @@ export default function App() {
                             </button>
                             <button onClick={() => {
                               setModal(o)
-                              setEditDados({ tipo: o.tipo||'', nome: o.nome||'', endereco: o.endereco||'', cidade: o.cidade||'', uf: o.uf||'', valor: o.valor!=null ? String(o.valor) : '', sige: o.sige||'', numero_pc: o.numero_pc||'', pedido: o.pedido||'', nf: o.nf||'', os_tecban: o.os_tecban||'', pedido_valor: o.pedido_valor!=null ? String(o.pedido_valor) : '', pedido_os: o.pedido_os||'', pedido_cnpj: o.pedido_cnpj||'', pedido_tecban_cnpj: o.pedido_tecban_cnpj||'', pedido_tecban_nome: o.pedido_tecban_nome||'', pedido_tecban_endereco: o.pedido_tecban_endereco||'' })
+                              setEditDados({ tipo: o.tipo||'', nome: o.nome||'', endereco: o.endereco||'', cidade: o.cidade||'', uf: o.uf||'', valor: o.valor!=null ? String(o.valor) : '', sige: o.sige||'', numero_pc: o.numero_pc||'', pedido: o.pedido||'', nf: o.nf||'', os_tecban: o.os_tecban||'', numero_operacao: o.numero_operacao || sugereOperacao(o.rede, o.tipo), pedido_valor: o.pedido_valor!=null ? String(o.pedido_valor) : '', pedido_os: o.pedido_os||'', pedido_cnpj: o.pedido_cnpj||'', pedido_tecban_cnpj: o.pedido_tecban_cnpj||'', pedido_tecban_nome: o.pedido_tecban_nome||'', pedido_tecban_endereco: o.pedido_tecban_endereco||'' })
                               setMostrarEnvioCorrecaoPedido(true)
                             }}
                               style={{ flex:1, padding:'10px', background:'#EA580C', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer' }}>
@@ -5723,6 +5744,7 @@ export default function App() {
                         {obra.pedido && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Pedido</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.pedido}</div></div>}
                         {obra.nf && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>NF</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.nf}</div></div>}
                         {obra.os_tecban && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>OS Tecban</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.os_tecban}</div></div>}
+                        {obra.numero_operacao && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Nº operação</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.numero_operacao}</div></div>}
                         {obra.inicio && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Início</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.inicio}</div></div>}
                         {obra.termino && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Término</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.termino}</div></div>}
                         {obra.data_art && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>ART pronta</div><div style={{ fontSize:12, color:'#1A6B4A', fontWeight:600 }}>{isoToBr(obra.data_art)}</div></div>}
@@ -5764,7 +5786,7 @@ export default function App() {
                         setItensEspeciais(Array.isArray(obra.itens_especiais) ? obra.itens_especiais : [])
                         setBiomboFila(obra.biombo_fila != null ? String(obra.biombo_fila) : '')
                         setPortaGiratoria(obra.porta_giratoria != null ? String(obra.porta_giratoria) : '')
-                        setEditDados({ tipo: obra.tipo||'', nome: obra.nome||'', endereco: obra.endereco||'', cidade: obra.cidade||'', uf: obra.uf||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', numero_pc: obra.numero_pc||'', pedido: obra.pedido||'', nf: obra.nf||'', os_tecban: obra.os_tecban||'', pedido_valor: obra.pedido_valor!=null ? String(obra.pedido_valor) : '', pedido_os: obra.pedido_os||'', pedido_cnpj: obra.pedido_cnpj||'', pedido_tecban_cnpj: obra.pedido_tecban_cnpj||'', pedido_tecban_nome: obra.pedido_tecban_nome||'', pedido_tecban_endereco: obra.pedido_tecban_endereco||'' })
+                        setEditDados({ tipo: obra.tipo||'', nome: obra.nome||'', endereco: obra.endereco||'', cidade: obra.cidade||'', uf: obra.uf||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', numero_pc: obra.numero_pc||'', pedido: obra.pedido||'', nf: obra.nf||'', os_tecban: obra.os_tecban||'', numero_operacao: obra.numero_operacao || sugereOperacao(obra.rede, obra.tipo), pedido_valor: obra.pedido_valor!=null ? String(obra.pedido_valor) : '', pedido_os: obra.pedido_os||'', pedido_cnpj: obra.pedido_cnpj||'', pedido_tecban_cnpj: obra.pedido_tecban_cnpj||'', pedido_tecban_nome: obra.pedido_tecban_nome||'', pedido_tecban_endereco: obra.pedido_tecban_endereco||'' })
                         setDataCadastroModal(obra.data_cadastro || '')
                         setDataVistoria(obra.data_vistoria || '')
                         const listaVistoria = Array.isArray(obra.colaboradores_vistoria) ? obra.colaboradores_vistoria : []
@@ -6151,7 +6173,7 @@ export default function App() {
                     style={{ width:'100%', padding:'8px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', textTransform:'uppercase' }} />
                 </div>
               </div>
-              <div style={{ display:'grid', gridTemplateColumns: `repeat(${(podeVerValores?1:0) + (TIPOS_BDN.includes(modal.tipo) && modal.rede !== 'BANCO24HORAS'?1:0) + 4}, 1fr)`, gap:8 }}>
+              <div style={{ display:'grid', gridTemplateColumns: `repeat(${(podeVerValores?1:0) + (TIPOS_BDN.includes(modal.tipo) && modal.rede !== 'BANCO24HORAS'?1:0) + 5}, 1fr)`, gap:8 }}>
                 {podeVerValores && (
                 <div>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Valor (R$)</label>
@@ -6174,6 +6196,12 @@ export default function App() {
                 <div>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>OS Tecban</label>
                   <input value={editDados.os_tecban} onChange={e => setEditDados(d => ({...d, os_tecban:e.target.value}))}
+                    style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Nº operação (RM)</label>
+                  <input value={editDados.numero_operacao} onChange={e => setEditDados(d => ({...d, numero_operacao:e.target.value}))}
+                    placeholder="ex: 10, 20..."
                     style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                 </div>
                 <div>
