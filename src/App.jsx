@@ -1279,6 +1279,13 @@ const ETAPAS_BDN_BRADESCO = ['OS ABERTA', 'VISTORIA', 'AGENDAMENTO', 'OPERAÇÃO
 // Tipos de obra que são "movimentação de BDN" (não confundir com TRANSF UN/DESC PA, que são a
 // transformação da agência em si - podem coexistir na mesma agência, com OS/contrato separados).
 const TIPOS_BDN = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM', 'REMANEJAMENTO ATM', 'SINALIZAÇÃO ATM', 'MANUTENÇÃO ATM', 'PINTURA ATM']
+// Tipos que compartilham a mesma régua de etapas (ver getEtapas) - família ATM entre si, e todas
+// as obras de agência entre si (chaves de TIPO_COR) - usado pra liberar a correção de tipo de
+// serviço pra qualquer obra, não só ATM, mas sem deixar trocar pra uma família com campos
+// incompatíveis (Shirley, 2026-08-31, estendendo a regra de 2026-08-19).
+function tiposDaMesmaFamilia(tipo) {
+  return TIPOS_BDN.includes(tipo) ? TIPOS_BDN : Object.keys(TIPO_COR)
+}
 // Instalação, Desativação, Substituição (troca) e Remanejamento de Banco24Horas não têm fase de
 // vistoria no processo real (Shirley, 2026-08-13) - diferente de Bradesco, que tem vistoria própria.
 // Sinalização também não tem vistoria (Shirley, 2026-08-26) - entrou na lista pra sumir o campo
@@ -3392,10 +3399,11 @@ export default function App() {
     }
     const campos = {
       status: statusFinal,
-      // Só troca o tipo se a obra já era de família ATM (TIPOS_BDN) - corrige importação errada
-      // do SIGE (ex: Desinstalação lida como Instalação) sem arriscar trocar pra uma família com
-      // campos incompatíveis, tipo TRANSF UN (Shirley, 2026-08-19).
-      ...(TIPOS_BDN.includes(modal.tipo) && editDados.tipo && TIPOS_BDN.includes(editDados.tipo) ? { tipo: editDados.tipo } : {}),
+      // Só troca o tipo dentro da mesma família de régua (ATM entre si, agência entre si) - corrige
+      // importação errada do SIGE (ex: Desinstalação lida como Instalação) sem arriscar trocar pra
+      // uma família com campos incompatíveis (Shirley, 2026-08-19; estendido pra todas as famílias
+      // em 2026-08-31).
+      ...(editDados.tipo && tiposDaMesmaFamilia(modal.tipo).includes(editDados.tipo) ? { tipo: editDados.tipo } : {}),
       obs: novaObs || modal.obs || null,
       atualizado_em: new Date().toISOString(),
       atualizado_por: usuario.email,
@@ -6030,8 +6038,16 @@ export default function App() {
           onClick={e => { if(e.target === e.currentTarget) setModal(null) }}>
           <div style={{ background:'#fff', borderRadius:'16px 16px 0 0', width:'100%', maxHeight:'80vh', display:'flex', flexDirection:'column' }}>
           <div style={{ padding:20, overflowY:'auto', flex:'1 1 auto', minHeight:0 }}>
-            <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:4 }}>{modal.nome}</div>
-            <div style={{ fontSize:11, color:'#888', marginBottom:12 }}>{modal.tipo}</div>
+            <div style={{ position:'sticky', top:0, zIndex:5, background:'#fff', margin:'-20px -20px 12px', padding:'20px 20px 10px', display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:10, borderBottom:'1px solid #E0E8F0' }}>
+              <div style={{ minWidth:0 }}>
+                <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:4 }}>{modal.nome}</div>
+                <div style={{ fontSize:11, color:'#888' }}>{modal.tipo}</div>
+              </div>
+              <button onClick={salvarStatus} disabled={!novoStatus || salvando || !responsavelEscritorio.trim() || (novoStatus === 'RM ENVIADA' && !editDados.os_tecban.trim())}
+                style={{ padding:'10px 16px', background: (!novoStatus||salvando||!responsavelEscritorio.trim()||(novoStatus === 'RM ENVIADA' && !editDados.os_tecban.trim())) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor: (!novoStatus||salvando) ? 'default' : 'pointer', whiteSpace:'nowrap', flexShrink:0 }}>
+                {salvando ? 'Salvando...' : '💾 Salvar'}
+              </button>
+            </div>
 
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
               <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Dados da obra</div>
@@ -6047,16 +6063,14 @@ export default function App() {
                 <input value={editDados.nome} onChange={e => setEditDados(d => ({...d, nome:up(e.target.value)}))}
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
               </div>
-              {TIPOS_BDN.includes(modal.tipo) && (
               <div style={{ marginBottom:10 }}>
                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Tipo de serviço</label>
                 <select value={editDados.tipo || modal.tipo} onChange={e => setEditDados(d => ({...d, tipo:e.target.value}))}
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
-                  {TIPOS_BDN.map(t => <option key={t} value={t}>{t}</option>)}
+                  {tiposDaMesmaFamilia(modal.tipo).map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
-                <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Corrige tipo importado errado do SIGE (ex: Desinstalação lida como Instalação) - só troca entre os tipos ATM, que usam a mesma régua.</div>
+                <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Corrige tipo importado errado do SIGE - só troca entre tipos que usam a mesma régua (ATM entre si, obra de agência entre si).</div>
               </div>
-              )}
               <div style={{ display:'grid', gridTemplateColumns:'2fr 1.3fr 0.6fr', gap:8, marginBottom:10 }}>
                 <div>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Endereço</label>
@@ -7078,17 +7092,13 @@ export default function App() {
             </div>
           </div>
           <div style={{ padding:'12px 20px 20px', borderTop:'1px solid #E0E8F0', background:'#fff', boxShadow:'0 -6px 12px rgba(0,0,0,.06)', flexShrink:0 }}>
-            <button onClick={salvarStatus} disabled={!novoStatus || salvando || !responsavelEscritorio.trim() || (novoStatus === 'RM ENVIADA' && !editDados.os_tecban.trim())}
-              style={{ width:'100%', padding:13, background: (!novoStatus||salvando||!responsavelEscritorio.trim()||(novoStatus === 'RM ENVIADA' && !editDados.os_tecban.trim())) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor: (!novoStatus||salvando) ? 'default' : 'pointer' }}>
-              {salvando ? 'Salvando...' : '💾 Salvar  (Ctrl+S)'}
-            </button>
             {!responsavelEscritorio.trim() && (
-              <div style={{ fontSize:11, color:'#92400E', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'6px 10px', marginTop:8 }}>
+              <div style={{ fontSize:11, color:'#92400E', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'6px 10px', marginBottom:8 }}>
                 🔒 Preencha o "Responsável do escritório" pra liberar o salvamento.
               </div>
             )}
             <button onClick={() => setModal(null)}
-              style={{ width:'100%', padding:11, background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:12, fontSize:13, cursor:'pointer', marginTop:8 }}>
+              style={{ width:'100%', padding:11, background:'#fff', color:'#4A7FC1', border:'1px solid #B5D4F4', borderRadius:12, fontSize:13, cursor:'pointer' }}>
               Cancelar
             </button>
           </div>
