@@ -4192,6 +4192,11 @@ export default function App() {
                           <div style={{ fontSize:11, background:'#FFF7ED', borderLeft:'3px solid #EA580C', padding:'5px 8px', borderRadius:4, color:'#9A3412', marginBottom:10 }}>
                             ⚠ Divergência no pedido:{conf.temValor && !conf.valorBate && ' valor'}{conf.temOs && !conf.osBate && ' · OS'}{conf.temCnpj && !conf.cnpjBate && ' · CNPJ'}
                           </div>
+                          {o.correcao_pedido_solicitada_em && (
+                            <div style={{ fontSize:11, background:'#EFF6FF', borderLeft:'3px solid #1E40AF', padding:'5px 8px', borderRadius:4, color:'#1E40AF', marginBottom:10 }}>
+                              ✉ Correção já solicitada em {new Date(o.correcao_pedido_solicitada_em).toLocaleDateString('pt-BR')} por {o.correcao_pedido_solicitada_por}
+                            </div>
+                          )}
                           <div style={{ display:'flex', gap:8 }}>
                             <button onClick={async () => {
                               const campos = { status:'RM ENVIADA', atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
