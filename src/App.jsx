@@ -280,26 +280,35 @@ function conferePedidoObra(obra) {
 // Agrupa obras 100% conferidas por CNPJ fornecedor (Grupo PG, pela UF) + CNPJ tomador (Tecban,
 // vindo do pedido) pra faturar várias de uma vez com uma única NF - máximo de 15 serviços por
 // grupo (Shirley, 2026-08-25); quando um par de CNPJs passa disso, quebra em mais de um grupo.
+// Obra civil (tudo que não é TIPOS_BDN - TRANSF UN/EN/PAE, DESC. PA/PAB, ENCER. AG, REFORMA, TB
+// FORTE, LINK) nunca entra no mesmo grupo/NF que obra BDN (Shirley, 2026-09-01): a NF de obra civil
+// leva no corpo o texto de desobrigação de retenção do INSS (artigo 149/163 da IN RFB 971/09) no
+// lugar do "reter 11%", então precisam ficar em NFs separadas mesmo quando o CNPJ fornecedor e
+// tomador são os mesmos.
 const MAX_SERVICOS_POR_GRUPO_FATURAMENTO = 15
+const TEXTO_DESOBRIGACAO_INSS_OBRA_CIVIL = 'DESOBRIGAÇÃO DE RETENÇÃO PARA PREVIDENCIA SOCIAL DE ACORDO COM ARTIGO 149 INCISO II DA IN RFB 971/09 A EMPRESA SE OBRIGA A ENTREGAR OS DOCUMENTOS E INFORMAÇÕES RELACIONADAS NO ARTIGO 163, INCISO I DA IN971/09'
 function agruparParaFaturamento(obrasProntas) {
   const porChave = {}
   obrasProntas.forEach(o => {
     const ufObra = uf(o.local).toUpperCase()
     const cnpjFornecedor = cnpjEsperadoParaUF(ufObra)
     const cnpjTomador = o.pedido_tecban_cnpj || ''
-    const chave = `${cnpjFornecedor}|${cnpjTomador}`
+    const ehBDN = TIPOS_BDN.includes(o.tipo)
+    const chave = `${cnpjFornecedor}|${cnpjTomador}|${ehBDN}`
     if (!porChave[chave]) porChave[chave] = []
     porChave[chave].push(o)
   })
   const grupos = []
   Object.entries(porChave).forEach(([chave, lista]) => {
-    const [cnpjFornecedor, cnpjTomador] = chave.split('|')
+    const [cnpjFornecedor, cnpjTomador, ehBDNTexto] = chave.split('|')
+    const ehBDN = ehBDNTexto === 'true'
     for (let i = 0; i < lista.length; i += MAX_SERVICOS_POR_GRUPO_FATURAMENTO) {
       const fatia = lista.slice(i, i + MAX_SERVICOS_POR_GRUPO_FATURAMENTO)
       grupos.push({
         chave: `${chave}#${Math.floor(i / MAX_SERVICOS_POR_GRUPO_FATURAMENTO)}`,
         cnpjFornecedor,
         cnpjTomador,
+        ehBDN,
         nomeTecban: fatia[0].pedido_tecban_nome || '',
         enderecoTomador: fatia[0].pedido_tecban_endereco || '',
         obras: fatia,
@@ -322,7 +331,10 @@ function montaTextoNF(g, vencimentoIso) {
   const valores = g.obras.map(o => `${fmt(o.valor)} ${o.pedido || o.nome}`).join('\n')
   const inss = g.total * 0.11
   const vencimentoTexto = vencimentoIso ? isoToBr(vencimentoIso) : '(preencher vencimento)'
-  return `ENDEREÇO DO TOMADOR: ${endereco}\nPEDIDOS: ${pedidos}\nVALORES:\n${valores}\nINSS - RETER 11% COM BASE NO VALOR TOTAL DA NF: ${fmt(inss)}\nVENCIMENTO ${vencimentoTexto}`
+  const linhaInssOuDesobrigacao = g.ehBDN
+    ? `INSS - RETER 11% COM BASE NO VALOR TOTAL DA NF: ${fmt(inss)}`
+    : TEXTO_DESOBRIGACAO_INSS_OBRA_CIVIL
+  return `ENDEREÇO DO TOMADOR: ${endereco}\nPEDIDOS: ${pedidos}\nVALORES:\n${valores}\n${linhaInssOuDesobrigacao}\nVENCIMENTO ${vencimentoTexto}`
 }
 
 function montaLocal(cidade, ufSigla) {
@@ -4362,6 +4374,9 @@ export default function App() {
                             style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, padding:'12px 14px', cursor:'pointer', background: gd.expandido ? '#F0FDF4' : '#fff' }}>
                             <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', flex:1, lineHeight:1.4, minWidth:0 }}>
                               {ufGrupo ? `${ufGrupo} – ` : ''}{g.nomeTecban || 'Tecban'} <span style={{ fontWeight:400, color:'#64748B' }}>· tomador {g.cnpjTomador || '(sem CNPJ)'}</span>
+                            </div>
+                            <div style={{ fontSize:10, fontWeight:700, color: g.ehBDN ? '#0F766E' : '#7C3AED', background: g.ehBDN ? '#CCFBF1' : '#EDE9FE', padding:'2px 7px', borderRadius:6, whiteSpace:'nowrap' }}>
+                              {g.ehBDN ? 'BDN' : 'OBRA CIVIL'}
                             </div>
                             {bancoRecebimentoParaCnpjFornecedor(g.cnpjFornecedor) && (
                               <div style={{ fontSize:10, fontWeight:700, color:'#0369A1', background:'#E0F2FE', padding:'2px 7px', borderRadius:6, whiteSpace:'nowrap' }}>
