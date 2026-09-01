@@ -3911,6 +3911,53 @@ export default function App() {
     XLSXStyle.writeFile(wb, `correcoes-solicitadas-tecban-${new Date().toISOString().slice(0,10)}.xlsx`)
   }
 
+  // Protocolo do dia p/ contabilidade, separado por tomador (Shirley, 2026-09-01): TecBan
+  // (Tecnologia Bancária S.A., CNPJ 51.427.102/...) e TBSI (Tecban Serviços Integrado, CNPJ
+  // 40.107.944/...) - identificados pelo pedido_tecban_cnpj que o robô já extrai do PDF.
+  // Vencimento = emissão + 15 dias, mesmo intervalo observado nos protocolos anteriores da
+  // contabilidade - ajustar se o prazo real for outro.
+  function exportarProtocoloNF() {
+    const hojeStr = new Date().toISOString().slice(0, 10)
+    const faturadasHoje = obras.filter(o => o.status === 'NF EMITIDO' && (o.atualizado_em || '').slice(0, 10) === hojeStr)
+    if (faturadasHoje.length === 0) {
+      alert('Nenhuma obra foi marcada como NF EMITIDO hoje ainda.')
+      return
+    }
+    const digitos = s => (s || '').replace(/\D/g, '')
+    const grupos = { tecban: [], tbsi: [], outros: [] }
+    faturadasHoje.forEach(o => {
+      const cnpjPedido = digitos(o.pedido_tecban_cnpj)
+      if (cnpjPedido.startsWith('51427102')) grupos.tecban.push(o)
+      else if (cnpjPedido.startsWith('40107944')) grupos.tbsi.push(o)
+      else grupos.outros.push(o)
+    })
+    const cab = ['CNPJ do prestador', 'Número da NF', 'Data de emissão', 'Valor', 'Número do pedido', 'Data de vencimento']
+    const hoje = new Date()
+    const vencimento = new Date(hoje.getTime() + 15 * 24 * 60 * 60 * 1000)
+    function gerarArquivo(lista, sufixo) {
+      if (lista.length === 0) return
+      const linhas = lista.map(o => [
+        cnpjEsperadoParaUF(uf(o.local).toUpperCase()) || '',
+        o.nf || '',
+        hoje,
+        Number(o.valor || 0),
+        o.pedido || '',
+        vencimento,
+      ])
+      const ws = XLSXStyle.utils.aoa_to_sheet([cab, ...linhas])
+      ws['!cols'] = cab.map(() => ({ wch: 20 }))
+      const wb = XLSXStyle.utils.book_new()
+      XLSXStyle.utils.book_append_sheet(wb, ws, 'Protocolo NF')
+      XLSXStyle.writeFile(wb, `protocolo-nf-${sufixo}-${hojeStr}.xlsx`)
+    }
+    gerarArquivo(grupos.tecban, 'tecban')
+    gerarArquivo(grupos.tbsi, 'tbsi')
+    if (grupos.outros.length > 0) {
+      gerarArquivo(grupos.outros, 'outros-verificar')
+      alert(`${grupos.outros.length} obra(s) faturada(s) hoje não tinham um CNPJ de pedido TecBan nem TBSI reconhecido - saíram num arquivo à parte "outros-verificar" pra você conferir manualmente.`)
+    }
+  }
+
   function exportarCSV() {
     const cab = ['Tipo','Nome','Local','Status','Valor','SIGE','PC/BDN','Pedido','NF','Início','Término','ART pronta','Em negociação','Observação','Post-its Régua','Data Entrada Pipeline','Dias no Pipeline','Vidros','Divisórias','Itens Especiais','Biombo de Fila','Porta Giratória','Atualizado por','Atualizado em']
     const linhasObras = obrasFiltradas.map(o => {
@@ -4531,8 +4578,17 @@ export default function App() {
                 style={{ padding:'7px 10px', background:'#F1F5F9', border:'1px solid #CDD8E3', borderRadius:8, fontSize:11, color:'#64748B', cursor:'pointer' }}>✕ limpar</button>
             )}
           </div>
-          <div style={{ fontSize:11, color:'#065F46', fontWeight:700, marginBottom:10, padding:'8px 12px', background:'#D1FAE5', borderRadius:8 }}>
-            {obrasHistorico.length} obra(s) faturada(s) · Total: R$ {obrasHistorico.reduce((s,o)=>s+Number(o.valor||0),0).toLocaleString('pt-BR',{minimumFractionDigits:2})}
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, marginBottom:10, padding:'8px 12px', background:'#D1FAE5', borderRadius:8 }}>
+            <div style={{ fontSize:11, color:'#065F46', fontWeight:700 }}>
+              {obrasHistorico.length} obra(s) faturada(s) · Total: R$ {obrasHistorico.reduce((s,o)=>s+Number(o.valor||0),0).toLocaleString('pt-BR',{minimumFractionDigits:2})}
+            </div>
+            {EMAILS_CUSTOS_DESPESAS.includes(usuario?.email) && (
+              <button onClick={exportarProtocoloNF}
+                style={{ padding:'5px 10px', background:'#fff', color:'#065F46', border:'1px solid #A7F3D0', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}
+                title="Gera o protocolo do dia (CNPJ, NF, emissão, valor, pedido, vencimento) separado em 2 arquivos: TecBan e TBSI, com as obras que viraram NF EMITIDO hoje">
+                📄 Protocolo NF de hoje (TecBan/TBSI)
+              </button>
+            )}
           </div>
           {obrasHistorico.length === 0 ? (
             <div style={{ textAlign:'center', color:'#888', marginTop:40, fontSize:14 }}>Nenhuma obra encontrada</div>
