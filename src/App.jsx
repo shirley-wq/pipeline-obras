@@ -3141,6 +3141,55 @@ export default function App() {
     setMenuAberto(null)
   }
 
+  async function duplicarParaNovaOperacao(obra) {
+    if (!obra.os_tecban || !obra.os_tecban.trim()) {
+      alert('Essa obra ainda não tem OS Tecban preenchida. Preencha e salve a OS antes de duplicar pra uma nova operação.')
+      return
+    }
+    if (!window.confirm(`Criar uma nova obra pra registrar outra atividade na mesma OS (${obra.os_tecban})?\n\nOs dados do local e a OS serão copiados. Pedido, valor, nota fiscal, status e nº de operação começam do zero.`)) return
+    setSalvando(true)
+    const ehBDN = TIPOS_BDN.includes(obra.tipo)
+    const { data, error } = await supabase.from('pipeline_obras').insert({
+      tipo: obra.tipo,
+      rede: obra.rede || null,
+      numero_pc: obra.numero_pc || null,
+      nome: obra.nome,
+      local: obra.local || null,
+      endereco: obra.endereco || null,
+      cidade: obra.cidade || null,
+      uf: obra.uf || null,
+      sige: obra.sige || null,
+      os_tecban: obra.os_tecban,
+      responsavel_escritorio: obra.responsavel_escritorio || null,
+      auxiliar_escritorio: obra.auxiliar_escritorio || null,
+      valor: 0,
+      numero_operacao: null,
+      pedido: null,
+      pedido_valor: null,
+      pedido_os: null,
+      pedido_cnpj: null,
+      pedido_tecban_cnpj: null,
+      pedido_tecban_nome: null,
+      pedido_tecban_endereco: null,
+      nf: null,
+      obs: null,
+      status: ehBDN ? getEtapas(obra.rede, obra.tipo)[0] : 'VISTORIA',
+      data_cadastro: new Date().toISOString().split('T')[0],
+      criado_por: usuario.email,
+      atualizado_por: usuario.email,
+      atualizado_em: new Date().toISOString(),
+    }).select()
+    setSalvando(false)
+    if (error) {
+      alert('Não consegui criar a nova obra: ' + error.message)
+      return
+    }
+    setObras(prev => [...prev, data[0]].sort((a,b) => a.tipo.localeCompare(b.tipo)))
+    setMenuAberto(null)
+    setModal(null)
+    alert(`Nova obra criada pra segunda atividade na OS ${obra.os_tecban}. Já dá pra abrir ela e seguir o fluxo normal (agendamento, RM, etc.) com o nº de operação certo dessa atividade.`)
+  }
+
   function montaRelatorioClientePDF() {
     if (!modal) return null
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
@@ -6134,7 +6183,13 @@ export default function App() {
             </div>
 
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
-              <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>Dados da obra</div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10, gap:8 }}>
+                <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700 }}>Dados da obra</div>
+                <span onClick={() => duplicarParaNovaOperacao(modal)}
+                  style={{ fontSize:10.5, color:'#4A7FC1', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
+                  🔁 Duplicar p/ nova operação (mesma OS)
+                </span>
+              </div>
               {modal.rede === 'BANCO24HORAS' && (
               <div style={{ marginBottom:10 }}>
                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Número do PC</label>
