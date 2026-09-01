@@ -1471,7 +1471,7 @@ const EMAILS_VER_VALORES_TOPO = ['shirley@grupopg.com.br', 'aline.roza@grupopg.c
 // Custos terceirizados/despesas de pessoal (dentro de cada obra) e a aba "Despesas" restritos a
 // essas 4 pessoas (Shirley, 2026-08-20) - antes abertos pra todo mundo com podeVerValores
 // (admin/administrativo/financeiro), o que incluía toda a equipe de escritório.
-const EMAILS_CUSTOS_DESPESAS = ['shirley@grupopg.com.br', 'aline.roza@grupopg.com.br', 'leandro@grupopg.com.br', 'anderson@grupopg.com.br']
+const EMAILS_CUSTOS_DESPESAS = ['shirley@grupopg.com.br', 'aline.roza@grupopg.com.br', 'leandro@grupopg.com.br', 'anderson@grupopg.com.br', 'bruna@grupopg.com.br']
 // Cores dos cards do "Cenário por estado" no dashboard (2026-08-18) - só decoração, cicla por estado.
 const CENARIO_CORES = ['#2D3A8C', '#0F766E', '#C2410C', '#7C3AED', '#0369A1', '#BE185D', '#4D7C0F']
 
