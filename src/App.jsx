@@ -1056,8 +1056,6 @@ const CATEGORIA_DESPESA_COR = {
   'Caçamba e Descarte': '#166534',
 }
 const MESES_FILTRO = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
-const CONSUMO_MEDIO_KM_L = 8
-const PRECO_MEDIO_LITRO = 6.00
 
 function somaValores(lista) {
   return (Array.isArray(lista) ? lista : []).reduce((soma, item) => soma + (Number(item.valor) || 0), 0)
@@ -2343,11 +2341,6 @@ export default function App() {
   const [novaDespesaCategoria, setNovaDespesaCategoria] = useState('Hospedagem')
   const [novaDespesaValor, setNovaDespesaValor] = useState('')
   const [novaDespesaObs, setNovaDespesaObs] = useState('')
-  const [novaDespesaKm, setNovaDespesaKm] = useState('')
-  const [novaDespesaOrigem, setNovaDespesaOrigem] = useState('')
-  const [novaDespesaDestino, setNovaDespesaDestino] = useState('')
-  const [calculandoRota, setCalculandoRota] = useState(false)
-  const [erroRota, setErroRota] = useState('')
   const [selecionadas, setSelecionadas] = useState(new Set())
   const [modalBulk, setModalBulk] = useState(false)
   const [statusBulk, setStatusBulk] = useState('')
@@ -3692,36 +3685,6 @@ export default function App() {
     setModalBulk(false)
     setSelecionadas(new Set())
     setStatusBulk('')
-  }
-
-  async function geocodificar(endereco) {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${encodeURIComponent(endereco)}`
-    const resp = await fetch(url)
-    const dados = await resp.json()
-    if (!dados || dados.length === 0) return null
-    return { lat: Number(dados[0].lat), lon: Number(dados[0].lon), nomeEncontrado: dados[0].display_name }
-  }
-
-  async function calcularKmRota() {
-    if (!novaDespesaOrigem.trim() || !novaDespesaDestino.trim()) return
-    setErroRota('')
-    setCalculandoRota(true)
-    try {
-      const [origem, destino] = await Promise.all([geocodificar(novaDespesaOrigem), geocodificar(novaDespesaDestino)])
-      if (!origem) { setErroRota('Não achei o endereço de origem. Tenta ser mais específico (cidade/UF).'); return }
-      if (!destino) { setErroRota('Não achei o endereço de destino. Tenta ser mais específico (cidade/UF).'); return }
-      const url = `https://router.project-osrm.org/route/v1/driving/${origem.lon},${origem.lat};${destino.lon},${destino.lat}?overview=false`
-      const resp = await fetch(url)
-      const dados = await resp.json()
-      if (!dados.routes || dados.routes.length === 0) { setErroRota('Não consegui calcular uma rota entre esses dois pontos.'); return }
-      const kmIdaEVolta = Math.round((dados.routes[0].distance / 1000) * 2)
-      setNovaDespesaKm(String(kmIdaEVolta))
-    } catch (err) {
-      console.error('Erro ao calcular rota:', err)
-      setErroRota('Erro ao calcular a rota — tenta de novo ou digita o km manualmente.')
-    } finally {
-      setCalculandoRota(false)
-    }
   }
 
   const vistoriaCompleta = (Boolean(dataVistoria) && (colabsVistoria.length > 0 || (terceirizadoVistoria && terceirizadoVistoriaTexto.trim() !== '')))
@@ -7070,21 +7033,6 @@ export default function App() {
                   ))}
                 </div>
               )}
-              {novaDespesaCategoria === 'Combustível' && (
-                <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center', marginBottom:8 }}>
-                  <input value={novaDespesaOrigem} onChange={e => setNovaDespesaOrigem(up(e.target.value))}
-                    placeholder="Origem (cidade/endereço)"
-                    style={{ flex:1, minWidth:140, padding:'7px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-                  <input value={novaDespesaDestino} onChange={e => setNovaDespesaDestino(up(e.target.value))}
-                    placeholder="Destino (cidade/endereço)"
-                    style={{ flex:1, minWidth:140, padding:'7px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-                  <button onClick={calcularKmRota} disabled={calculandoRota || !novaDespesaOrigem.trim() || !novaDespesaDestino.trim()}
-                    style={{ padding:'7px 12px', background: calculandoRota ? '#FECACA' : '#B91C1C', color:'#fff', border:'none', borderRadius:8, fontSize:11, fontWeight:700, cursor: calculandoRota ? 'not-allowed' : 'pointer', whiteSpace:'nowrap' }}>
-                    {calculandoRota ? 'Calculando...' : '📍 Calcular km'}
-                  </button>
-                  {erroRota && <div style={{ fontSize:11, color:'#991B1B', width:'100%' }}>{erroRota}</div>}
-                </div>
-              )}
               <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
                 <input type="date" value={novaDespesaData} onChange={e => setNovaDespesaData(e.target.value)}
                   style={{ padding:'7px 8px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340' }} />
@@ -7095,36 +7043,16 @@ export default function App() {
                 <input value={novaDespesaObs} onChange={e => setNovaDespesaObs(up(e.target.value))}
                   placeholder="Obs (opcional)"
                   style={{ flex:1, minWidth:100, padding:'7px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-                {novaDespesaCategoria === 'Combustível' ? (
-                  <>
-                    <input type="number" value={novaDespesaKm} onChange={e => setNovaDespesaKm(e.target.value)}
-                      placeholder="Km ida e volta"
-                      style={{ width:110, padding:'7px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-                    <span style={{ fontSize:11, color:'#991B1B', fontWeight:600, whiteSpace:'nowrap' }}>
-                      ≈ {fmt((Number(novaDespesaKm) || 0) / CONSUMO_MEDIO_KM_L * PRECO_MEDIO_LITRO)}
-                    </span>
-                  </>
-                ) : (
-                  <input type="number" value={novaDespesaValor} onChange={e => setNovaDespesaValor(e.target.value)}
-                    placeholder="Valor"
-                    style={{ width:100, padding:'7px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-                )}
+                <input type="number" value={novaDespesaValor} onChange={e => setNovaDespesaValor(e.target.value)}
+                  placeholder="Valor"
+                  style={{ width:100, padding:'7px 10px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                 <button onClick={() => {
-                  const isCombustivel = novaDespesaCategoria === 'Combustível'
-                  if (isCombustivel && !novaDespesaKm.trim()) return
-                  if (!isCombustivel && !novaDespesaValor.trim()) return
-                  const valor = isCombustivel
-                    ? Math.round((Number(novaDespesaKm) / CONSUMO_MEDIO_KM_L * PRECO_MEDIO_LITRO) * 100) / 100
-                    : Number(novaDespesaValor)
-                  setDespesasPessoal(prev => [...prev, { data: novaDespesaData || null, categoria: novaDespesaCategoria, valor, km: isCombustivel ? Number(novaDespesaKm) : null, obs: novaDespesaObs.trim() }])
-                  setNovaDespesaData(''); setNovaDespesaValor(''); setNovaDespesaObs(''); setNovaDespesaKm('')
-                  setNovaDespesaOrigem(''); setNovaDespesaDestino(''); setErroRota('')
+                  if (!novaDespesaValor.trim()) return
+                  setDespesasPessoal(prev => [...prev, { data: novaDespesaData || null, categoria: novaDespesaCategoria, valor: Number(novaDespesaValor), obs: novaDespesaObs.trim() }])
+                  setNovaDespesaData(''); setNovaDespesaValor(''); setNovaDespesaObs('')
                 }} style={{ padding:'7px 14px', background:'#B91C1C', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
                   + Adicionar
                 </button>
-              </div>
-              <div style={{ fontSize:10, color:'#B45309', marginTop:6 }}>
-                Combustível é estimado com consumo médio de {CONSUMO_MEDIO_KM_L} km/L e preço médio de {fmt(PRECO_MEDIO_LITRO)}/L
               </div>
             </div>
             </>
