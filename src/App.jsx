@@ -4295,11 +4295,20 @@ export default function App() {
                 <div style={{ fontSize:11, color:'#1A6B4A', fontWeight:700 }}>
                   {obrasFaturar.length} obra(s) · Total: R$ {totalFaturar.toLocaleString('pt-BR',{minimumFractionDigits:2})}
                 </div>
-                <button onClick={exportarDivergenciasCSV}
-                  style={{ padding:'5px 10px', background:'#fff', color:'#1A6B4A', border:'1px solid #A7F3D0', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}
-                  title="Exporta o histórico completo de correções já solicitadas à Tecban, mesmo as obras que já saíram dessa lista">
-                  ↓ Correções já solicitadas à Tecban
-                </button>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                  {EMAILS_CUSTOS_DESPESAS.includes(usuario?.email) && (
+                    <button onClick={exportarProtocoloNF}
+                      style={{ padding:'5px 10px', background:'#fff', color:'#065F46', border:'1px solid #A7F3D0', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}
+                      title="Gera o protocolo do dia (CNPJ, NF, emissão, valor, pedido, vencimento) separado em 2 arquivos: TecBan e TBSI, com as obras que viraram NF EMITIDO hoje">
+                      📄 Protocolo NF de hoje (TecBan/TBSI)
+                    </button>
+                  )}
+                  <button onClick={exportarDivergenciasCSV}
+                    style={{ padding:'5px 10px', background:'#fff', color:'#1A6B4A', border:'1px solid #A7F3D0', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}
+                    title="Exporta o histórico completo de correções já solicitadas à Tecban, mesmo as obras que já saíram dessa lista">
+                    ↓ Correções já solicitadas à Tecban
+                  </button>
+                </div>
               </div>
               {(() => {
                 const obrasCorrecao = obrasFaturar.filter(o => conferePedidoObra(o).precisaCorrecao)
