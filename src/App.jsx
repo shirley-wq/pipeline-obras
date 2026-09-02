@@ -967,59 +967,6 @@ function normalizaNomeColaborador(nome) {
   return String(nome || '').trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
-// ====== Descontos — parser da planilha "DESCONTOS.xlsx" (abas por mês, ex. "JULHO_2026") ======
-
-function extraiAnoDaAbaDescontos(nomeAba) {
-  const m = String(nomeAba || '').match(/(\d{4})/)
-  return m ? Number(m[1]) : null
-}
-
-function parseDescontosPlanilha(rows, nomeAba) {
-  const ano = extraiAnoDaAbaDescontos(nomeAba)
-  if (!ano) return { lancamentos: [], erro: `Não consegui identificar o ano pelo nome da aba "${nomeAba}".` }
-  const header = (rows[0] || []).map(h => String(h || '').trim())
-  // Colunas 0/1/2 são FUNCIONÁRIOS/UNIDADE/MOTIVO; a partir da 3 vêm os meses, na sequência
-  // (podem virar o ano, ex. NOVEMBRO -> DEZEMBRO -> JANEIRO/ano seguinte).
-  const colunasMes = []
-  let anoAtual = ano
-  let mesAnterior = null
-  for (let col = 3; col < header.length; col++) {
-    const idxMes = MESES_PT.findIndex(m => m.toUpperCase() === header[col].toUpperCase())
-    if (idxMes === -1) continue
-    if (mesAnterior !== null && idxMes < mesAnterior) anoAtual++
-    mesAnterior = idxMes
-    colunasMes.push({ col, mes: `${anoAtual}-${String(idxMes + 1).padStart(2, '0')}` })
-  }
-  const lancamentos = []
-  for (let r = 1; r < rows.length; r++) {
-    const row = rows[r]
-    const nomeBruto = String(row[0] || '').trim()
-    if (!nomeBruto) continue
-    const motivoBruto = String(row[2] || '').trim().toUpperCase().replace(/\s+/g, '_')
-    const motivo = RUBRICAS_DESCONTO.some(x => x.motivo === motivoBruto) ? motivoBruto : 'OUTROS'
-    colunasMes.forEach(cm => {
-      const bruto = row[cm.col]
-      if (bruto === '' || bruto === undefined || bruto === null) return
-      const numero = typeof bruto === 'number' ? bruto : Number(String(bruto).replace(',', '.'))
-      lancamentos.push({
-        nomeBruto, motivoBruto, motivo, mes: cm.mes,
-        valor: Number.isFinite(numero) ? numero : null,
-        textoOriginal: Number.isFinite(numero) ? null : String(bruto),
-      })
-    })
-  }
-  return { lancamentos, erro: null }
-}
-
-function classificaLancamentoDesconto(l, rhColaboradores) {
-  if (l.valor === null) return { ...l, status: 'invalido' }
-  const nomeNorm = normalizaNomeColaborador(l.nomeBruto)
-  const rh = rhColaboradores.find(c => normalizaNomeColaborador(`${c.nome} ${c.sobrenome || ''}`) === nomeNorm)
-  if (!rh) return { ...l, status: 'nao_encontrado' }
-  const jaExiste = Array.isArray(rh.descontos) && rh.descontos.some(d => d.motivo === l.motivo && d.mes === l.mes)
-  return { ...l, status: jaExiste ? 'duplicado' : 'novo', colaboradorId: rh.id, colaboradorNome: `${rh.nome} ${rh.sobrenome || ''}`.trim() }
-}
-
 function montaLinhaFechamentoFolha(colaboradorPonto, rhColaboradores, mesReferencia, base) {
   const nomeNormalizado = normalizaNomeColaborador(colaboradorPonto.nome)
   const rh = rhColaboradores.find(c => normalizaNomeColaborador(`${c.nome} ${c.sobrenome || ''}`) === nomeNormalizado)
@@ -2446,22 +2393,6 @@ export default function App() {
   const [despesasMes, setDespesasMes] = useState(new Date().getMonth() + 1)
   const [despesasAno, setDespesasAno] = useState(new Date().getFullYear())
   const [despesaObraAberta, setDespesaObraAberta] = useState(null)
-  const [descontosNomeArquivo, setDescontosNomeArquivo] = useState('')
-  const [descontosProcessando, setDescontosProcessando] = useState(false)
-  const [descontosErro, setDescontosErro] = useState('')
-  const [descontosPorAba, setDescontosPorAba] = useState(null)
-  const [descontosAbas, setDescontosAbas] = useState([])
-  const [descontosAbaEscolhida, setDescontosAbaEscolhida] = useState('')
-  const [descontosImportando, setDescontosImportando] = useState(false)
-  const [descontosResultado, setDescontosResultado] = useState(null)
-
-  const descontosPreviewInfo = useMemo(() => {
-    if (!descontosPorAba || !descontosAbaEscolhida) return { lancamentos: [], erro: null }
-    const rows = descontosPorAba[descontosAbaEscolhida] || []
-    const { lancamentos, erro } = parseDescontosPlanilha(rows, descontosAbaEscolhida)
-    if (erro) return { lancamentos: [], erro }
-    return { lancamentos: lancamentos.map(l => classificaLancamentoDesconto(l, rhColaboradores)), erro: null }
-  }, [descontosPorAba, descontosAbaEscolhida, rhColaboradores])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -2934,55 +2865,6 @@ export default function App() {
   async function atualizarRH(id, campos) {
     setRhColaboradores(prev => prev.map(c => c.id === id ? { ...c, ...campos } : c))
     await supabase.from('rh_colaboradores').update(campos).eq('id', id)
-  }
-
-  function handleDescontosUpload(e) {
-    const arquivo = e.target.files[0]
-    if (!arquivo) return
-    setDescontosErro('')
-    setDescontosResultado(null)
-    setDescontosProcessando(true)
-    setDescontosNomeArquivo(arquivo.name)
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      try {
-        const wb = XLSX.read(ev.target.result, { type: 'array' })
-        const abas = wb.SheetNames.filter(n => n.trim().toUpperCase() !== 'FOLHA DE ROSTO')
-        const porAba = {}
-        abas.forEach(nome => {
-          porAba[nome] = XLSX.utils.sheet_to_json(wb.Sheets[nome], { header: 1, defval: '' })
-        })
-        setDescontosPorAba(porAba)
-        setDescontosAbas(abas)
-        setDescontosAbaEscolhida(abas[abas.length - 1] || '')
-      } catch (err) {
-        console.error('Erro ao processar planilha de descontos:', err)
-        setDescontosErro('Não consegui ler esse arquivo. Confere se é a planilha de descontos (abas por mês).')
-        setDescontosPorAba(null)
-        setDescontosAbas([])
-      }
-      setDescontosProcessando(false)
-    }
-    reader.readAsArrayBuffer(arquivo)
-  }
-
-  async function confirmarImportacaoDescontos() {
-    const novos = descontosPreviewInfo.lancamentos.filter(l => l.status === 'novo')
-    if (novos.length === 0) return
-    setDescontosImportando(true)
-    const porColaborador = {}
-    novos.forEach(l => {
-      if (!porColaborador[l.colaboradorId]) porColaborador[l.colaboradorId] = []
-      porColaborador[l.colaboradorId].push({ motivo: l.motivo, mes: l.mes, valor: String(l.valor), observacao: `Importado de ${descontosAbaEscolhida}` })
-    })
-    for (const [id, itens] of Object.entries(porColaborador)) {
-      const rh = rhColaboradores.find(c => String(c.id) === id)
-      if (!rh) continue
-      const descontosAtualizados = [...(Array.isArray(rh.descontos) ? rh.descontos : []), ...itens]
-      await atualizarRH(rh.id, { descontos: descontosAtualizados })
-    }
-    setDescontosResultado({ lancamentos: novos.length, colaboradores: Object.keys(porColaborador).length })
-    setDescontosImportando(false)
   }
 
   function handlePontoUpload(e) {
@@ -4683,93 +4565,6 @@ export default function App() {
               style={{ padding:'7px 14px', background:'#DC2626', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
               {mostrarNovoColaborador ? '✕ Cancelar' : '+ Novo colaborador'}
             </button>
-          </div>
-
-          <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:12 }}>
-            <div style={{ fontSize:12, color:'#5B21B6', fontWeight:700, marginBottom:10 }}>📥 Importar descontos (.xlsx)</div>
-            <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-              <input type="file" accept=".xlsx,.xls" onChange={handleDescontosUpload} style={{ fontSize:12 }} />
-              {descontosAbas.length > 0 && (
-                <select value={descontosAbaEscolhida} onChange={e => setDescontosAbaEscolhida(e.target.value)}
-                  style={{ padding:'6px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
-                  {descontosAbas.map(a => <option key={a} value={a}>{a}</option>)}
-                </select>
-              )}
-            </div>
-            {descontosProcessando && <div style={{ fontSize:12, color:'#888', marginTop:8 }}>Lendo arquivo...</div>}
-            {descontosErro && <div style={{ fontSize:12, color:'#991B1B', marginTop:8 }}>{descontosErro}</div>}
-            {descontosNomeArquivo && !descontosProcessando && (
-              <div style={{ fontSize:11, color:'#888', marginTop:8 }}>Arquivo: {descontosNomeArquivo}</div>
-            )}
-
-            {(() => {
-              const { lancamentos, erro } = descontosPreviewInfo
-              if (erro) return <div style={{ fontSize:12, color:'#991B1B', marginTop:8 }}>{erro}</div>
-              if (!descontosAbaEscolhida || lancamentos.length === 0) return null
-              const novos = lancamentos.filter(l => l.status === 'novo')
-              const duplicados = lancamentos.filter(l => l.status === 'duplicado')
-              const naoEncontrados = lancamentos.filter(l => l.status === 'nao_encontrado')
-              const invalidos = lancamentos.filter(l => l.status === 'invalido')
-              return (
-                <div style={{ marginTop:10 }}>
-                  <div style={{ display:'flex', gap:12, flexWrap:'wrap', fontSize:11, marginBottom:8 }}>
-                    <span style={{ color:'#065F46' }}>✓ {novos.length} novo(s)</span>
-                    <span style={{ color:'#888' }}>= {duplicados.length} já importado(s)</span>
-                    {naoEncontrados.length > 0 && <span style={{ color:'#991B1B' }}>⚠ {naoEncontrados.length} nome não encontrado no RH</span>}
-                    {invalidos.length > 0 && <span style={{ color:'#92400E' }}>⚠ {invalidos.length} valor não numérico (confere manualmente)</span>}
-                  </div>
-
-                  {naoEncontrados.length > 0 && (
-                    <div style={{ fontSize:11, color:'#991B1B', marginBottom:8 }}>
-                      Não encontrados: {[...new Set(naoEncontrados.map(l => l.nomeBruto))].join(', ')}
-                    </div>
-                  )}
-                  {invalidos.length > 0 && (
-                    <div style={{ fontSize:11, color:'#92400E', marginBottom:8 }}>
-                      {invalidos.map((l, idx) => <div key={idx}>{l.nomeBruto} — {l.mes} — "{l.textoOriginal}"</div>)}
-                    </div>
-                  )}
-
-                  {(novos.length > 0 || duplicados.length > 0) && (
-                    <div style={{ maxHeight:220, overflowY:'auto', border:'1px solid #E0E8F0', borderRadius:8, marginBottom:10 }}>
-                      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
-                        <thead>
-                          <tr style={{ background:'#F8FAFC', textAlign:'left' }}>
-                            <th style={{ padding:6 }}>Colaborador</th>
-                            <th style={{ padding:6 }}>Motivo</th>
-                            <th style={{ padding:6 }}>Mês</th>
-                            <th style={{ padding:6 }}>Valor</th>
-                            <th style={{ padding:6 }}>Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {novos.concat(duplicados).map((l, idx) => (
-                            <tr key={idx} style={{ borderTop:'1px solid #F1F5F9' }}>
-                              <td style={{ padding:6 }}>{l.colaboradorNome || l.nomeBruto}</td>
-                              <td style={{ padding:6 }}>{rubricaLabel(l.motivo)}</td>
-                              <td style={{ padding:6 }}>{l.mes}</td>
-                              <td style={{ padding:6 }}>R$ {l.valor.toFixed(2)}</td>
-                              <td style={{ padding:6, color: l.status === 'novo' ? '#065F46' : '#888' }}>{l.status === 'novo' ? 'Novo' : 'Já importado'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  <button onClick={confirmarImportacaoDescontos} disabled={novos.length === 0 || descontosImportando}
-                    style={{ padding:'8px 16px', background: novos.length === 0 ? '#CBD5E1' : '#5B21B6', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor: novos.length === 0 ? 'default' : 'pointer' }}>
-                    {descontosImportando ? 'Importando...' : `Confirmar importação (${novos.length} lançamento(s))`}
-                  </button>
-                </div>
-              )
-            })()}
-
-            {descontosResultado && (
-              <div style={{ fontSize:12, color:'#065F46', marginTop:8 }}>
-                ✓ {descontosResultado.lancamentos} lançamento(s) importado(s) para {descontosResultado.colaboradores} colaborador(es).
-              </div>
-            )}
           </div>
 
           {mostrarNovoColaborador && (
