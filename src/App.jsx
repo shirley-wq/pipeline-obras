@@ -2399,6 +2399,7 @@ export default function App() {
   const [novaJantaMotivo, setNovaJantaMotivo] = useState('')
   const [jantasTodas, setJantasTodas] = useState([])
   const [novoRhNomeCompleto, setNovoRhNomeCompleto] = useState('')
+  const [mostrarNovoColaborador, setMostrarNovoColaborador] = useState(false)
   const [filtroRhNome, setFiltroRhNome] = useState('')
   const [novoRhBaseCadastrado, setNovoRhBaseCadastrado] = useState('')
   const [novoRhBaseAtua, setNovoRhBaseAtua] = useState('')
@@ -4668,14 +4669,20 @@ export default function App() {
         <div style={{ display:'flex', alignItems:'flex-start' }}>
           <SidebarRH ativa={rhSubaba} onChange={setRhSubaba} totalColaboradores={rhColaboradores.length} totalHolerites={holeritesSalvos.length} />
           <div style={{ flex:1, minWidth:0, padding:12 }}>
-          <div style={{ fontSize:11, color:'#5B21B6', fontWeight:700, marginBottom:10, padding:'8px 12px', background:'#EDE9FE', borderRadius:8, display:'flex', gap:16, flexWrap:'wrap', alignItems:'center' }}>
-            <span>{rhColaboradores.length} colaborador(es) cadastrado(s)</span>
-            {(() => {
-              const comPendencia = rhColaboradores.filter(c => contarPendenciasRH(c, perfisLogin) > 0).length
-              return comPendencia > 0
-                ? <span style={{ color:'#991B1B' }}>⚠ {comPendencia} com documentação pendente</span>
-                : <span style={{ color:'#065F46' }}>✓ Todos em dia</span>
-            })()}
+          <div style={{ fontSize:11, color:'#5B21B6', fontWeight:700, marginBottom:10, padding:'8px 12px', background:'#EDE9FE', borderRadius:8, display:'flex', gap:16, flexWrap:'wrap', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ display:'flex', gap:16, flexWrap:'wrap', alignItems:'center' }}>
+              <span>{rhColaboradores.length} colaborador(es) cadastrado(s)</span>
+              {(() => {
+                const comPendencia = rhColaboradores.filter(c => contarPendenciasRH(c, perfisLogin) > 0).length
+                return comPendencia > 0
+                  ? <span style={{ color:'#991B1B' }}>⚠ {comPendencia} com documentação pendente</span>
+                  : <span style={{ color:'#065F46' }}>✓ Todos em dia</span>
+              })()}
+            </div>
+            <button onClick={() => setMostrarNovoColaborador(v => !v)}
+              style={{ padding:'7px 14px', background:'#DC2626', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+              {mostrarNovoColaborador ? '✕ Cancelar' : '+ Novo colaborador'}
+            </button>
           </div>
 
           <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:12 }}>
@@ -4765,27 +4772,33 @@ export default function App() {
             )}
           </div>
 
-          <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:12 }}>
-            <div style={{ fontSize:12, color:'#5B21B6', fontWeight:700, marginBottom:10 }}>+ Novo colaborador</div>
-            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-              <input value={novoRhNomeCompleto} onChange={e => setNovoRhNomeCompleto(e.target.value)}
-                placeholder="Nome completo" style={{ flex:2, minWidth:180, padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-              <select value={novoRhBaseCadastrado} onChange={e => setNovoRhBaseCadastrado(e.target.value)}
-                style={{ padding:'7px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
-                <option value="">Base cadastrado</option>
-                {BASES_GRUPOPG.map(b => <option key={b.nome} value={b.nome}>{b.label}</option>)}
-              </select>
-              <select value={novoRhBaseAtua} onChange={e => setNovoRhBaseAtua(e.target.value)}
-                style={{ padding:'7px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
-                <option value="">Base onde atua</option>
-                {BASES_GRUPOPG.map(b => <option key={b.nome} value={b.nome}>{b.label}</option>)}
-              </select>
-              <button onClick={adicionarRH}
-                style={{ padding:'7px 14px', background:'#5B21B6', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                + Adicionar
-              </button>
+          {mostrarNovoColaborador && (
+            <div style={{ background:'#fff', border:'1px solid #FECACA', borderRadius:12, padding:14, marginBottom:12 }}>
+              <div style={{ fontSize:12, color:'#991B1B', fontWeight:700, marginBottom:10 }}>+ Novo colaborador</div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                <input value={novoRhNomeCompleto} onChange={e => setNovoRhNomeCompleto(e.target.value)}
+                  placeholder="Nome completo" style={{ flex:2, minWidth:180, padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                <select value={novoRhBaseCadastrado} onChange={e => setNovoRhBaseCadastrado(e.target.value)}
+                  style={{ padding:'7px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                  <option value="">Base cadastrado</option>
+                  {BASES_GRUPOPG.map(b => <option key={b.nome} value={b.nome}>{b.label}</option>)}
+                </select>
+                <select value={novoRhBaseAtua} onChange={e => setNovoRhBaseAtua(e.target.value)}
+                  style={{ padding:'7px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                  <option value="">Base onde atua</option>
+                  {BASES_GRUPOPG.map(b => <option key={b.nome} value={b.nome}>{b.label}</option>)}
+                </select>
+                <button onClick={async () => {
+                  const tinhaNome = novoRhNomeCompleto.trim()
+                  await adicionarRH()
+                  if (tinhaNome) setMostrarNovoColaborador(false)
+                }}
+                  style={{ padding:'7px 14px', background:'#DC2626', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  + Adicionar
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           <input value={filtroRhNome} onChange={e => setFiltroRhNome(e.target.value)}
             placeholder="🔎 Buscar colaborador por nome..."
