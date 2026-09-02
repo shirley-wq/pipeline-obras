@@ -2377,6 +2377,7 @@ export default function App() {
   const [grupoFaturarDados, setGrupoFaturarDados] = useState({})
   const [filtroHistTipo, setFiltroHistTipo] = useState('')
   const [filtroHistRegiao, setFiltroHistRegiao] = useState('')
+  const [filtroHistCnpj, setFiltroHistCnpj] = useState('')
   const [filtroHistDe, setFiltroHistDe] = useState('')
   const [filtroHistAte, setFiltroHistAte] = useState('')
   const [buscaHist, setBuscaHist] = useState('')
@@ -3804,11 +3805,13 @@ export default function App() {
     if (o.status !== 'NF EMITIDO') return false
     if (filtroHistTipo && o.tipo !== filtroHistTipo) return false
     if (filtroHistRegiao && uf(o.local) !== filtroHistRegiao) return false
+    if (filtroHistCnpj && cnpjEsperadoParaUF(uf(o.local).toUpperCase()) !== filtroHistCnpj) return false
     if (buscaHist) {
       // mesma logica de busca por palavras da aba Pipeline - sem isso não tinha nenhum jeito de
       // achar uma obra já faturada por PC/SIGE/nome, já que ela some da aba Pipeline assim que
-      // vira NF EMITIDO (Shirley, 2026-08-27 - "não encontro o PC 98813").
-      const campos = [o.nome, o.local, o.cidade, o.uf, o.os_tecban, o.pedido, o.sige, o.numero_pc]
+      // vira NF EMITIDO (Shirley, 2026-08-27 - "não encontro o PC 98813"). NF incluída na busca a
+      // pedido da Aline, 2026-09-02.
+      const campos = [o.nome, o.local, o.cidade, o.uf, o.os_tecban, o.pedido, o.sige, o.numero_pc, o.nf]
         .map(c => (c || '').toLowerCase()).join(' ')
       const palavras = buscaHist.toLowerCase().trim().split(/\s+/).filter(Boolean)
       if (!palavras.every(p => campos.includes(p))) return false
@@ -4587,7 +4590,7 @@ export default function App() {
       {aba === 'historico' && (
         <div style={{ padding:12 }}>
           <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:12 }}>
-            <input value={buscaHist} onChange={e=>setBuscaHist(e.target.value)} placeholder="🔎 Buscar por nome, PC, SIGE, OS, pedido, cidade..." title="Busca"
+            <input value={buscaHist} onChange={e=>setBuscaHist(e.target.value)} placeholder="🔎 Buscar por nome, PC, SIGE, OS, pedido, NF, cidade..." title="Busca"
               style={{ flex:2, minWidth:180, padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340' }} />
             <select value={filtroHistTipo} onChange={e=>setFiltroHistTipo(e.target.value)}
               style={{ flex:1, minWidth:100, padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
@@ -4599,12 +4602,18 @@ export default function App() {
               <option value="">Todas regiões</option>
               {[...new Set(obras.filter(o=>o.status==='NF EMITIDO').map(o=>uf(o.local)))].filter(r=>r!=='—').sort().map(r=><option key={r}>{r}</option>)}
             </select>
+            <select value={filtroHistCnpj} onChange={e=>setFiltroHistCnpj(e.target.value)}
+              title="Filtra pelo CNPJ do Grupo PG que emitiu a NF"
+              style={{ flex:1, minWidth:140, padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+              <option value="">Todos CNPJs</option>
+              {Object.entries(CNPJS_GRUPOPG).map(([uf, cnpj]) => <option key={cnpj} value={cnpj}>{uf} - {cnpj}</option>)}
+            </select>
             <input type="date" value={filtroHistDe} onChange={e=>setFiltroHistDe(e.target.value)}
               style={{ flex:1, minWidth:120, padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340' }} />
             <input type="date" value={filtroHistAte} onChange={e=>setFiltroHistAte(e.target.value)}
               style={{ flex:1, minWidth:120, padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340' }} />
-            {(buscaHist||filtroHistTipo||filtroHistRegiao||filtroHistDe||filtroHistAte) && (
-              <button onClick={()=>{setBuscaHist('');setFiltroHistTipo('');setFiltroHistRegiao('');setFiltroHistDe('');setFiltroHistAte('')}}
+            {(buscaHist||filtroHistTipo||filtroHistRegiao||filtroHistCnpj||filtroHistDe||filtroHistAte) && (
+              <button onClick={()=>{setBuscaHist('');setFiltroHistTipo('');setFiltroHistRegiao('');setFiltroHistCnpj('');setFiltroHistDe('');setFiltroHistAte('')}}
                 style={{ padding:'7px 10px', background:'#F1F5F9', border:'1px solid #CDD8E3', borderRadius:8, fontSize:11, color:'#64748B', cursor:'pointer' }}>✕ limpar</button>
             )}
           </div>
