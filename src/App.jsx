@@ -385,12 +385,14 @@ function paraIsoDataObraTexto(v) {
 function somaAnos(iso, anos) {
   if (!iso) return null
   const d = new Date(iso + 'T12:00:00')
+  if (isNaN(d.getTime())) return null // data cadastrada num formato inválido - não trava a tela (Shirley, 2026-09-02: RH inteiro ficando em branco por causa de 1 registro ruim)
   d.setFullYear(d.getFullYear() + anos)
   return d.toISOString().slice(0, 10)
 }
 
 function somaDias(iso, dias) {
   const d = new Date(iso + 'T12:00:00')
+  if (isNaN(d.getTime())) return null
   d.setDate(d.getDate() + dias)
   return d.toISOString().slice(0, 10)
 }
@@ -406,6 +408,7 @@ function proximaFeriasEstimativa(dataAdmissao) {
   if (!dataAdmissao) return null
   const hoje = new Date()
   const d = new Date(dataAdmissao + 'T12:00:00')
+  if (isNaN(d.getTime())) return null
   d.setFullYear(hoje.getFullYear())
   if (d < hoje) d.setFullYear(hoje.getFullYear() + 1)
   return d.toISOString().slice(0, 10)
