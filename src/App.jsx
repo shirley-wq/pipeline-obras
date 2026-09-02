@@ -1636,7 +1636,7 @@ function SidebarRH({ ativa, onChange, totalColaboradores, totalHolerites }) {
   const itens = [
     { id:'colaboradores', label:'Colaboradores', count: totalColaboradores },
     { id:'fechamento', label:'Fechamento de Ponto', count:null },
-    { id:'holerites', label:'Pagamentos realizados', count: totalHolerites },
+    { id:'holerites', label:'Horas trabalhadas', count: totalHolerites },
     { id:'horas_extras', label:'Holerites', count:null },
   ]
   return (
