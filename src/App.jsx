@@ -459,7 +459,8 @@ function interpretaStatusDoc(valor, anosValidade, precisa) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
     if (anosValidade == null) return { cor:'#065F46', bg:'#D1FAE5', label:`Feito em ${isoToBr(v)} (sem validade)`, pendencia:false }
     const venc = somaAnos(v, anosValidade)
-    const st = statusVencimento(venc)
+    const st = venc ? statusVencimento(venc) : null
+    if (!st) return { cor:'#64748B', bg:'#F1F5F9', label:'Data cadastrada num formato inválido', pendencia:true }
     return { ...st, label:`${isoToBr(venc)} · ${st.label}` }
   }
   return { cor:'#64748B', bg:'#F1F5F9', label:valor, pendencia:false }
@@ -505,8 +506,10 @@ function listaPendenciasRH(c, perfisLogin) {
   if (!c.data_aso) {
     pendencias.push('ASO: sem exame registrado')
   } else {
-    const st = statusVencimento(somaAnos(c.data_aso, 1))
-    if (st.pendencia) pendencias.push(`ASO vencido (${isoToBr(somaAnos(c.data_aso, 1))})`)
+    const vencimentoAso = somaAnos(c.data_aso, 1)
+    const st = vencimentoAso ? statusVencimento(vencimentoAso) : null
+    if (!st) pendencias.push('ASO: data cadastrada num formato inválido')
+    else if (st.pendencia) pendencias.push(`ASO vencido (${isoToBr(vencimentoAso)})`)
   }
 
   if (!c.data_vencimento_cnh) {
