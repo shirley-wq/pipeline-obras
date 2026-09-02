@@ -1411,12 +1411,18 @@ function proximaAtividadeObra(o) {
     })
   }
   if (!candidatos.length) return null
-  // Mostra sempre a data mais próxima de hoje (passada ou futura) - não só futura -, igual o
-  // Entrada Pipeline nunca some (Shirley, 2026-08-26): quando a obra já passou da execução, mostra
-  // a última data registrada; quando ainda não chegou lá, mostra a data agendada mais próxima.
-  const comDistancia = candidatos.map(c => ({ ...c, dist: Math.abs(Math.floor((new Date(c.data) - new Date(hoje)) / 86400000)) }))
-  comDistancia.sort((a, b) => a.dist === b.dist ? (a.hora || '').localeCompare(b.hora || '') : a.dist - b.dist)
-  return comDistancia[0]
+  // Prioriza sempre a data futura mais próxima quando existir uma (ex: vistoria antiga já feita +
+  // nova visita agendada pra frente - a nova é que importa agora, mesmo que a antiga esteja
+  // numericamente "mais perto" de hoje). Só cai pra "data passada mais recente" quando todas as
+  // datas da obra já passaram, pra Entrada Pipeline nunca sumir (Shirley, 2026-08-26 / correção
+  // 2026-09-02 depois do relato da Carol: antes comparava só distância absoluta e podia trazer de
+  // volta uma data já concluída em vez da nova agendada).
+  const hojeDate = new Date(hoje)
+  const comDistancia = candidatos.map(c => ({ ...c, dist: Math.abs(Math.floor((new Date(c.data) - hojeDate) / 86400000)) }))
+  const futuras = comDistancia.filter(c => new Date(c.data) >= hojeDate)
+  const relevantes = futuras.length > 0 ? futuras : comDistancia
+  relevantes.sort((a, b) => a.dist === b.dist ? (a.hora || '').localeCompare(b.hora || '') : a.dist - b.dist)
+  return relevantes[0]
 }
 // Itens do ARS que descrevem onde/como a máquina fica fixada - mais de um pode se aplicar
 // ao mesmo tempo (ex: "encostada em pilar" + "fixação química").
