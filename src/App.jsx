@@ -454,7 +454,9 @@ function interpretaStatusDoc(valor, anosValidade, precisa) {
   const v = String(valor).trim().toUpperCase()
   if (v === 'NÃO TEM' || v === 'NAO TEM') return { cor:'#991B1B', bg:'#FEE2E2', label:'Não tem', pendencia:true }
   if (v === 'FAZENDO CURSO') return { cor:'#92400E', bg:'#FEF3C7', label:'Fazendo curso', pendencia:false }
-  if (v === 'SEM PRAZO' || v === 'NÃO FAZ' || v === 'NAO FAZ') return { cor:'#065F46', bg:'#D1FAE5', label: v === 'SEM PRAZO' ? 'Sem prazo' : 'Não faz', pendencia:false }
+  if (v === 'SEM PRAZO') return { cor:'#065F46', bg:'#D1FAE5', label:'Sem prazo', pendencia:false }
+  // "não faz" é o valor antigo do mesmo conceito - mantido por compatibilidade com cadastros já preenchidos
+  if (v === 'NÃO SE APLICA' || v === 'NAO SE APLICA' || v === 'NÃO FAZ' || v === 'NAO FAZ') return { cor:'#64748B', bg:'#F1F5F9', label:'Não se aplica', pendencia:false }
   if (v === '****' || v === 'PENDENTE') return { cor:'#64748B', bg:'#F1F5F9', label:'Não informado', pendencia:true }
   if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
     if (anosValidade == null) return { cor:'#065F46', bg:'#D1FAE5', label:`Feito em ${isoToBr(v)} (sem validade)`, pendencia:false }
@@ -2081,25 +2083,35 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
                   { label:'NR12', campo:'nr12', status:statusNr12 },
                 ].map(nr => {
                   const valor = c[nr.campo]
+                  const naoSeAplica = !!valor && ['NÃO SE APLICA','NAO SE APLICA','NÃO FAZ','NAO FAZ'].includes(String(valor).trim().toUpperCase())
                   const ehData = valor && /^\d{4}-\d{2}-\d{2}$/.test(valor)
                   return (
-                    <div key={nr.campo} style={{ display:'flex', flexDirection:'column', gap:3 }}>
+                    <div key={nr.campo} style={{ display:'flex', flexDirection:'column', gap:3, minWidth:118 }}>
                       <span style={{ fontSize:10, color:'#888', fontWeight:600 }}>{nr.label}</span>
-                      <select value={!ehData ? (valor || '') : ''} disabled={ehData}
-                        onChange={e => onUpdate({ [nr.campo]: e.target.value || null })}
-                        style={{ width:118, padding:'4px 4px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:10.5, color:'#1A2340', background: ehData ? '#F1F5F9' : '#fff' }}>
-                        <option value="">— sem info —</option>
-                        <option value="NÃO TEM">Não tem</option>
-                        <option value="FAZENDO CURSO">Fazendo curso</option>
-                        <option value="SEM PRAZO">Sem prazo</option>
-                        <option value="NÃO FAZ">Não faz</option>
-                      </select>
-                      <div style={{ display:'flex', gap:3, alignItems:'center' }}>
-                        <input type="date" value={ehData ? valor : ''} onChange={e => onUpdate({ [nr.campo]: e.target.value || null })}
-                          style={{ width:98, padding:'4px 4px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:10.5, color:'#1A2340' }} />
-                        {ehData && <span onClick={() => onUpdate({ [nr.campo]: null })} style={{ fontSize:12, color:'#EF4444', cursor:'pointer', fontWeight:700 }}>✕</span>}
-                      </div>
-                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:5, background:nr.status.bg, color:nr.status.cor, textAlign:'center' }}>{nr.status.label}</span>
+                      <label style={{ display:'flex', alignItems:'center', gap:4, fontSize:9.5, color:'#475569', cursor:'pointer' }}>
+                        <input type="checkbox" checked={!naoSeAplica} onChange={e => onUpdate({ [nr.campo]: e.target.checked ? null : 'NÃO SE APLICA' })} />
+                        Se aplica
+                      </label>
+                      {naoSeAplica ? (
+                        <span style={{ fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:5, background:nr.status.bg, color:nr.status.cor, textAlign:'center' }}>{nr.status.label}</span>
+                      ) : (
+                        <>
+                          <select value={!ehData ? (valor || '') : ''} disabled={ehData}
+                            onChange={e => onUpdate({ [nr.campo]: e.target.value || null })}
+                            style={{ width:118, padding:'4px 4px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:10.5, color:'#1A2340', background: ehData ? '#F1F5F9' : '#fff' }}>
+                            <option value="">— sem info —</option>
+                            <option value="NÃO TEM">Não tem</option>
+                            <option value="FAZENDO CURSO">Fazendo curso</option>
+                            <option value="SEM PRAZO">Sem prazo</option>
+                          </select>
+                          <div style={{ display:'flex', gap:3, alignItems:'center' }}>
+                            <input type="date" value={ehData ? valor : ''} onChange={e => onUpdate({ [nr.campo]: e.target.value || null })}
+                              style={{ width:98, padding:'4px 4px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:10.5, color:'#1A2340' }} />
+                            {ehData && <span onClick={() => onUpdate({ [nr.campo]: null })} style={{ fontSize:12, color:'#EF4444', cursor:'pointer', fontWeight:700 }}>✕</span>}
+                          </div>
+                          <span style={{ fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:5, background:nr.status.bg, color:nr.status.cor, textAlign:'center' }}>{nr.status.label}</span>
+                        </>
+                      )}
                     </div>
                   )
                 })}
