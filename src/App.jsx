@@ -6537,6 +6537,7 @@ export default function App() {
                 )}
               </div>
 
+              {modal.rede === 'BANCO24HORAS' && modal.tipo === 'INSTALAÇÃO ATM' && (
               <div style={{ marginBottom:12, background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:10, padding:14 }}>
                 <div style={{ fontSize:12, color:'#1E3A8A', fontWeight:700, marginBottom:2 }}>📋 Checklist de validação pré-obra (TecBan)</div>
                 <div style={{ fontSize:10, color:'#4A7FC1', marginBottom:10 }}>Pedido pela Fernanda (TecBan) em 03/09/2026 — preencher e validar com o EC até 13h do dia anterior à obra, aqui em vez de mandar por WhatsApp.</div>
@@ -6614,6 +6615,7 @@ export default function App() {
                   <span style={{ fontSize:12, color:'#1A2340', fontWeight:600 }}>📎 Comprovação da autorização anexada/enviada no grupo (print do e-mail com o "de acordo" do EC, ou print da autorização via WhatsApp) — obrigatório.</span>
                 </label>
               </div>
+              )}
 
               <div style={{ marginBottom:12 }}>
                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Quem autorizou a mudança? Nome completo e data e hora do e-mail</label>
