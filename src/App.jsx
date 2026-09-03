@@ -485,55 +485,63 @@ function somaMeses(mesIso, n) {
   return `${novoAno}-${String(novoMes).padStart(2, '0')}`
 }
 
-function mesesDoAnoAteAgora(ano) {
+function mesesDoAnoAteAgora(ano, dataAdmissao) {
   const mesAtual = mesAtualIso()
+  const mesInicio = dataAdmissao ? dataAdmissao.slice(0, 7) : null
   const meses = []
   for (let m = 1; m <= 12; m++) {
     const iso = `${ano}-${String(m).padStart(2,'0')}`
-    if (iso <= mesAtual) meses.push(iso)
+    if (iso > mesAtual) continue
+    if (mesInicio && iso < mesInicio) continue // mês anterior à contratação não é pendência
+    meses.push(iso)
   }
   return meses
 }
 
-function mesesPendentes(confirmados, ano) {
+function mesesPendentes(confirmados, ano, dataAdmissao) {
   const lista = Array.isArray(confirmados) ? confirmados : []
-  return mesesDoAnoAteAgora(ano).filter(m => !lista.includes(m))
+  return mesesDoAnoAteAgora(ano, dataAdmissao).filter(m => !lista.includes(m))
 }
 
 function listaPendenciasRH(c, perfisLogin) {
   const pendencias = []
+  // Documento só vira pendência depois que o colaborador de fato está na empresa - se a
+  // contratação ainda nem começou, nenhum documento é exigível ainda (Shirley, 2026-09-03).
+  const aindaNaoContratado = !!(c.data_admissao && c.data_admissao > hojeIso())
 
-  if (!c.data_aso) {
-    pendencias.push('ASO: sem exame registrado')
-  } else {
-    const vencimentoAso = somaAnos(c.data_aso, 1)
-    const st = vencimentoAso ? statusVencimento(vencimentoAso) : null
-    if (!st) pendencias.push('ASO: data cadastrada num formato inválido')
-    else if (st.pendencia) pendencias.push(`ASO vencido (${isoToBr(vencimentoAso)})`)
-  }
-
-  if (c.habilitado_cnh !== false) {
-    if (!c.data_vencimento_cnh) {
-      pendencias.push('CNH: sem registro')
+  if (!aindaNaoContratado) {
+    if (!c.data_aso) {
+      pendencias.push('ASO: sem exame registrado')
     } else {
-      const st = statusVencimento(c.data_vencimento_cnh)
-      if (st.pendencia) pendencias.push(`CNH vencida (${isoToBr(c.data_vencimento_cnh)})`)
+      const vencimentoAso = somaAnos(c.data_aso, 1)
+      const st = vencimentoAso ? statusVencimento(vencimentoAso) : null
+      if (!st) pendencias.push('ASO: data cadastrada num formato inválido')
+      else if (st.pendencia) pendencias.push(`ASO vencido (${isoToBr(vencimentoAso)})`)
     }
+
+    if (c.habilitado_cnh !== false) {
+      if (!c.data_vencimento_cnh) {
+        pendencias.push('CNH: sem registro')
+      } else {
+        const st = statusVencimento(c.data_vencimento_cnh)
+        if (st.pendencia) pendencias.push(`CNH vencida (${isoToBr(c.data_vencimento_cnh)})`)
+      }
+    }
+
+    const precisa = precisaNR(c.email, perfisLogin)
+    if (precisa) {
+      NR_CAMPOS.forEach(([label, campo]) => {
+        const st = interpretaStatusDoc(c[campo], NR_VALIDADE_ANOS[campo], true)
+        if (st.pendencia) pendencias.push(`${label}: ${st.label.toLowerCase()}`)
+      })
+    }
+
+    if (!c.ferias_periodo_atual) pendencias.push('Sem período de férias de referência')
   }
 
-  const precisa = precisaNR(c.email, perfisLogin)
-  if (precisa) {
-    NR_CAMPOS.forEach(([label, campo]) => {
-      const st = interpretaStatusDoc(c[campo], NR_VALIDADE_ANOS[campo], true)
-      if (st.pendencia) pendencias.push(`${label}: ${st.label.toLowerCase()}`)
-    })
-  }
-
-  if (!c.ferias_periodo_atual) pendencias.push('Sem período de férias de referência')
-
-  mesesPendentes(c.ponto_assinado_meses, 2026).forEach(m => pendencias.push(`Ponto ${mesLabel(m)} não assinado`))
-  mesesPendentes(c.holerite_adiantamento_meses, 2026).forEach(m => pendencias.push(`Holerite adiantamento ${mesLabel(m)} não assinado`))
-  mesesPendentes(c.holerite_pagamento_meses, 2026).forEach(m => pendencias.push(`Holerite pagamento ${mesLabel(m)} não assinado`))
+  mesesPendentes(c.ponto_assinado_meses, 2026, c.data_admissao).forEach(m => pendencias.push(`Ponto ${mesLabel(m)} não assinado`))
+  mesesPendentes(c.holerite_adiantamento_meses, 2026, c.data_admissao).forEach(m => pendencias.push(`Holerite adiantamento ${mesLabel(m)} não assinado`))
+  mesesPendentes(c.holerite_pagamento_meses, 2026, c.data_admissao).forEach(m => pendencias.push(`Holerite pagamento ${mesLabel(m)} não assinado`))
 
   return pendencias
 }
