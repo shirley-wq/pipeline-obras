@@ -1721,9 +1721,9 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
   const statusNr33 = interpretaStatusDoc(c.nr33, NR_VALIDADE_ANOS.nr33, precisa)
   const statusNr35 = interpretaStatusDoc(c.nr35, NR_VALIDADE_ANOS.nr35, precisa)
   const statusNr12 = interpretaStatusDoc(c.nr12, NR_VALIDADE_ANOS.nr12, precisa)
-  const pontoPendentes = mesesPendentes(c.ponto_assinado_meses, 2026)
-  const holeriteAdiantPendentes = mesesPendentes(c.holerite_adiantamento_meses, 2026)
-  const holeritePagtoPendentes = mesesPendentes(c.holerite_pagamento_meses, 2026)
+  const pontoPendentes = mesesPendentes(c.ponto_assinado_meses, 2026, c.data_admissao)
+  const holeriteAdiantPendentes = mesesPendentes(c.holerite_adiantamento_meses, 2026, c.data_admissao)
+  const holeritePagtoPendentes = mesesPendentes(c.holerite_pagamento_meses, 2026, c.data_admissao)
 
   const listaPendencias = listaPendenciasRH(c, perfisLogin)
   const pendencias = listaPendencias.length
@@ -2112,12 +2112,12 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
               <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>
                 Cartão de ponto assinado — 2026 {pontoPendentes.length > 0 ? <span style={{ color:'#991B1B' }}>({pontoPendentes.length} mês(es) pendente(s))</span> : <span style={{ color:'#065F46' }}>(em dia)</span>}
                 {pontoPendentes.length > 0 && (
-                  <span onClick={() => onUpdate({ ponto_assinado_meses: mesesDoAnoAteAgora(2026) })}
+                  <span onClick={() => onUpdate({ ponto_assinado_meses: mesesDoAnoAteAgora(2026, c.data_admissao) })}
                     style={{ marginLeft:8, color:'#2D3A8C', cursor:'pointer', textTransform:'none', fontWeight:700 }}>marcar todos até agora</span>
                 )}
               </label>
               <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
-                {mesesDoAnoAteAgora(2026).map(m => {
+                {mesesDoAnoAteAgora(2026, c.data_admissao).map(m => {
                   const confirmado = Array.isArray(c.ponto_assinado_meses) && c.ponto_assinado_meses.includes(m)
                   return (
                     <span key={m} onClick={() => {
@@ -2135,12 +2135,12 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
               <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>
                 Holerite adiantamento — 2026 {holeriteAdiantPendentes.length > 0 ? <span style={{ color:'#991B1B' }}>({holeriteAdiantPendentes.length} mês(es) pendente(s))</span> : <span style={{ color:'#065F46' }}>(em dia)</span>}
                 {holeriteAdiantPendentes.length > 0 && (
-                  <span onClick={() => onUpdate({ holerite_adiantamento_meses: mesesDoAnoAteAgora(2026) })}
+                  <span onClick={() => onUpdate({ holerite_adiantamento_meses: mesesDoAnoAteAgora(2026, c.data_admissao) })}
                     style={{ marginLeft:8, color:'#2D3A8C', cursor:'pointer', textTransform:'none', fontWeight:700 }}>marcar todos até agora</span>
                 )}
               </label>
               <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
-                {mesesDoAnoAteAgora(2026).map(m => {
+                {mesesDoAnoAteAgora(2026, c.data_admissao).map(m => {
                   const confirmado = Array.isArray(c.holerite_adiantamento_meses) && c.holerite_adiantamento_meses.includes(m)
                   return (
                     <span key={m} onClick={() => {
@@ -2158,12 +2158,12 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
               <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>
                 Holerite pagamento — 2026 {holeritePagtoPendentes.length > 0 ? <span style={{ color:'#991B1B' }}>({holeritePagtoPendentes.length} mês(es) pendente(s))</span> : <span style={{ color:'#065F46' }}>(em dia)</span>}
                 {holeritePagtoPendentes.length > 0 && (
-                  <span onClick={() => onUpdate({ holerite_pagamento_meses: mesesDoAnoAteAgora(2026) })}
+                  <span onClick={() => onUpdate({ holerite_pagamento_meses: mesesDoAnoAteAgora(2026, c.data_admissao) })}
                     style={{ marginLeft:8, color:'#2D3A8C', cursor:'pointer', textTransform:'none', fontWeight:700 }}>marcar todos até agora</span>
                 )}
               </label>
               <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
-                {mesesDoAnoAteAgora(2026).map(m => {
+                {mesesDoAnoAteAgora(2026, c.data_admissao).map(m => {
                   const confirmado = Array.isArray(c.holerite_pagamento_meses) && c.holerite_pagamento_meses.includes(m)
                   return (
                     <span key={m} onClick={() => {
@@ -4652,9 +4652,9 @@ export default function App() {
               { label:'NR35', status:interpretaStatusDoc(meuRH.nr35, NR_VALIDADE_ANOS.nr35, precisaNRSelf) },
               { label:'NR12', status:interpretaStatusDoc(meuRH.nr12, NR_VALIDADE_ANOS.nr12, precisaNRSelf) },
             ]
-            const pontoPendentes = mesesPendentes(meuRH.ponto_assinado_meses, 2026)
-            const holeriteAdiantPendentes = mesesPendentes(meuRH.holerite_adiantamento_meses, 2026)
-            const holeritePagtoPendentes = mesesPendentes(meuRH.holerite_pagamento_meses, 2026)
+            const pontoPendentes = mesesPendentes(meuRH.ponto_assinado_meses, 2026, meuRH.data_admissao)
+            const holeriteAdiantPendentes = mesesPendentes(meuRH.holerite_adiantamento_meses, 2026, meuRH.data_admissao)
+            const holeritePagtoPendentes = mesesPendentes(meuRH.holerite_pagamento_meses, 2026, meuRH.data_admissao)
             const epis = Array.isArray(meuRH.epis) ? meuRH.epis : []
             const descontos = Array.isArray(meuRH.descontos) ? meuRH.descontos : []
             return (
