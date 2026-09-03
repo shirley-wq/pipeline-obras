@@ -1622,14 +1622,14 @@ function SidebarRH({ ativa, onChange, totalColaboradores, totalHolerites }) {
 function PerguntaSimNao({ numero, pergunta, valor, onChange, seguirQuando, detalheLabel, detalheValor, onChangeDetalhe, detalheTipo }) {
   return (
     <div style={{ marginBottom:10 }}>
-      <label style={{ fontSize:12, color:'#1A2340', fontWeight:600, display:'block', marginBottom:4 }}>{numero}. {pergunta}</label>
+      <label style={{ fontSize:12, color:'#1A2340', fontWeight:600, display:'block', marginBottom:4 }}>{numero ? `${numero}. ` : ''}{pergunta}</label>
       <div style={{ display:'flex', gap:14 }}>
         <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:13, color:'#1A2340' }}>
-          <input type="radio" name={`checklist-pergunta-${numero}`} checked={valor === 'SIM'} onChange={() => onChange('SIM')} />
+          <input type="radio" name={`pergunta-simnao-${pergunta}`} checked={valor === 'SIM'} onChange={() => onChange('SIM')} />
           Sim
         </label>
         <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:13, color:'#1A2340' }}>
-          <input type="radio" name={`checklist-pergunta-${numero}`} checked={valor === 'NAO'} onChange={() => onChange('NAO')} />
+          <input type="radio" name={`pergunta-simnao-${pergunta}`} checked={valor === 'NAO'} onChange={() => onChange('NAO')} />
           Não
         </label>
       </div>
@@ -2344,8 +2344,6 @@ export default function App() {
   const [clienteAcordoFixacaoMotivo, setClienteAcordoFixacaoMotivo] = useState('')
   // Checklist de validação pré-obra pedido pela Fernanda (TecBan, 2026-09-03) - preenchido aqui em
   // vez de no WhatsApp, pra virar dado do sistema em vez de mensagem solta.
-  const [checklistUo, setChecklistUo] = useState('')
-  const [checklistEcResponsavel, setChecklistEcResponsavel] = useState('')
   const [checklistAcessoAutorizado, setChecklistAcessoAutorizado] = useState('')
   const [checklistAcessoMotivo, setChecklistAcessoMotivo] = useState('')
   const [checklistLocalAberto, setChecklistLocalAberto] = useState('')
@@ -2361,7 +2359,6 @@ export default function App() {
   const [checklistNovaData, setChecklistNovaData] = useState('')
   const [checklistNovoHorario, setChecklistNovoHorario] = useState('')
   const [checklistReprogramarTransportadora, setChecklistReprogramarTransportadora] = useState('')
-  const [checklistComprovacaoEnviada, setChecklistComprovacaoEnviada] = useState(false)
   const [checklistComprovacaoImagem, setChecklistComprovacaoImagem] = useState('')
   const [checklistComprovacaoImagemProporcao, setChecklistComprovacaoImagemProporcao] = useState(0)
   const [agendamentoData, setAgendamentoData] = useState('')
@@ -2373,6 +2370,14 @@ export default function App() {
   const [novoRegistroTerceirizadoTexto, setNovoRegistroTerceirizadoTexto] = useState('')
   const [novoRegistroAtividades, setNovoRegistroAtividades] = useState({})
   const [editandoVisitaIdx, setEditandoVisitaIdx] = useState(null)
+  // Medição de transporte pedida pela Shirley (2026-09-03) - preenchida antes de gerar o relatório
+  // ao cliente, pra todas as atividades que passam por essa tela (não só o checklist do Banco24Horas).
+  const [transporteCompareceuHorario, setTransporteCompareceuHorario] = useState('')
+  const [transporteTinhaAjudante, setTransporteTinhaAjudante] = useState('')
+  const [transporteDanificouPiso, setTransporteDanificouPiso] = useState('')
+  const [transporteQuantidadeDanificada, setTransporteQuantidadeDanificada] = useState('')
+  const [transporteTeveOcorrencia, setTransporteTeveOcorrencia] = useState('')
+  const [transporteOcorrenciaDescricao, setTransporteOcorrenciaDescricao] = useState('')
   const [mostrarEnvioRelatorio, setMostrarEnvioRelatorio] = useState(false)
   const [fotosRelatorio, setFotosRelatorio] = useState([])
   const [enviandoRelatorio, setEnviandoRelatorio] = useState(false)
@@ -3246,10 +3251,6 @@ export default function App() {
         linhaChecklist('EC solicitou alteração de data/horário', checklistAlteracaoSolicitada, checklistAlteracaoSolicitada === 'SIM'
           ? `Nova data/horário: ${isoToBr(checklistNovaData) || '—'} ${checklistNovoHorario || ''} — Reprogramar transportadora: ${checklistReprogramarTransportadora === 'SIM' ? 'Sim' : checklistReprogramarTransportadora === 'NAO' ? 'Não' : '—'}`
           : '')
-        doc.text(`Responsável do EC: ${checklistEcResponsavel || '—'}${checklistUo ? ` | UO: ${checklistUo}` : ''}`, 14, y)
-        y += 5
-        doc.text(`Comprovação da autorização anexada: ${checklistComprovacaoEnviada ? 'Sim' : 'Não'}`, 14, y)
-        y += 6
         if (checklistComprovacaoImagem) {
           const formatoImagem = checklistComprovacaoImagem.includes('image/png') ? 'PNG' : 'JPEG'
           const larguraMm = 90
@@ -3603,8 +3604,6 @@ export default function App() {
       campos.autorizacao_mudanca = autorizacaoMudanca || null
       campos.cliente_acordo_fixacao = clienteAcordoFixacao || null
       campos.cliente_acordo_fixacao_motivo = clienteAcordoFixacao === 'NAO' ? (clienteAcordoFixacaoMotivo || null) : null
-      campos.checklist_pre_obra_uo = checklistUo || null
-      campos.checklist_pre_obra_ec_responsavel = checklistEcResponsavel || null
       campos.checklist_pre_obra_acesso_autorizado = checklistAcessoAutorizado || null
       campos.checklist_pre_obra_acesso_motivo = checklistAcessoAutorizado === 'NAO' ? (checklistAcessoMotivo || null) : null
       campos.checklist_pre_obra_local_aberto = checklistLocalAberto || null
@@ -3620,9 +3619,14 @@ export default function App() {
       campos.checklist_pre_obra_nova_data = checklistAlteracaoSolicitada === 'SIM' ? (checklistNovaData || null) : null
       campos.checklist_pre_obra_novo_horario = checklistAlteracaoSolicitada === 'SIM' ? (checklistNovoHorario || null) : null
       campos.checklist_pre_obra_reprogramar_transportadora = checklistAlteracaoSolicitada === 'SIM' ? (checklistReprogramarTransportadora || null) : null
-      campos.checklist_pre_obra_comprovacao_enviada = checklistComprovacaoEnviada
       campos.checklist_pre_obra_comprovacao_imagem = checklistComprovacaoImagem || null
       campos.checklist_pre_obra_comprovacao_imagem_proporcao = checklistComprovacaoImagem ? checklistComprovacaoImagemProporcao : null
+      campos.transporte_compareceu_horario = transporteCompareceuHorario || null
+      campos.transporte_tinha_ajudante = transporteTinhaAjudante || null
+      campos.transporte_danificou_piso = transporteDanificouPiso || null
+      campos.transporte_quantidade_danificada = transporteDanificouPiso === 'SIM' ? (transporteQuantidadeDanificada || null) : null
+      campos.transporte_teve_ocorrencia = transporteTeveOcorrencia || null
+      campos.transporte_ocorrencia_descricao = transporteTeveOcorrencia === 'SIM' ? (transporteOcorrenciaDescricao || null) : null
       campos.agendamento_data = agendamentoData || null
       campos.registros_operacao_campo = registrosOperacaoCampo.length > 0 ? registrosOperacaoCampo : null
     }
@@ -3683,8 +3687,6 @@ export default function App() {
     setAutorizacaoMudanca('')
     setClienteAcordoFixacao('')
     setClienteAcordoFixacaoMotivo('')
-    setChecklistUo('')
-    setChecklistEcResponsavel('')
     setChecklistAcessoAutorizado('')
     setChecklistAcessoMotivo('')
     setChecklistLocalAberto('')
@@ -3700,9 +3702,14 @@ export default function App() {
     setChecklistNovaData('')
     setChecklistNovoHorario('')
     setChecklistReprogramarTransportadora('')
-    setChecklistComprovacaoEnviada(false)
     setChecklistComprovacaoImagem('')
     setChecklistComprovacaoImagemProporcao(0)
+    setTransporteCompareceuHorario('')
+    setTransporteTinhaAjudante('')
+    setTransporteDanificouPiso('')
+    setTransporteQuantidadeDanificada('')
+    setTransporteTeveOcorrencia('')
+    setTransporteOcorrenciaDescricao('')
     setAgendamentoConfirmado(false)
     setAgendamentoData('')
     setRegistrosOperacaoCampo([])
@@ -4100,7 +4107,7 @@ export default function App() {
     // Obras com tela de operação de campo (Banco24Horas/AgiBank/Crefisa, as 4 atividades sem vistoria própria de Banco24Horas) que tenham dado entrada de ARS
     const obrasB24h = obrasFiltradas.filter(o => temTelaOperacaoCampo(o.rede, o.tipo))
 
-    const cabArs = ['Obra','PC','Status','Entrou no ARS','Contato EC - nome','Contato EC - telefone','Data início (confirmada)','Hora início (confirmada)','ARS solicitado','Campo executado','Barreira dissuasão (ARS)','Barreira dissuasão (Campo)','Cliente de acordo com fixação','Motivo (se não)','Quem autorizou a mudança']
+    const cabArs = ['Obra','PC','Status','Entrou no ARS','Contato EC - nome','Contato EC - telefone','Data início (confirmada)','Hora início (confirmada)','ARS solicitado','Campo executado','Barreira dissuasão (ARS)','Barreira dissuasão (Campo)','Cliente de acordo com fixação','Motivo (se não)','Quem autorizou a mudança','Transporte no horário','Transporte com ajudante','Danificou piso','Quantos','Teve ocorrência com transporte','Descrição da ocorrência']
     const linhasArs = obrasB24h.map(o => [
       o.nome, o.numero_pc || '', o.status,
       o.ars_verificado ? 'Sim' : 'Não',
@@ -4113,6 +4120,12 @@ export default function App() {
       o.cliente_acordo_fixacao === 'SIM' ? 'Sim' : o.cliente_acordo_fixacao === 'NAO' ? 'Não' : '',
       o.cliente_acordo_fixacao === 'NAO' ? (o.cliente_acordo_fixacao_motivo || '') : '',
       o.autorizacao_mudanca || '',
+      o.transporte_compareceu_horario === 'SIM' ? 'Sim' : o.transporte_compareceu_horario === 'NAO' ? 'Não' : '',
+      o.transporte_tinha_ajudante === 'SIM' ? 'Sim' : o.transporte_tinha_ajudante === 'NAO' ? 'Não' : '',
+      o.transporte_danificou_piso === 'SIM' ? 'Sim' : o.transporte_danificou_piso === 'NAO' ? 'Não' : '',
+      o.transporte_danificou_piso === 'SIM' ? (o.transporte_quantidade_danificada || '') : '',
+      o.transporte_teve_ocorrencia === 'SIM' ? 'Sim' : o.transporte_teve_ocorrencia === 'NAO' ? 'Não' : '',
+      o.transporte_teve_ocorrencia === 'SIM' ? (o.transporte_ocorrencia_descricao || '') : '',
     ])
     const wsArs = XLSXStyle.utils.aoa_to_sheet([cabArs, ...linhasArs])
     wsArs['!cols'] = cabArs.map(() => ({ wch: 20 }))
@@ -5923,8 +5936,6 @@ export default function App() {
                         setAutorizacaoMudanca(obra.autorizacao_mudanca || '')
                         setClienteAcordoFixacao(obra.cliente_acordo_fixacao || '')
                         setClienteAcordoFixacaoMotivo(obra.cliente_acordo_fixacao_motivo || '')
-                        setChecklistUo(obra.checklist_pre_obra_uo || '')
-                        setChecklistEcResponsavel(obra.checklist_pre_obra_ec_responsavel || '')
                         setChecklistAcessoAutorizado(obra.checklist_pre_obra_acesso_autorizado || '')
                         setChecklistAcessoMotivo(obra.checklist_pre_obra_acesso_motivo || '')
                         setChecklistLocalAberto(obra.checklist_pre_obra_local_aberto || '')
@@ -5940,9 +5951,14 @@ export default function App() {
                         setChecklistNovaData(obra.checklist_pre_obra_nova_data || '')
                         setChecklistNovoHorario(obra.checklist_pre_obra_novo_horario || '')
                         setChecklistReprogramarTransportadora(obra.checklist_pre_obra_reprogramar_transportadora || '')
-                        setChecklistComprovacaoEnviada(obra.checklist_pre_obra_comprovacao_enviada || false)
                         setChecklistComprovacaoImagem(obra.checklist_pre_obra_comprovacao_imagem || '')
                         setChecklistComprovacaoImagemProporcao(obra.checklist_pre_obra_comprovacao_imagem_proporcao || 0)
+                        setTransporteCompareceuHorario(obra.transporte_compareceu_horario || '')
+                        setTransporteTinhaAjudante(obra.transporte_tinha_ajudante || '')
+                        setTransporteDanificouPiso(obra.transporte_danificou_piso || '')
+                        setTransporteQuantidadeDanificada(obra.transporte_quantidade_danificada || '')
+                        setTransporteTeveOcorrencia(obra.transporte_teve_ocorrencia || '')
+                        setTransporteOcorrenciaDescricao(obra.transporte_ocorrencia_descricao || '')
                         setAgendamentoData(obra.agendamento_data || '')
                         setRegistrosOperacaoCampo(Array.isArray(obra.registros_operacao_campo) ? obra.registros_operacao_campo : [])
                         setNovoRegistroData('')
@@ -6610,18 +6626,6 @@ export default function App() {
               <div style={{ marginBottom:12, background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:10, padding:14 }}>
                 <div style={{ fontSize:12, color:'#1E3A8A', fontWeight:700, marginBottom:2 }}>📋 Checklist de validação pré-obra (TecBan)</div>
                 <div style={{ fontSize:10, color:'#4A7FC1', marginBottom:10 }}>Pedido pela Fernanda (TecBan) em 03/09/2026 — preencher e validar com o EC até 13h do dia anterior à obra, aqui em vez de mandar por WhatsApp.</div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:12 }}>
-                  <div>
-                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>UO</label>
-                    <input value={checklistUo} onChange={e => setChecklistUo(up(e.target.value))}
-                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Nome do responsável do EC que autorizou/não autorizou</label>
-                    <input value={checklistEcResponsavel} onChange={e => setChecklistEcResponsavel(up(e.target.value))}
-                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
-                  </div>
-                </div>
 
                 <PerguntaSimNao numero={1} pergunta="O acesso à obra está autorizado?"
                   valor={checklistAcessoAutorizado} onChange={setChecklistAcessoAutorizado}
@@ -6679,13 +6683,8 @@ export default function App() {
                   </div>
                 )}
 
-                <label style={{ display:'flex', alignItems:'flex-start', gap:8, cursor:'pointer', marginTop:4, padding:'8px 10px', background:'#fff', border:'1px solid #BFDBFE', borderRadius:8 }}>
-                  <input type="checkbox" checked={checklistComprovacaoEnviada} onChange={e => setChecklistComprovacaoEnviada(e.target.checked)} style={{ marginTop:2 }} />
-                  <span style={{ fontSize:12, color:'#1A2340', fontWeight:600 }}>📎 Comprovação da autorização anexada/enviada no grupo (print do e-mail com o "de acordo" do EC, ou print da autorização via WhatsApp) — obrigatório.</span>
-                </label>
-
                 <div style={{ marginTop:8 }}>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Anexar o print aqui (aparece dentro do relatório/PDF gerado no pipeline)</label>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>📎 Print da comprovação (e-mail ou WhatsApp com o "de acordo" do EC) — aparece dentro do relatório/PDF gerado no pipeline</label>
                   <input type="file" accept="image/*" onChange={e => handleChecklistComprovacaoImagem(e.target.files?.[0])} />
                   {checklistComprovacaoImagem && (
                     <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:8 }}>
@@ -6964,6 +6963,20 @@ export default function App() {
                 {temVistoriaImprodutiva && ' — vistoria improdutiva registrada, liberado pra faturar mesmo sem instalação'}
                 {!operacaoCampoCompleta && !temVistoriaImprodutiva && ' — precisa de todas pra liberar "Relatório ao Cliente"'}
               </div>
+              <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:10, padding:14, marginTop:12 }}>
+                <div style={{ fontSize:12, color:'#9A3412', fontWeight:700, marginBottom:8 }}>🚚 Transporte</div>
+                <PerguntaSimNao pergunta="A transportadora compareceu no horário agendado?"
+                  valor={transporteCompareceuHorario} onChange={setTransporteCompareceuHorario} />
+                <PerguntaSimNao pergunta="Tinha ajudante?"
+                  valor={transporteTinhaAjudante} onChange={setTransporteTinhaAjudante} />
+                <PerguntaSimNao pergunta="Danificou piso?"
+                  valor={transporteDanificouPiso} onChange={setTransporteDanificouPiso}
+                  seguirQuando="SIM" detalheLabel="Quantos" detalheValor={transporteQuantidadeDanificada} onChangeDetalhe={setTransporteQuantidadeDanificada} />
+                <PerguntaSimNao pergunta="Teve alguma ocorrência no dia da operação com o transporte?"
+                  valor={transporteTeveOcorrencia} onChange={setTransporteTeveOcorrencia}
+                  seguirQuando="SIM" detalheLabel="Descreva a ocorrência" detalheValor={transporteOcorrenciaDescricao} onChangeDetalhe={setTransporteOcorrenciaDescricao} />
+              </div>
+
               <button onClick={exportarRelatorioCliente} disabled={!operacaoCampoCompleta}
                 style={{ width:'100%', marginTop:10, padding:10, background: !operacaoCampoCompleta ? '#ccc' : '#0E4D73', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: !operacaoCampoCompleta ? 'default' : 'pointer' }}>
                 📄 Gerar PDF do relatório ao cliente
