@@ -2314,6 +2314,8 @@ export default function App() {
   const [barreiraDissuasao, setBarreiraDissuasao] = useState(false)
   const [barreiraDissuasaoCampo, setBarreiraDissuasaoCampo] = useState(false)
   const [autorizacaoMudanca, setAutorizacaoMudanca] = useState('')
+  const [clienteAcordoFixacao, setClienteAcordoFixacao] = useState('')
+  const [clienteAcordoFixacaoMotivo, setClienteAcordoFixacaoMotivo] = useState('')
   const [agendamentoData, setAgendamentoData] = useState('')
   const [registrosOperacaoCampo, setRegistrosOperacaoCampo] = useState([])
   const [novoRegistroData, setNovoRegistroData] = useState('')
@@ -3164,8 +3166,13 @@ export default function App() {
         columnStyles: { 1: { halign: 'center', cellWidth: 26 }, 2: { halign: 'center', cellWidth: 26 } },
       })
       y = doc.lastAutoTable.finalY + 5
+      doc.setFontSize(9)
+      const acordoTexto = clienteAcordoFixacao === 'SIM' ? 'Sim, está de acordo'
+        : clienteAcordoFixacao === 'NAO' ? `Não está de acordo — Motivo: ${clienteAcordoFixacaoMotivo || '—'}`
+        : '—'
+      doc.text(`Cliente de acordo com o tipo de fixação: ${acordoTexto}`, 14, y)
+      y += 5
       if (autorizacaoMudanca.trim()) {
-        doc.setFontSize(9)
         doc.text(`Mudança autorizada por: ${autorizacaoMudanca}`, 14, y)
         y += 7
       }
@@ -3485,6 +3492,8 @@ export default function App() {
       campos.barreira_dissuasao = barreiraDissuasao
       campos.barreira_dissuasao_campo = barreiraDissuasaoCampo
       campos.autorizacao_mudanca = autorizacaoMudanca || null
+      campos.cliente_acordo_fixacao = clienteAcordoFixacao || null
+      campos.cliente_acordo_fixacao_motivo = clienteAcordoFixacao === 'NAO' ? (clienteAcordoFixacaoMotivo || null) : null
       campos.agendamento_data = agendamentoData || null
       campos.registros_operacao_campo = registrosOperacaoCampo.length > 0 ? registrosOperacaoCampo : null
     }
@@ -3543,6 +3552,8 @@ export default function App() {
     setBarreiraDissuasao(false)
     setBarreiraDissuasaoCampo(false)
     setAutorizacaoMudanca('')
+    setClienteAcordoFixacao('')
+    setClienteAcordoFixacaoMotivo('')
     setAgendamentoConfirmado(false)
     setAgendamentoData('')
     setRegistrosOperacaoCampo([])
@@ -3940,7 +3951,7 @@ export default function App() {
     // Obras com tela de operação de campo (Banco24Horas/AgiBank/Crefisa, as 4 atividades sem vistoria própria de Banco24Horas) que tenham dado entrada de ARS
     const obrasB24h = obrasFiltradas.filter(o => temTelaOperacaoCampo(o.rede, o.tipo))
 
-    const cabArs = ['Obra','PC','Status','Entrou no ARS','Contato EC - nome','Contato EC - telefone','Data início (confirmada)','Hora início (confirmada)','ARS solicitado','Campo executado','Barreira dissuasão (ARS)','Barreira dissuasão (Campo)','Quem autorizou a mudança']
+    const cabArs = ['Obra','PC','Status','Entrou no ARS','Contato EC - nome','Contato EC - telefone','Data início (confirmada)','Hora início (confirmada)','ARS solicitado','Campo executado','Barreira dissuasão (ARS)','Barreira dissuasão (Campo)','Cliente de acordo com fixação','Motivo (se não)','Quem autorizou a mudança']
     const linhasArs = obrasB24h.map(o => [
       o.nome, o.numero_pc || '', o.status,
       o.ars_verificado ? 'Sim' : 'Não',
@@ -3950,6 +3961,8 @@ export default function App() {
       Array.isArray(o.seguranca_itens_campo) ? o.seguranca_itens_campo.join(' | ') : '',
       o.barreira_dissuasao ? 'Sim' : 'Não',
       o.barreira_dissuasao_campo ? 'Sim' : 'Não',
+      o.cliente_acordo_fixacao === 'SIM' ? 'Sim' : o.cliente_acordo_fixacao === 'NAO' ? 'Não' : '',
+      o.cliente_acordo_fixacao === 'NAO' ? (o.cliente_acordo_fixacao_motivo || '') : '',
       o.autorizacao_mudanca || '',
     ])
     const wsArs = XLSXStyle.utils.aoa_to_sheet([cabArs, ...linhasArs])
@@ -5759,6 +5772,8 @@ export default function App() {
                         setBarreiraDissuasao(obra.barreira_dissuasao || false)
                         setBarreiraDissuasaoCampo(obra.barreira_dissuasao_campo || false)
                         setAutorizacaoMudanca(obra.autorizacao_mudanca || '')
+                        setClienteAcordoFixacao(obra.cliente_acordo_fixacao || '')
+                        setClienteAcordoFixacaoMotivo(obra.cliente_acordo_fixacao_motivo || '')
                         setAgendamentoData(obra.agendamento_data || '')
                         setRegistrosOperacaoCampo(Array.isArray(obra.registros_operacao_campo) ? obra.registros_operacao_campo : [])
                         setNovoRegistroData('')
@@ -6396,6 +6411,26 @@ export default function App() {
                     )
                   })}
                 </div>
+              </div>
+              <div style={{ marginBottom:12 }}>
+                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Cliente está de acordo com o tipo de fixação do equipamento? (explicado a ele como funciona)</label>
+                <div style={{ display:'flex', gap:14 }}>
+                  <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:13, color:'#1A2340' }}>
+                    <input type="radio" name="clienteAcordoFixacao" checked={clienteAcordoFixacao === 'SIM'}
+                      onChange={() => { setClienteAcordoFixacao('SIM'); setClienteAcordoFixacaoMotivo('') }} />
+                    Sim, está de acordo
+                  </label>
+                  <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:13, color:'#1A2340' }}>
+                    <input type="radio" name="clienteAcordoFixacao" checked={clienteAcordoFixacao === 'NAO'}
+                      onChange={() => setClienteAcordoFixacao('NAO')} />
+                    Não está de acordo
+                  </label>
+                </div>
+                {clienteAcordoFixacao === 'NAO' && (
+                  <input value={clienteAcordoFixacaoMotivo} onChange={e => setClienteAcordoFixacaoMotivo(up(e.target.value))}
+                    placeholder="Motivo de o cliente não ter concordado"
+                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginTop:6 }} />
+                )}
               </div>
               <div style={{ marginBottom:12 }}>
                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Quem autorizou a mudança? Nome completo e data e hora do e-mail</label>
