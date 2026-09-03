@@ -1617,6 +1617,32 @@ function SidebarRH({ ativa, onChange, totalColaboradores, totalHolerites }) {
   )
 }
 
+// Pergunta Sim/Não do checklist de validação pré-obra pedido pela Fernanda (TecBan, 2026-09-03) -
+// segue exatamente o texto do checklist dela pra evitar ambiguidade na hora de preencher.
+function PerguntaSimNao({ numero, pergunta, valor, onChange, seguirQuando, detalheLabel, detalheValor, onChangeDetalhe, detalheTipo }) {
+  return (
+    <div style={{ marginBottom:10 }}>
+      <label style={{ fontSize:12, color:'#1A2340', fontWeight:600, display:'block', marginBottom:4 }}>{numero}. {pergunta}</label>
+      <div style={{ display:'flex', gap:14 }}>
+        <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:13, color:'#1A2340' }}>
+          <input type="radio" name={`checklist-pergunta-${numero}`} checked={valor === 'SIM'} onChange={() => onChange('SIM')} />
+          Sim
+        </label>
+        <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:13, color:'#1A2340' }}>
+          <input type="radio" name={`checklist-pergunta-${numero}`} checked={valor === 'NAO'} onChange={() => onChange('NAO')} />
+          Não
+        </label>
+      </div>
+      {valor === seguirQuando && detalheLabel && (
+        <input type={detalheTipo || 'text'} value={detalheValor || ''}
+          onChange={e => onChangeDetalhe(detalheTipo === 'date' ? e.target.value : up(e.target.value))}
+          placeholder={detalheLabel}
+          style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginTop:6 }} />
+      )}
+    </div>
+  )
+}
+
 function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizado, onChangeTerceirizado, terceirizadoTexto, onChangeTerceirizadoTexto, bloqueado, mensagemBloqueio }) {
   const [busca, setBusca] = useState('')
   if (bloqueado) {
@@ -2316,6 +2342,26 @@ export default function App() {
   const [autorizacaoMudanca, setAutorizacaoMudanca] = useState('')
   const [clienteAcordoFixacao, setClienteAcordoFixacao] = useState('')
   const [clienteAcordoFixacaoMotivo, setClienteAcordoFixacaoMotivo] = useState('')
+  // Checklist de validação pré-obra pedido pela Fernanda (TecBan, 2026-09-03) - preenchido aqui em
+  // vez de no WhatsApp, pra virar dado do sistema em vez de mensagem solta.
+  const [checklistUo, setChecklistUo] = useState('')
+  const [checklistEcResponsavel, setChecklistEcResponsavel] = useState('')
+  const [checklistAcessoAutorizado, setChecklistAcessoAutorizado] = useState('')
+  const [checklistAcessoMotivo, setChecklistAcessoMotivo] = useState('')
+  const [checklistLocalAberto, setChecklistLocalAberto] = useState('')
+  const [checklistLocalEmObra, setChecklistLocalEmObra] = useState('')
+  const [checklistTerminoPrevisao, setChecklistTerminoPrevisao] = useState('')
+  const [checklistLocalInaugurado, setChecklistLocalInaugurado] = useState('')
+  const [checklistInauguracaoPrevisao, setChecklistInauguracaoPrevisao] = useState('')
+  const [checklistLocalLiberado, setChecklistLocalLiberado] = useState('')
+  const [checklistLocalLiberadoMotivo, setChecklistLocalLiberadoMotivo] = useState('')
+  const [checklistBarulhoAutorizado, setChecklistBarulhoAutorizado] = useState('')
+  const [checklistBarulhoHorario, setChecklistBarulhoHorario] = useState('')
+  const [checklistAlteracaoSolicitada, setChecklistAlteracaoSolicitada] = useState('')
+  const [checklistNovaData, setChecklistNovaData] = useState('')
+  const [checklistNovoHorario, setChecklistNovoHorario] = useState('')
+  const [checklistReprogramarTransportadora, setChecklistReprogramarTransportadora] = useState('')
+  const [checklistComprovacaoEnviada, setChecklistComprovacaoEnviada] = useState(false)
   const [agendamentoData, setAgendamentoData] = useState('')
   const [registrosOperacaoCampo, setRegistrosOperacaoCampo] = useState([])
   const [novoRegistroData, setNovoRegistroData] = useState('')
@@ -3494,6 +3540,24 @@ export default function App() {
       campos.autorizacao_mudanca = autorizacaoMudanca || null
       campos.cliente_acordo_fixacao = clienteAcordoFixacao || null
       campos.cliente_acordo_fixacao_motivo = clienteAcordoFixacao === 'NAO' ? (clienteAcordoFixacaoMotivo || null) : null
+      campos.checklist_pre_obra_uo = checklistUo || null
+      campos.checklist_pre_obra_ec_responsavel = checklistEcResponsavel || null
+      campos.checklist_pre_obra_acesso_autorizado = checklistAcessoAutorizado || null
+      campos.checklist_pre_obra_acesso_motivo = checklistAcessoAutorizado === 'NAO' ? (checklistAcessoMotivo || null) : null
+      campos.checklist_pre_obra_local_aberto = checklistLocalAberto || null
+      campos.checklist_pre_obra_local_em_obra = checklistLocalEmObra || null
+      campos.checklist_pre_obra_termino_previsao = checklistLocalEmObra === 'SIM' ? (checklistTerminoPrevisao || null) : null
+      campos.checklist_pre_obra_local_inaugurado = checklistLocalInaugurado || null
+      campos.checklist_pre_obra_inauguracao_previsao = checklistLocalInaugurado === 'NAO' ? (checklistInauguracaoPrevisao || null) : null
+      campos.checklist_pre_obra_local_liberado = checklistLocalLiberado || null
+      campos.checklist_pre_obra_local_liberado_motivo = checklistLocalLiberado === 'NAO' ? (checklistLocalLiberadoMotivo || null) : null
+      campos.checklist_pre_obra_barulho_autorizado = checklistBarulhoAutorizado || null
+      campos.checklist_pre_obra_barulho_horario = checklistBarulhoAutorizado === 'SIM' ? (checklistBarulhoHorario || null) : null
+      campos.checklist_pre_obra_alteracao_solicitada = checklistAlteracaoSolicitada || null
+      campos.checklist_pre_obra_nova_data = checklistAlteracaoSolicitada === 'SIM' ? (checklistNovaData || null) : null
+      campos.checklist_pre_obra_novo_horario = checklistAlteracaoSolicitada === 'SIM' ? (checklistNovoHorario || null) : null
+      campos.checklist_pre_obra_reprogramar_transportadora = checklistAlteracaoSolicitada === 'SIM' ? (checklistReprogramarTransportadora || null) : null
+      campos.checklist_pre_obra_comprovacao_enviada = checklistComprovacaoEnviada
       campos.agendamento_data = agendamentoData || null
       campos.registros_operacao_campo = registrosOperacaoCampo.length > 0 ? registrosOperacaoCampo : null
     }
@@ -3554,6 +3618,24 @@ export default function App() {
     setAutorizacaoMudanca('')
     setClienteAcordoFixacao('')
     setClienteAcordoFixacaoMotivo('')
+    setChecklistUo('')
+    setChecklistEcResponsavel('')
+    setChecklistAcessoAutorizado('')
+    setChecklistAcessoMotivo('')
+    setChecklistLocalAberto('')
+    setChecklistLocalEmObra('')
+    setChecklistTerminoPrevisao('')
+    setChecklistLocalInaugurado('')
+    setChecklistInauguracaoPrevisao('')
+    setChecklistLocalLiberado('')
+    setChecklistLocalLiberadoMotivo('')
+    setChecklistBarulhoAutorizado('')
+    setChecklistBarulhoHorario('')
+    setChecklistAlteracaoSolicitada('')
+    setChecklistNovaData('')
+    setChecklistNovoHorario('')
+    setChecklistReprogramarTransportadora('')
+    setChecklistComprovacaoEnviada(false)
     setAgendamentoConfirmado(false)
     setAgendamentoData('')
     setRegistrosOperacaoCampo([])
@@ -5774,6 +5856,24 @@ export default function App() {
                         setAutorizacaoMudanca(obra.autorizacao_mudanca || '')
                         setClienteAcordoFixacao(obra.cliente_acordo_fixacao || '')
                         setClienteAcordoFixacaoMotivo(obra.cliente_acordo_fixacao_motivo || '')
+                        setChecklistUo(obra.checklist_pre_obra_uo || '')
+                        setChecklistEcResponsavel(obra.checklist_pre_obra_ec_responsavel || '')
+                        setChecklistAcessoAutorizado(obra.checklist_pre_obra_acesso_autorizado || '')
+                        setChecklistAcessoMotivo(obra.checklist_pre_obra_acesso_motivo || '')
+                        setChecklistLocalAberto(obra.checklist_pre_obra_local_aberto || '')
+                        setChecklistLocalEmObra(obra.checklist_pre_obra_local_em_obra || '')
+                        setChecklistTerminoPrevisao(obra.checklist_pre_obra_termino_previsao || '')
+                        setChecklistLocalInaugurado(obra.checklist_pre_obra_local_inaugurado || '')
+                        setChecklistInauguracaoPrevisao(obra.checklist_pre_obra_inauguracao_previsao || '')
+                        setChecklistLocalLiberado(obra.checklist_pre_obra_local_liberado || '')
+                        setChecklistLocalLiberadoMotivo(obra.checklist_pre_obra_local_liberado_motivo || '')
+                        setChecklistBarulhoAutorizado(obra.checklist_pre_obra_barulho_autorizado || '')
+                        setChecklistBarulhoHorario(obra.checklist_pre_obra_barulho_horario || '')
+                        setChecklistAlteracaoSolicitada(obra.checklist_pre_obra_alteracao_solicitada || '')
+                        setChecklistNovaData(obra.checklist_pre_obra_nova_data || '')
+                        setChecklistNovoHorario(obra.checklist_pre_obra_novo_horario || '')
+                        setChecklistReprogramarTransportadora(obra.checklist_pre_obra_reprogramar_transportadora || '')
+                        setChecklistComprovacaoEnviada(obra.checklist_pre_obra_comprovacao_enviada || false)
                         setAgendamentoData(obra.agendamento_data || '')
                         setRegistrosOperacaoCampo(Array.isArray(obra.registros_operacao_campo) ? obra.registros_operacao_campo : [])
                         setNovoRegistroData('')
@@ -6436,6 +6536,85 @@ export default function App() {
                     style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginTop:6 }} />
                 )}
               </div>
+
+              <div style={{ marginBottom:12, background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:10, padding:14 }}>
+                <div style={{ fontSize:12, color:'#1E3A8A', fontWeight:700, marginBottom:2 }}>📋 Checklist de validação pré-obra (TecBan)</div>
+                <div style={{ fontSize:10, color:'#4A7FC1', marginBottom:10 }}>Pedido pela Fernanda (TecBan) em 03/09/2026 — preencher e validar com o EC até 13h do dia anterior à obra, aqui em vez de mandar por WhatsApp.</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:12 }}>
+                  <div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>UO</label>
+                    <input value={checklistUo} onChange={e => setChecklistUo(up(e.target.value))}
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Nome do responsável do EC que autorizou/não autorizou</label>
+                    <input value={checklistEcResponsavel} onChange={e => setChecklistEcResponsavel(up(e.target.value))}
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                </div>
+
+                <PerguntaSimNao numero={1} pergunta="O acesso à obra está autorizado?"
+                  valor={checklistAcessoAutorizado} onChange={setChecklistAcessoAutorizado}
+                  seguirQuando="NAO" detalheLabel="Motivo" detalheValor={checklistAcessoMotivo} onChangeDetalhe={setChecklistAcessoMotivo} />
+
+                <PerguntaSimNao numero={2} pergunta="O local estará aberto/funcionando no horário da obra?"
+                  valor={checklistLocalAberto} onChange={setChecklistLocalAberto} />
+
+                <PerguntaSimNao numero={3} pergunta="O local está em obra?"
+                  valor={checklistLocalEmObra} onChange={setChecklistLocalEmObra}
+                  seguirQuando="SIM" detalheLabel="Previsão de término" detalheValor={checklistTerminoPrevisao} onChangeDetalhe={setChecklistTerminoPrevisao} />
+
+                <PerguntaSimNao numero={4} pergunta="O local já foi inaugurado?"
+                  valor={checklistLocalInaugurado} onChange={setChecklistLocalInaugurado}
+                  seguirQuando="NAO" detalheLabel="Previsão de inauguração" detalheValor={checklistInauguracaoPrevisao} onChangeDetalhe={setChecklistInauguracaoPrevisao} />
+
+                <PerguntaSimNao numero={5} pergunta="O local onde será instalado o ATM está liberado para a execução da obra?"
+                  valor={checklistLocalLiberado} onChange={setChecklistLocalLiberado}
+                  seguirQuando="NAO" detalheLabel="Motivo" detalheValor={checklistLocalLiberadoMotivo} onChangeDetalhe={setChecklistLocalLiberadoMotivo} />
+
+                <PerguntaSimNao numero={6} pergunta="O EC autoriza a realização de barulho durante a execução da obra?"
+                  valor={checklistBarulhoAutorizado} onChange={setChecklistBarulhoAutorizado}
+                  seguirQuando="SIM" detalheLabel="Horário/período em que o barulho é permitido" detalheValor={checklistBarulhoHorario} onChangeDetalhe={setChecklistBarulhoHorario} />
+
+                <PerguntaSimNao numero={7} pergunta="O EC solicitou alteração de data ou horário?"
+                  valor={checklistAlteracaoSolicitada} onChange={setChecklistAlteracaoSolicitada} />
+                {checklistAlteracaoSolicitada === 'SIM' && (
+                  <div style={{ marginTop:-4, marginBottom:10, paddingLeft:4 }}>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
+                      <div>
+                        <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Nova data autorizada pelo EC</label>
+                        <input type="date" value={checklistNovaData} onChange={e => setChecklistNovaData(e.target.value)}
+                          style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Novo horário autorizado pelo EC</label>
+                        <input value={checklistNovoHorario} onChange={e => setChecklistNovoHorario(e.target.value)}
+                          placeholder="HH:MM"
+                          style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                      </div>
+                    </div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>🚨 Necessário reprogramar com a transportadora?</label>
+                    <div style={{ display:'flex', gap:14 }}>
+                      <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:13, color:'#1A2340' }}>
+                        <input type="radio" name="checklistReprogramarTransportadora" checked={checklistReprogramarTransportadora === 'SIM'}
+                          onChange={() => setChecklistReprogramarTransportadora('SIM')} />
+                        Sim
+                      </label>
+                      <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:13, color:'#1A2340' }}>
+                        <input type="radio" name="checklistReprogramarTransportadora" checked={checklistReprogramarTransportadora === 'NAO'}
+                          onChange={() => setChecklistReprogramarTransportadora('NAO')} />
+                        Não
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                <label style={{ display:'flex', alignItems:'flex-start', gap:8, cursor:'pointer', marginTop:4, padding:'8px 10px', background:'#fff', border:'1px solid #BFDBFE', borderRadius:8 }}>
+                  <input type="checkbox" checked={checklistComprovacaoEnviada} onChange={e => setChecklistComprovacaoEnviada(e.target.checked)} style={{ marginTop:2 }} />
+                  <span style={{ fontSize:12, color:'#1A2340', fontWeight:600 }}>📎 Comprovação da autorização anexada/enviada no grupo (print do e-mail com o "de acordo" do EC, ou print da autorização via WhatsApp) — obrigatório.</span>
+                </label>
+              </div>
+
               <div style={{ marginBottom:12 }}>
                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Quem autorizou a mudança? Nome completo e data e hora do e-mail</label>
                 <input value={autorizacaoMudanca} onChange={e => setAutorizacaoMudanca(up(e.target.value))}
