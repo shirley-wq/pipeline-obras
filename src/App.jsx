@@ -1342,17 +1342,11 @@ function eventosCenarioObra(o, dia) {
       : (o.data_obra_inicio || null)
     if (dataExec === dia) eventos.push({ categoria: ehBDN ? tipoCurto : 'Obra', familia: ehBDN ? 'movimentacao' : 'obra' })
   }
-  if (temVisitasDeCampo(o.rede, o.tipo)) {
-    // Uma visita costuma ter várias atividades marcadas de uma vez (ex: Base + Instalação +
-    // Habilitação no mesmo dia) - contar um evento por atividade inflava o card do Cenário,
-    // fazendo a mesma obra aparecer várias vezes espalhada em categorias "Visita: X" diferentes
-    // (Shirley, 2026-09-03: 7 pontos em MG virando uma lista de 10 linhas com números maiores que
-    // 7). Agora conta no máximo 1 evento "Visita de campo" por obra por dia, não importa quantas
-    // atividades foram marcadas naquela visita.
-    const registros = Array.isArray(o.registros_operacao_campo) ? o.registros_operacao_campo : []
-    const temVisitaNoDia = registros.some(r => r.data === dia && (r.atividades || []).length > 0)
-    if (temVisitaNoDia) eventos.push({ categoria: 'Visita de campo', familia: ehBDN ? 'movimentacao' : 'obra' })
-  }
+  // Visitas registradas em "Dia da obra" (registros_operacao_campo) não entram aqui - o card do
+  // Cenário é a quantidade de endereços/atividades do dia por tipo de serviço (Instalação,
+  // Desativação etc.), não um contador de visitas de campo (Shirley, 2026-09-03: uma obra que já
+  // conta como "Instalação" não pode contar de novo como "Visita de campo" só porque teve uma
+  // visita registrada no mesmo dia - isso inflava o card além da quantidade real de pontos).
   return eventos
 }
 // Próxima atividade agendada de uma obra (a mais próxima de hoje pra frente), pra mostrar no card
