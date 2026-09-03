@@ -2362,6 +2362,8 @@ export default function App() {
   const [checklistNovoHorario, setChecklistNovoHorario] = useState('')
   const [checklistReprogramarTransportadora, setChecklistReprogramarTransportadora] = useState('')
   const [checklistComprovacaoEnviada, setChecklistComprovacaoEnviada] = useState(false)
+  const [checklistComprovacaoImagem, setChecklistComprovacaoImagem] = useState('')
+  const [checklistComprovacaoImagemProporcao, setChecklistComprovacaoImagemProporcao] = useState(0)
   const [agendamentoData, setAgendamentoData] = useState('')
   const [registrosOperacaoCampo, setRegistrosOperacaoCampo] = useState([])
   const [novoRegistroData, setNovoRegistroData] = useState('')
@@ -3222,10 +3224,46 @@ export default function App() {
         doc.text(`Mudança autorizada por: ${autorizacaoMudanca}`, 14, y)
         y += 7
       }
+      if (modal.rede === 'BANCO24HORAS' && modal.tipo === 'INSTALAÇÃO ATM') {
+        doc.setFontSize(11)
+        doc.setFont(undefined, 'bold')
+        doc.text('Checklist de validação pré-obra (TecBan)', 14, y)
+        y += 5
+        doc.setFontSize(9)
+        doc.setFont(undefined, 'normal')
+        const linhaChecklist = (rotulo, valor, detalhe) => {
+          const texto = `${rotulo}: ${valor === 'SIM' ? 'Sim' : valor === 'NAO' ? 'Não' : '—'}${detalhe ? ` — ${detalhe}` : ''}`
+          const linhas = doc.splitTextToSize(texto, 180)
+          doc.text(linhas, 14, y)
+          y += 4.5 * linhas.length
+        }
+        linhaChecklist('Acesso à obra autorizado', checklistAcessoAutorizado, checklistAcessoAutorizado === 'NAO' ? checklistAcessoMotivo : '')
+        linhaChecklist('Local aberto/funcionando no horário', checklistLocalAberto, '')
+        linhaChecklist('Local em obra', checklistLocalEmObra, checklistLocalEmObra === 'SIM' ? `Previsão de término: ${checklistTerminoPrevisao || '—'}` : '')
+        linhaChecklist('Local já inaugurado', checklistLocalInaugurado, checklistLocalInaugurado === 'NAO' ? `Previsão de inauguração: ${checklistInauguracaoPrevisao || '—'}` : '')
+        linhaChecklist('Local liberado para execução', checklistLocalLiberado, checklistLocalLiberado === 'NAO' ? checklistLocalLiberadoMotivo : '')
+        linhaChecklist('EC autoriza barulho', checklistBarulhoAutorizado, checklistBarulhoAutorizado === 'SIM' ? `Horário/período: ${checklistBarulhoHorario || '—'}` : '')
+        linhaChecklist('EC solicitou alteração de data/horário', checklistAlteracaoSolicitada, checklistAlteracaoSolicitada === 'SIM'
+          ? `Nova data/horário: ${isoToBr(checklistNovaData) || '—'} ${checklistNovoHorario || ''} — Reprogramar transportadora: ${checklistReprogramarTransportadora === 'SIM' ? 'Sim' : checklistReprogramarTransportadora === 'NAO' ? 'Não' : '—'}`
+          : '')
+        doc.text(`Responsável do EC: ${checklistEcResponsavel || '—'}${checklistUo ? ` | UO: ${checklistUo}` : ''}`, 14, y)
+        y += 5
+        doc.text(`Comprovação da autorização anexada: ${checklistComprovacaoEnviada ? 'Sim' : 'Não'}`, 14, y)
+        y += 6
+        if (checklistComprovacaoImagem) {
+          const formatoImagem = checklistComprovacaoImagem.includes('image/png') ? 'PNG' : 'JPEG'
+          const larguraMm = 90
+          const alturaMm = Math.min(checklistComprovacaoImagemProporcao > 0 ? larguraMm * checklistComprovacaoImagemProporcao : 60, 120)
+          if (y + alturaMm > 280) { doc.addPage(); y = 16 }
+          try { doc.addImage(checklistComprovacaoImagem, formatoImagem, 14, y, larguraMm, alturaMm) } catch (e) { /* imagem corrompida - ignora sem travar o PDF */ }
+          y += alturaMm + 6
+        }
+      }
     } else {
       y += 3
     }
 
+    if (y > 265) { doc.addPage(); y = 16 }
     doc.setFontSize(11)
     doc.setFont(undefined, 'bold')
     doc.text('O que foi feito no local', 14, y)
@@ -3283,6 +3321,31 @@ export default function App() {
       reader.onerror = reject
       reader.readAsDataURL(file)
     })
+  }
+
+  function arquivoParaDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+
+  // Print do e-mail/WhatsApp com o "de acordo" do EC, pra aparecer dentro do PDF de "Consulta ARS
+  // e agendamento" já gerado no pipeline (Shirley, 2026-09-03) - guarda a proporção da imagem
+  // (calculada na hora do upload) pra desenhar ela sem distorcer no PDF depois.
+  async function handleChecklistComprovacaoImagem(file) {
+    if (!file) return
+    const dataUrl = await arquivoParaDataUrl(file)
+    const proporcao = await new Promise(resolve => {
+      const img = new Image()
+      img.onload = () => resolve(img.naturalWidth > 0 ? img.naturalHeight / img.naturalWidth : 0)
+      img.onerror = () => resolve(0)
+      img.src = dataUrl
+    })
+    setChecklistComprovacaoImagem(dataUrl)
+    setChecklistComprovacaoImagemProporcao(proporcao)
   }
 
   async function handleAdicionarFotosRelatorio(fileList) {
@@ -3558,6 +3621,8 @@ export default function App() {
       campos.checklist_pre_obra_novo_horario = checklistAlteracaoSolicitada === 'SIM' ? (checklistNovoHorario || null) : null
       campos.checklist_pre_obra_reprogramar_transportadora = checklistAlteracaoSolicitada === 'SIM' ? (checklistReprogramarTransportadora || null) : null
       campos.checklist_pre_obra_comprovacao_enviada = checklistComprovacaoEnviada
+      campos.checklist_pre_obra_comprovacao_imagem = checklistComprovacaoImagem || null
+      campos.checklist_pre_obra_comprovacao_imagem_proporcao = checklistComprovacaoImagem ? checklistComprovacaoImagemProporcao : null
       campos.agendamento_data = agendamentoData || null
       campos.registros_operacao_campo = registrosOperacaoCampo.length > 0 ? registrosOperacaoCampo : null
     }
@@ -3636,6 +3701,8 @@ export default function App() {
     setChecklistNovoHorario('')
     setChecklistReprogramarTransportadora('')
     setChecklistComprovacaoEnviada(false)
+    setChecklistComprovacaoImagem('')
+    setChecklistComprovacaoImagemProporcao(0)
     setAgendamentoConfirmado(false)
     setAgendamentoData('')
     setRegistrosOperacaoCampo([])
@@ -5874,6 +5941,8 @@ export default function App() {
                         setChecklistNovoHorario(obra.checklist_pre_obra_novo_horario || '')
                         setChecklistReprogramarTransportadora(obra.checklist_pre_obra_reprogramar_transportadora || '')
                         setChecklistComprovacaoEnviada(obra.checklist_pre_obra_comprovacao_enviada || false)
+                        setChecklistComprovacaoImagem(obra.checklist_pre_obra_comprovacao_imagem || '')
+                        setChecklistComprovacaoImagemProporcao(obra.checklist_pre_obra_comprovacao_imagem_proporcao || 0)
                         setAgendamentoData(obra.agendamento_data || '')
                         setRegistrosOperacaoCampo(Array.isArray(obra.registros_operacao_campo) ? obra.registros_operacao_campo : [])
                         setNovoRegistroData('')
@@ -6614,6 +6683,18 @@ export default function App() {
                   <input type="checkbox" checked={checklistComprovacaoEnviada} onChange={e => setChecklistComprovacaoEnviada(e.target.checked)} style={{ marginTop:2 }} />
                   <span style={{ fontSize:12, color:'#1A2340', fontWeight:600 }}>📎 Comprovação da autorização anexada/enviada no grupo (print do e-mail com o "de acordo" do EC, ou print da autorização via WhatsApp) — obrigatório.</span>
                 </label>
+
+                <div style={{ marginTop:8 }}>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Anexar o print aqui (aparece dentro do relatório/PDF gerado no pipeline)</label>
+                  <input type="file" accept="image/*" onChange={e => handleChecklistComprovacaoImagem(e.target.files?.[0])} />
+                  {checklistComprovacaoImagem && (
+                    <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:8 }}>
+                      <img src={checklistComprovacaoImagem} alt="Print da comprovação" style={{ maxWidth:160, maxHeight:160, borderRadius:6, border:'1px solid #CDD8E3', display:'block' }} />
+                      <span onClick={() => { setChecklistComprovacaoImagem(''); setChecklistComprovacaoImagemProporcao(0) }}
+                        style={{ color:'#EF4444', cursor:'pointer', fontSize:12, fontWeight:700 }}>✕ remover</span>
+                    </div>
+                  )}
+                </div>
               </div>
               )}
 
