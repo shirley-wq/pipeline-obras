@@ -1393,8 +1393,9 @@ function proximaAtividadeObra(o) {
 // ao mesmo tempo (ex: "encostada em pilar" + "fixação química").
 const ITENS_SEGURANCA_BANCO24H = ['Máquina encostada em parede de alvenaria', 'Encostada em pilar', 'Em cima de viga', 'Fixação concretada', 'Fixação química', 'Fixação projeto T', 'Construção de meia parede']
 // Atividades possíveis no dia da obra (rede Banco24Horas) - podem acontecer em visitas separadas.
-// As 5 obrigatórias travam a liberação do "Relatório ao Cliente" (ver operacaoCampoCompleta). Vistoria
-// e Outros são registráveis mas opcionais - não emperram esse gate (Shirley, 2026-08-19).
+// As 5 "obrigatórias" só contam pro contador de cobertura exibido na tela (não travam mais a
+// liberação do "Relatório ao Cliente" - Shirley, 2026-09-03, removeu essa trava). Vistoria e
+// Outros são registráveis mas ficam fora desse contador.
 const ATIVIDADES_OPERACAO_CAMPO_OBRIGATORIAS = ['Base', 'Instalação', 'Habilitação', 'Construção de parede', 'Instalação de sinalização']
 // Desativação tem um "o que foi feito" diferente de Instalação (Shirley, 2026-08-19) - não faz
 // sentido Base/Habilitação/etc, e sim desmontar o ponto e devolver o local ao estado original.
@@ -3804,7 +3805,6 @@ export default function App() {
   // faturado como improdutiva, não fica pendente pra sempre esperando uma instalação que não vai
   // acontecer (Fabio, 2026-08-20).
   const temVistoriaImprodutiva = registrosOperacaoCampo.some(r => (r.atividades || []).some(a => a.atividade === 'Vistoria' && a.feita === false && a.impedimento))
-  const operacaoCampoCompleta = atividadesOperacaoCampoObrigatorias(modal?.rede, modal?.tipo).every(a => atividadesCobertas.has(a)) || temVistoriaImprodutiva
 
   const estilo = { fontFamily:'system-ui,sans-serif', minHeight:'100vh', background:'#F0F4F8' }
   const inp = { width:'100%', padding:'11px 12px', fontSize:14, border:'1px solid #B5D4F4', borderRadius:10, background:'#fff', color:'#1A2340', outline:'none', boxSizing:'border-box', marginBottom:12 }
@@ -6961,7 +6961,6 @@ export default function App() {
               <div style={{ fontSize:11, color:'#64748B', marginTop:10 }}>
                 Cobertura das atividades: {atividadesOperacaoCampoObrigatorias(modal.rede, modal.tipo).filter(a => atividadesCobertas.has(a)).length}/{atividadesOperacaoCampoObrigatorias(modal.rede, modal.tipo).length}
                 {temVistoriaImprodutiva && ' — vistoria improdutiva registrada, liberado pra faturar mesmo sem instalação'}
-                {!operacaoCampoCompleta && !temVistoriaImprodutiva && ' — precisa de todas pra liberar "Relatório ao Cliente"'}
               </div>
               <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:10, padding:14, marginTop:12 }}>
                 <div style={{ fontSize:12, color:'#9A3412', fontWeight:700, marginBottom:8 }}>🚚 Transporte</div>
@@ -6977,8 +6976,8 @@ export default function App() {
                   seguirQuando="SIM" detalheLabel="Descreva a ocorrência" detalheValor={transporteOcorrenciaDescricao} onChangeDetalhe={setTransporteOcorrenciaDescricao} />
               </div>
 
-              <button onClick={exportarRelatorioCliente} disabled={!operacaoCampoCompleta}
-                style={{ width:'100%', marginTop:10, padding:10, background: !operacaoCampoCompleta ? '#ccc' : '#0E4D73', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: !operacaoCampoCompleta ? 'default' : 'pointer' }}>
+              <button onClick={exportarRelatorioCliente}
+                style={{ width:'100%', marginTop:10, padding:10, background:'#0E4D73', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                 📄 Gerar PDF do relatório ao cliente
               </button>
 
@@ -6990,8 +6989,7 @@ export default function App() {
 
               {EMAILS_ENVIO_RELATORIO.includes(usuario?.email) && (
                 <button onClick={() => { setMostrarEnvioRelatorio(true); setErroEnvioRelatorio('') }}
-                  disabled={!operacaoCampoCompleta}
-                  style={{ width:'100%', marginTop:8, padding:10, background: !operacaoCampoCompleta ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: !operacaoCampoCompleta ? 'default' : 'pointer' }}>
+                  style={{ width:'100%', marginTop:8, padding:10, background:'#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                   📧 Enviar relatório para a Tecban
                 </button>
               )}
@@ -7354,11 +7352,10 @@ export default function App() {
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:6, marginBottom:8 }}>
               {getEtapas(modal.rede, modal.tipo).map((op, i) => {
                 const ativo = novoStatus === op
-                const bloqueado = (op === 'RM ENVIADA' && !editDados.os_tecban.trim())
-                  || (op === 'RELATÓRIO AO CLIENTE' && temTelaOperacaoCampo(modal.rede, modal.tipo) && !operacaoCampoCompleta)
+                const bloqueado = op === 'RM ENVIADA' && !editDados.os_tecban.trim()
                 return (
                   <div key={op} onClick={() => { if (!bloqueado) setNovoStatus(op) }}
-                    title={bloqueado ? (op === 'RELATÓRIO AO CLIENTE' ? 'Preencha o status (OK/Impedimento) das atividades no dia da obra para liberar esta etapa' : 'Preencha o campo "OS Tecban" em Dados da obra para liberar esta etapa') : undefined}
+                    title={bloqueado ? 'Preencha o campo "OS Tecban" em Dados da obra para liberar esta etapa' : undefined}
                     style={{ padding:'8px 9px', borderRadius:10, border: ativo ? '2px solid #1A6B4A' : '1px solid #E0E8F0', cursor: bloqueado ? 'not-allowed' : 'pointer', background: bloqueado ? '#F8FAFC' : ativo ? '#D1FAE5' : '#fff', opacity: bloqueado ? 0.55 : 1, display:'flex', alignItems:'center', gap:6 }}>
                     <span style={{ fontSize:10, background: ativo ? '#1A6B4A' : '#E6F1FB', color: ativo ? '#fff' : '#2D3A8C', fontWeight:700, borderRadius:'50%', width:18, height:18, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{bloqueado ? '🔒' : i+1}</span>
                     <span style={{ fontSize:11, color:'#1A2340', fontWeight: ativo ? 600 : 400, lineHeight:1.2 }}>{op}</span>
@@ -7370,11 +7367,6 @@ export default function App() {
             {getEtapas(modal.rede, modal.tipo).includes('RM ENVIADA') && !editDados.os_tecban.trim() && (
               <div style={{ fontSize:11, color:'#92400E', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'6px 10px', marginBottom:8 }}>
                 🔒 "RM Enviada" fica bloqueada até preencher a <b>OS Tecban</b> em Dados da obra.
-              </div>
-            )}
-            {temTelaOperacaoCampo(modal.rede, modal.tipo) && !operacaoCampoCompleta && (
-              <div style={{ fontSize:11, color:'#92400E', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'6px 10px', marginBottom:8 }}>
-                🔒 "Relatório ao Cliente" fica bloqueada até preencher OK/Impedimento das atividades no dia da obra.
               </div>
             )}
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, margin:'12px 0 6px' }}>Observação:</div>
