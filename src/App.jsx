@@ -6217,6 +6217,10 @@ export default function App() {
             {podeVerValores && (
               <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:12, padding:14, marginBottom:16 }}>
                 <div style={{ fontSize:12, color:'#9A3412', fontWeight:700, marginBottom:10 }}>📥 Conferência do pedido de faturamento</div>
+                <div style={{ background:'#FEF2F2', border:'2px solid #DC2626', borderRadius:8, padding:'10px 14px', marginBottom:12, textAlign:'center' }}>
+                  <div style={{ fontSize:14, color:'#991B1B', fontWeight:800 }}>⚠️ NÃO PRECISA PREENCHER AQUI</div>
+                  <div style={{ fontSize:11, color:'#991B1B', fontWeight:600, marginTop:2 }}>Esses campos são preenchidos automaticamente pelo robô a partir do PDF do pedido. Se estiver em branco, é porque o robô ainda não processou — não é pra preencher na mão.</div>
+                </div>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:10 }}>
                   <div>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Valor no pedido (R$)</label>
