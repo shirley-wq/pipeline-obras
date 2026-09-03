@@ -1343,11 +1343,15 @@ function eventosCenarioObra(o, dia) {
     if (dataExec === dia) eventos.push({ categoria: ehBDN ? tipoCurto : 'Obra', familia: ehBDN ? 'movimentacao' : 'obra' })
   }
   if (temVisitasDeCampo(o.rede, o.tipo)) {
+    // Uma visita costuma ter várias atividades marcadas de uma vez (ex: Base + Instalação +
+    // Habilitação no mesmo dia) - contar um evento por atividade inflava o card do Cenário,
+    // fazendo a mesma obra aparecer várias vezes espalhada em categorias "Visita: X" diferentes
+    // (Shirley, 2026-09-03: 7 pontos em MG virando uma lista de 10 linhas com números maiores que
+    // 7). Agora conta no máximo 1 evento "Visita de campo" por obra por dia, não importa quantas
+    // atividades foram marcadas naquela visita.
     const registros = Array.isArray(o.registros_operacao_campo) ? o.registros_operacao_campo : []
-    registros.forEach(r => {
-      if (r.data !== dia) return
-      ;(r.atividades || []).forEach(a => eventos.push({ categoria: `Visita: ${a.atividade}`, familia: ehBDN ? 'movimentacao' : 'obra' }))
-    })
+    const temVisitaNoDia = registros.some(r => r.data === dia && (r.atividades || []).length > 0)
+    if (temVisitaNoDia) eventos.push({ categoria: 'Visita de campo', familia: ehBDN ? 'movimentacao' : 'obra' })
   }
   return eventos
 }
