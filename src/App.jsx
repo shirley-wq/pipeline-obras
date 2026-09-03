@@ -512,11 +512,13 @@ function listaPendenciasRH(c, perfisLogin) {
     else if (st.pendencia) pendencias.push(`ASO vencido (${isoToBr(vencimentoAso)})`)
   }
 
-  if (!c.data_vencimento_cnh) {
-    pendencias.push('CNH: sem registro')
-  } else {
-    const st = statusVencimento(c.data_vencimento_cnh)
-    if (st.pendencia) pendencias.push(`CNH vencida (${isoToBr(c.data_vencimento_cnh)})`)
+  if (c.habilitado_cnh !== false) {
+    if (!c.data_vencimento_cnh) {
+      pendencias.push('CNH: sem registro')
+    } else {
+      const st = statusVencimento(c.data_vencimento_cnh)
+      if (st.pendencia) pendencias.push(`CNH vencida (${isoToBr(c.data_vencimento_cnh)})`)
+    }
   }
 
   const precisa = precisaNR(c.email, perfisLogin)
@@ -1795,9 +1797,19 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
         </div>
         <div>
           <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:3 }}>Vencimento CNH</label>
-          <input type="date" value={c.data_vencimento_cnh || ''} onChange={e => onUpdate({ data_vencimento_cnh: e.target.value || null })}
-            style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
-          {statusCnh && <div style={{ fontSize:11, fontWeight:700, padding:'3px 8px', borderRadius:6, background:statusCnh.bg, color:statusCnh.cor, display:'inline-block', marginTop:4 }}>{statusCnh.label}</div>}
+          <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, color:'#475569', marginBottom:4, cursor:'pointer' }}>
+            <input type="checkbox" checked={c.habilitado_cnh !== false} onChange={e => onUpdate({ habilitado_cnh: e.target.checked })} />
+            Habilitado(a) (tem CNH)
+          </label>
+          {c.habilitado_cnh === false ? (
+            <div style={{ fontSize:12, color:'#888', padding:'6px 0' }}>Não se aplica</div>
+          ) : (
+            <>
+              <input type="date" value={c.data_vencimento_cnh || ''} onChange={e => onUpdate({ data_vencimento_cnh: e.target.value || null })}
+                style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+              {statusCnh && <div style={{ fontSize:11, fontWeight:700, padding:'3px 8px', borderRadius:6, background:statusCnh.bg, color:statusCnh.cor, display:'inline-block', marginTop:4 }}>{statusCnh.label}</div>}
+            </>
+          )}
         </div>
       </div>
 
@@ -4657,7 +4669,9 @@ export default function App() {
                     </div>
                     <div>
                       <div style={{ fontSize:10, color:'#888', textTransform:'uppercase' }}>CNH</div>
-                      {statusCnh
+                      {meuRH.habilitado_cnh === false
+                        ? <span style={{ fontSize:12, color:'#888' }}>Não se aplica</span>
+                        : statusCnh
                         ? <span style={{ fontSize:12, fontWeight:700, padding:'4px 8px', borderRadius:6, background:statusCnh.bg, color:statusCnh.cor }}>{isoToBr(meuRH.data_vencimento_cnh)} · {statusCnh.label}</span>
                         : <span style={{ fontSize:12, color:'#888' }}>—</span>}
                     </div>
