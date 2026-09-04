@@ -7395,6 +7395,14 @@ export default function App() {
                 )}
               </div>
 
+              <div style={{ marginBottom:12 }}>
+                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Quem autorizou a mudança de fixação ou local? (informar e-mail e hora da entrada na caixa)</label>
+                <input value={autorizacaoMudanca} onChange={e => setAutorizacaoMudanca(up(e.target.value))}
+                  placeholder="Ex: João Silva, 14/08/2026 09:30"
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Preencher só quando o que foi realizado em campo é diferente do que o ARS indicava.</div>
+              </div>
+
               {modal.rede === 'BANCO24HORAS' && modal.tipo === 'INSTALAÇÃO ATM' && (
               <div style={{ marginBottom:12, background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:10, padding:14 }}>
                 <div style={{ fontSize:12, color:'#1E3A8A', fontWeight:700, marginBottom:2 }}>📋 Checklist de validação pré-obra (TecBan)</div>
@@ -7469,14 +7477,6 @@ export default function App() {
                 </div>
               </div>
               )}
-
-              <div style={{ marginBottom:12 }}>
-                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Quem autorizou a mudança? Nome completo e data e hora do e-mail</label>
-                <input value={autorizacaoMudanca} onChange={e => setAutorizacaoMudanca(up(e.target.value))}
-                  placeholder="Ex: João Silva, 14/08/2026 09:30"
-                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
-                <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Preencher só quando o que foi realizado em campo é diferente do que o ARS indicava.</div>
-              </div>
               </>
               )}
             </div>
