@@ -5408,6 +5408,7 @@ export default function App() {
         // acompanhamento de escritório, não é mais atividade de campo (Shirley, 2026-09-04).
         const atividades = obras
           .filter(o => temVisitasDeCampo(o.rede, o.tipo) && o.status !== 'NF EMITIDO' && o.status !== 'CANCELADO')
+          .filter(o => !filtroCenarioUF || estadoDaObra(o) === filtroCenarioUF)
           .map(o => ({ obra: o, data: dataAtividadeObra(o) }))
           .filter(({ obra, data }) => data || aindaNaoElaborouRM(obra))
           .sort((a, b) => (a.data || '9999-99-99').localeCompare(b.data || '9999-99-99'))
