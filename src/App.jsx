@@ -4881,11 +4881,6 @@ export default function App() {
                           <div style={{ fontSize:10, color:'rgba(255,255,255,.7)', textAlign:'center' }}>—</div>
                         )}
                       </div>
-                      <div style={{ background: selecionado ? '#EEF2FF' : '#F8FAFC', padding:'6px 12px' }}>
-                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color: c.pendenteFaturar > 0 ? '#9A3412' : '#0F766E', fontWeight:600 }}>
-                          <span>PENDENTE DE FATURAR</span><span>{c.pendenteFaturar}</span>
-                        </div>
-                      </div>
                     </div>
                   )
                 })}
