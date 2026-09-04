@@ -1750,6 +1750,10 @@ function CardAtividadeLider({ obra, data, onSalvar }) {
   const [segurancaItens, setSegurancaItens] = useState(Array.isArray(obra.seguranca_itens) ? obra.seguranca_itens : [])
   const [barreiraDissuasao, setBarreiraDissuasao] = useState(obra.barreira_dissuasao || false)
   const hora = temTelaOperacaoCampo(obra.rede, obra.tipo) ? obra.hora_inicio_obra_texto : null
+  // Histórico de visitas já registradas nesse ponto (mesma fonte da tela "Dia da obra") - o líder
+  // precisa disso pra saber se já foi feita alguma etapa antes de designar quem vai de novo
+  // (Shirley, 2026-09-04).
+  const registrosAnteriores = Array.isArray(obra.registros_operacao_campo) ? obra.registros_operacao_campo : []
   const [salvando, setSalvando] = useState(false)
   const [salvo, setSalvo] = useState(false)
   return (
@@ -1758,9 +1762,24 @@ function CardAtividadeLider({ obra, data, onSalvar }) {
       <div style={{ fontSize:11, color:'#64748B', marginBottom:8 }}>
         {obra.tipo}{(obra.numero_pc || obra.sige) ? ` · ${obra.rede === 'BRADESCO' ? 'BDN' : 'PC'} ${obra.numero_pc || obra.sige}` : ''}{obra.local ? ` · ${obra.local}` : ''}
       </div>
+      {obra.endereco && (
+        <div style={{ fontSize:12, color:'#1A2340', marginBottom:8 }}>📍 {obra.endereco}</div>
+      )}
       <div style={{ fontSize:12, fontWeight:700, color: data ? '#1E40AF' : '#9A3412', marginBottom:10 }}>
         {data ? `📅 ${isoToBr(data)}${hora ? ` às ${hora}` : ''}` : '⚠ Sem data definida ainda'}
       </div>
+      {registrosAnteriores.length > 0 && (
+        <div style={{ marginBottom:10, background:'#F8FAFC', border:'1px solid #E0E8F0', borderRadius:8, padding:'8px 10px' }}>
+          <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, marginBottom:4 }}>
+            🕘 Já teve {registrosAnteriores.length} visita{registrosAnteriores.length === 1 ? '' : 's'} nesse ponto
+          </div>
+          {registrosAnteriores.map((r, i) => (
+            <div key={i} style={{ fontSize:11, color:'#475569', marginBottom:2 }}>
+              {r.data ? isoToBr(r.data) : '—'}{r.hora ? ` ${r.hora}` : ''} — {(Array.isArray(r.atividades) ? r.atividades.map(a => a.atividade).join(', ') : '') || 'sem atividades registradas'}
+            </div>
+          ))}
+        </div>
+      )}
       <SeletorEquipe titulo="Quem vai" selecionados={colabs} onChangeSelecionados={setColabs}
         terceirizado={terceirizado} onChangeTerceirizado={setTerceirizado}
         terceirizadoTexto={terceirizadoTexto} onChangeTerceirizadoTexto={setTerceirizadoTexto} />
