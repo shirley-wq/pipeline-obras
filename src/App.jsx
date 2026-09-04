@@ -2475,6 +2475,23 @@ export default function App() {
   const [horasExtrasMesDe, setHorasExtrasMesDe] = useState('')
   const [horasExtrasMesAte, setHorasExtrasMesAte] = useState('')
   const [horasExtrasMesExpandido, setHorasExtrasMesExpandido] = useState(null)
+  // Contas a Pagar (Financeiro) - importado periodicamente de relatório do SIGE (Shirley,
+  // 2026-09-03/04). Só entram aqui as linhas marcadas "É Despesa" = Sim - as de entrada (Não) são
+  // sempre recebíveis da Tecban, que já vêm do próprio faturamento do Pipeline (obras NF EMITIDO),
+  // então "Contas a Receber" reaproveita esse dado em vez de duplicar.
+  const [contasPagar, setContasPagar] = useState([])
+  const [contasPagarSubaba, setContasPagarSubaba] = useState('pagar')
+  const [contasPagarModo, setContasPagarModo] = useState('mes')
+  const [contasPagarMes, setContasPagarMes] = useState(new Date().getMonth() + 1)
+  const [contasPagarAno, setContasPagarAno] = useState(new Date().getFullYear())
+  const [contasPagarFiltroEmpresa, setContasPagarFiltroEmpresa] = useState('')
+  const [contasPagarFiltroStatus, setContasPagarFiltroStatus] = useState('')
+  const [modalImportarContasPagar, setModalImportarContasPagar] = useState(false)
+  const [contasPagarArquivo, setContasPagarArquivo] = useState(null)
+  const [contasPagarProcessando, setContasPagarProcessando] = useState(false)
+  const [contasPagarErro, setContasPagarErro] = useState('')
+  const [contasPagarPreview, setContasPagarPreview] = useState(null)
+  const [contasPagarSalvando, setContasPagarSalvando] = useState(false)
   const [despesasModo, setDespesasModo] = useState('mes')
   const [despesasMes, setDespesasMes] = useState(new Date().getMonth() + 1)
   const [despesasAno, setDespesasAno] = useState(new Date().getFullYear())
@@ -2491,6 +2508,7 @@ export default function App() {
   }, [])
 
   useEffect(() => { if (usuario) carregarObras() }, [usuario])
+  useEffect(() => { if (usuario && EMAILS_CUSTOS_DESPESAS.includes(usuario.email)) carregarContasPagar() }, [usuario])
 
   useEffect(() => {
     if (!usuario) { setPapel(null); return }
@@ -3059,6 +3077,103 @@ export default function App() {
     // RPC pode voltar vazia por permissão de papel (ex: rh), não só por a tabela estar realmente vazia.
     // Por isso o reimport da base semente nunca é automático — só via botão manual (ver importarDadosIniciais).
     setObras(ordenaObras(todas))
+  }
+
+  async function carregarContasPagar() {
+    const TAMANHO_PAGINA = 1000
+    let todas = []
+    let pagina = 0
+    while (true) {
+      const { data, error } = await supabase.from('contas_pagar').select('*')
+        .range(pagina * TAMANHO_PAGINA, pagina * TAMANHO_PAGINA + TAMANHO_PAGINA - 1)
+      if (error) {
+        console.error('Erro ao carregar contas a pagar:', error)
+        return
+      }
+      todas = todas.concat(data || [])
+      if (!data || data.length < TAMANHO_PAGINA) break
+      pagina++
+    }
+    setContasPagar(todas)
+  }
+
+  // Lê o relatório do SIGE (mesmo formato que a Shirley já vem exportando, com as colunas "É
+  // Despesa", "Valor Saída"/"Valor Entrada" e "Foi Quitado") e monta um preview do que vai
+  // entrar/mudar antes de gravar - só linhas de despesa (as de entrada são recebível da Tecban,
+  // já cobertas pelo faturamento do próprio Pipeline).
+  async function processarImportacaoContasPagar() {
+    if (!contasPagarArquivo) return
+    setContasPagarProcessando(true)
+    setContasPagarErro('')
+    try {
+      const buf = await contasPagarArquivo.arrayBuffer()
+      const wb = XLSX.read(buf, { type: 'array' })
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      const linhas = XLSX.utils.sheet_to_json(sheet, { defval: '' })
+      const existentesPorCodigo = {}
+      contasPagar.forEach(c => { existentesPorCodigo[c.codigo_sige] = c })
+      let ignoradasEntrada = 0
+      let semCodigo = 0
+      const novas = []
+      const atualizadas = []
+      linhas.forEach(l => {
+        const ehDespesa = String(l['É Despesa'] || '').trim().toUpperCase() === 'SIM'
+        if (!ehDespesa) { ignoradasEntrada++; return }
+        const codigo = Number(l['Código'])
+        if (!codigo) { semCodigo++; return }
+        const registro = {
+          codigo_sige: codigo,
+          data_cadastro: excelSerialParaIso(l['Data de Cadastro']),
+          data_vencimento: excelSerialParaIso(l['Data de Vencimento']),
+          empresa: String(l['Empresa.Nome Fantasia'] || '').trim() || null,
+          empresa_cnpj: String(l['Empresa.CNPJ'] || '').trim() || null,
+          fornecedor: String(l['Cliente.Nome Fantasia'] || '').trim() || null,
+          fornecedor_razao_social: String(l['Cliente.Razão Social'] || '').trim() || null,
+          fornecedor_cnpj: String(l['Cliente.CPF/CNPJ'] || '').trim() || null,
+          plano_contas: String(l['Plano de Contas'] || '').trim() || null,
+          centro_custos: String(l['Centro De Custos'] || '').trim() || null,
+          grupo: String(l['Grupo'] || '').trim() || null,
+          banco: String(l['Banco'] || '').trim() || null,
+          valor: Number(l['Valor Saída']) || 0,
+          foi_quitado: String(l['Foi Quitado'] || '').trim().toUpperCase() === 'SIM',
+        }
+        const existente = existentesPorCodigo[codigo]
+        if (existente) {
+          const mudou = Number(existente.valor) !== registro.valor || !!existente.foi_quitado !== registro.foi_quitado
+            || existente.data_vencimento !== registro.data_vencimento
+          if (mudou) atualizadas.push(registro)
+        } else {
+          novas.push(registro)
+        }
+      })
+      setContasPagarPreview({ novas, atualizadas, ignoradasEntrada, semCodigo, totalLinhas: linhas.length })
+    } catch (e) {
+      setContasPagarErro('Erro ao ler a planilha: ' + e.message)
+    }
+    setContasPagarProcessando(false)
+  }
+
+  async function confirmarImportacaoContasPagar() {
+    if (!contasPagarPreview) return
+    setContasPagarSalvando(true)
+    setContasPagarErro('')
+    const todas = [...contasPagarPreview.novas, ...contasPagarPreview.atualizadas]
+    const TAMANHO_LOTE = 200
+    let erro = null
+    for (let i = 0; i < todas.length; i += TAMANHO_LOTE) {
+      const lote = todas.slice(i, i + TAMANHO_LOTE)
+      const { error } = await supabase.from('contas_pagar').upsert(lote, { onConflict: 'codigo_sige' })
+      if (error) { erro = error; break }
+    }
+    if (erro) {
+      setContasPagarErro('Erro ao salvar: ' + erro.message)
+    } else {
+      await carregarContasPagar()
+      setModalImportarContasPagar(false)
+      setContasPagarArquivo(null)
+      setContasPagarPreview(null)
+    }
+    setContasPagarSalvando(false)
   }
 
   async function importarDadosIniciais() {
@@ -3983,6 +4098,42 @@ export default function App() {
   })
   const despesasPorObraLista = Object.values(despesasPorObraMap).sort((a, b) => b.total - a.total)
 
+  // Contas a Pagar - filtro pelo mesmo período (mês/ano) usado na tela.
+  const contasPagarFiltradas = contasPagar.filter(c => {
+    if (!c.data_vencimento) return false
+    const ano = Number(c.data_vencimento.slice(0, 4))
+    const mes = Number(c.data_vencimento.slice(5, 7))
+    if (contasPagarModo === 'ano') { if (ano !== contasPagarAno) return false }
+    else if (ano !== contasPagarAno || mes !== contasPagarMes) return false
+    if (contasPagarFiltroEmpresa && c.empresa !== contasPagarFiltroEmpresa) return false
+    if (contasPagarFiltroStatus === 'pendente' && c.foi_quitado) return false
+    if (contasPagarFiltroStatus === 'quitado' && !c.foi_quitado) return false
+    return true
+  }).sort((a, b) => (a.data_vencimento || '').localeCompare(b.data_vencimento || ''))
+  const totalContasPagarPendente = contasPagarFiltradas.filter(c => !c.foi_quitado).reduce((s, c) => s + Number(c.valor || 0), 0)
+  const totalContasPagarQuitado = contasPagarFiltradas.filter(c => c.foi_quitado).reduce((s, c) => s + Number(c.valor || 0), 0)
+  const contasPagarPorCategoriaMap = {}
+  contasPagarFiltradas.forEach(c => {
+    const cat = c.plano_contas || '(sem categoria)'
+    contasPagarPorCategoriaMap[cat] = (contasPagarPorCategoriaMap[cat] || 0) + Number(c.valor || 0)
+  })
+  const contasPagarPorCategoriaLista = Object.entries(contasPagarPorCategoriaMap)
+    .map(([categoria, total]) => ({ categoria, total })).sort((a, b) => b.total - a.total)
+  const empresasContasPagar = [...new Set(contasPagar.map(c => c.empresa).filter(Boolean))].sort()
+
+  // Contas a Receber - não duplica dado: reaproveita as obras já faturadas (NF EMITIDO) do próprio
+  // Pipeline, no mesmo período selecionado (Shirley, 2026-09-04: entrada da Tecban no SIGE é a
+  // mesma coisa que já rastreamos aqui).
+  const contasReceberFiltradas = obras.filter(o => {
+    if (o.status !== 'NF EMITIDO' || !o.atualizado_em) return false
+    const d = new Date(o.atualizado_em)
+    if (isNaN(d.getTime())) return false
+    const ano = d.getFullYear(), mes = d.getMonth() + 1
+    if (contasPagarModo === 'ano') return ano === contasPagarAno
+    return ano === contasPagarAno && mes === contasPagarMes
+  }).sort((a, b) => new Date(a.atualizado_em) - new Date(b.atualizado_em))
+  const totalContasReceberPeriodo = contasReceberFiltradas.reduce((s, o) => s + Number(o.valor || 0), 0)
+
   // Relatório só das obras com pedido divergente (aba Disponível para Faturar), pra não precisar
   // abrir uma por uma - pedido da Shirley, 2026-08-31.
   // Histórico de TODAS as obras que já tiveram uma correção de pedido solicitada à Tecban por
@@ -4371,6 +4522,7 @@ export default function App() {
           ...(papel ? [{ id:'meusdados', label:'Meus Documentos', count:null, cor:'#7C3AED' }] : []),
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'jantas', label:'Jantas', count: jantasTodas.filter(j => j.status === 'pendente').length, cor:'#B45309' }] : []),
           ...(EMAILS_CUSTOS_DESPESAS.includes(usuario?.email) ? [{ id:'despesas', label:'Despesas', count:null, cor:'#B91C1C' }] : []),
+          ...(EMAILS_CUSTOS_DESPESAS.includes(usuario?.email) ? [{ id:'financeiro', label:'Financeiro', count:null, cor:'#0F766E' }] : []),
         ].map(a => (
           <button key={a.id} onClick={() => setAba(a.id)}
             style={{ flex:1, padding:'12px 8px', border:'none', borderBottom: aba===a.id ? `3px solid ${a.cor||'#2D3A8C'}` : '3px solid transparent',
@@ -5578,6 +5730,191 @@ export default function App() {
         </div>
         )
       })()}
+
+      {/* ====== ABA: FINANCEIRO (Contas a Pagar e Receber) ====== */}
+      {aba === 'financeiro' && EMAILS_CUSTOS_DESPESAS.includes(usuario?.email) && (() => {
+        const anoAtual = new Date().getFullYear()
+        const anosDisponiveis = Array.from(new Set([anoAtual - 1, anoAtual, anoAtual + 1, contasPagarAno])).sort()
+        return (
+        <div style={{ padding:12 }}>
+          <div style={{ display:'flex', gap:8, marginBottom:14, alignItems:'center', flexWrap:'wrap' }}>
+            <div style={{ display:'flex', border:'1px solid #CDD8E3', borderRadius:8, overflow:'hidden' }}>
+              <button onClick={() => setContasPagarSubaba('pagar')}
+                style={{ padding:'8px 16px', border:'none', background: contasPagarSubaba==='pagar' ? '#B91C1C' : '#fff', color: contasPagarSubaba==='pagar' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>💸 Contas a Pagar</button>
+              <button onClick={() => setContasPagarSubaba('receber')}
+                style={{ padding:'8px 16px', border:'none', background: contasPagarSubaba==='receber' ? '#065F46' : '#fff', color: contasPagarSubaba==='receber' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>💰 Contas a Receber</button>
+            </div>
+            {contasPagarSubaba === 'pagar' && (
+              <button onClick={() => { setModalImportarContasPagar(true); setContasPagarErro(''); setContasPagarArquivo(null); setContasPagarPreview(null) }}
+                style={{ marginLeft:'auto', padding:'8px 14px', background:'#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                📥 Importar do SIGE
+              </button>
+            )}
+          </div>
+
+          <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:'10px 14px', marginBottom:14, display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+            <div style={{ display:'flex', border:'1px solid #CDD8E3', borderRadius:8, overflow:'hidden' }}>
+              <button onClick={() => setContasPagarModo('mes')}
+                style={{ padding:'7px 14px', border:'none', background: contasPagarModo==='mes' ? '#0F766E' : '#fff', color: contasPagarModo==='mes' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>Mês</button>
+              <button onClick={() => setContasPagarModo('ano')}
+                style={{ padding:'7px 14px', border:'none', background: contasPagarModo==='ano' ? '#0F766E' : '#fff', color: contasPagarModo==='ano' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>Ano</button>
+            </div>
+            {contasPagarModo === 'mes' && (
+              <select value={contasPagarMes} onChange={e => setContasPagarMes(Number(e.target.value))}
+                style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                {MESES_FILTRO.map((m,i) => <option key={m} value={i+1}>{m}</option>)}
+              </select>
+            )}
+            <select value={contasPagarAno} onChange={e => setContasPagarAno(Number(e.target.value))}
+              style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+              {anosDisponiveis.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+            {contasPagarSubaba === 'pagar' && (
+              <>
+                <select value={contasPagarFiltroEmpresa} onChange={e => setContasPagarFiltroEmpresa(e.target.value)}
+                  style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                  <option value="">Todas empresas</option>
+                  {empresasContasPagar.map(e => <option key={e} value={e}>{e}</option>)}
+                </select>
+                <select value={contasPagarFiltroStatus} onChange={e => setContasPagarFiltroStatus(e.target.value)}
+                  style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                  <option value="">Todos status</option>
+                  <option value="pendente">Pendente</option>
+                  <option value="quitado">Quitado</option>
+                </select>
+              </>
+            )}
+          </div>
+
+          {contasPagarSubaba === 'pagar' ? (
+            <>
+              <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
+                <div style={{ flex:1, minWidth:160, background:'#B91C1C', borderRadius:12, padding:'16px 18px' }}>
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,.8)', fontWeight:600, textTransform:'uppercase' }}>Pendente no período</div>
+                  <div style={{ fontSize:24, fontWeight:700, color:'#fff', marginTop:4 }}>{fmt(totalContasPagarPendente)}</div>
+                </div>
+                <div style={{ flex:1, minWidth:160, background:'#065F46', borderRadius:12, padding:'16px 18px' }}>
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,.8)', fontWeight:600, textTransform:'uppercase' }}>Já quitado no período</div>
+                  <div style={{ fontSize:24, fontWeight:700, color:'#fff', marginTop:4 }}>{fmt(totalContasPagarQuitado)}</div>
+                </div>
+                <div style={{ flex:1, minWidth:160, background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:'16px 18px' }}>
+                  <div style={{ fontSize:11, color:'#64748B', fontWeight:600, textTransform:'uppercase' }}>Lançamentos</div>
+                  <div style={{ fontSize:24, fontWeight:700, color:'#1A2340', marginTop:4 }}>{contasPagarFiltradas.length}</div>
+                </div>
+              </div>
+
+              {contasPagarPorCategoriaLista.length > 0 && (
+                <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:14 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:10 }}>Por categoria</div>
+                  {contasPagarPorCategoriaLista.map(c => {
+                    const totalPeriodo = totalContasPagarPendente + totalContasPagarQuitado
+                    const pct = totalPeriodo > 0 ? (c.total / totalPeriodo * 100) : 0
+                    return (
+                      <div key={c.categoria} style={{ marginBottom:10 }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'#1A2340', marginBottom:3 }}>
+                          <span style={{ fontWeight:600 }}>{c.categoria}</span>
+                          <span>{fmt(c.total)}</span>
+                        </div>
+                        <div style={{ background:'#F1F5F9', borderRadius:6, height:8, overflow:'hidden' }}>
+                          <div style={{ width:`${pct}%`, height:'100%', background:'#B91C1C', borderRadius:6 }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14 }}>
+                <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:10 }}>Lançamentos do período</div>
+                {contasPagarFiltradas.length === 0 && <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'20px 0' }}>Nenhum lançamento nesse período — importe um relatório do SIGE pra começar.</div>}
+                {contasPagarFiltradas.map(c => (
+                  <div key={c.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, borderBottom:'1px solid #F1F5F9', padding:'8px 0' }}>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:600, color:'#1A2340' }}>{c.fornecedor || '(sem fornecedor)'}</div>
+                      <div style={{ fontSize:11, color:'#64748B' }}>{isoToBr(c.data_vencimento)} · {c.plano_contas || '—'} · {c.empresa || '—'}{c.banco ? ` · ${c.banco}` : ''}</div>
+                    </div>
+                    <div style={{ textAlign:'right', flexShrink:0 }}>
+                      <div style={{ fontSize:13, fontWeight:700, color: c.foi_quitado ? '#065F46' : '#B91C1C' }}>{fmt(c.valor)}</div>
+                      <div style={{ fontSize:10, fontWeight:700, color: c.foi_quitado ? '#065F46' : '#92400E' }}>{c.foi_quitado ? 'Quitado' : 'Pendente'}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
+                <div style={{ flex:1, minWidth:160, background:'#065F46', borderRadius:12, padding:'16px 18px' }}>
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,.8)', fontWeight:600, textTransform:'uppercase' }}>A receber no período</div>
+                  <div style={{ fontSize:24, fontWeight:700, color:'#fff', marginTop:4 }}>{fmt(totalContasReceberPeriodo)}</div>
+                </div>
+                <div style={{ flex:1, minWidth:160, background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:'16px 18px' }}>
+                  <div style={{ fontSize:11, color:'#64748B', fontWeight:600, textTransform:'uppercase' }}>NF(s) emitida(s)</div>
+                  <div style={{ fontSize:24, fontWeight:700, color:'#1A2340', marginTop:4 }}>{contasReceberFiltradas.length}</div>
+                </div>
+              </div>
+              <div style={{ fontSize:11, color:'#64748B', marginBottom:10 }}>Vem direto das obras com NF emitida no Pipeline (aba Histórico) — não precisa importar nada aqui.</div>
+              <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14 }}>
+                {contasReceberFiltradas.length === 0 && <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'20px 0' }}>Nenhuma NF emitida nesse período</div>}
+                {contasReceberFiltradas.map(o => (
+                  <div key={o.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, borderBottom:'1px solid #F1F5F9', padding:'8px 0' }}>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:600, color:'#1A2340' }}>{o.nome}</div>
+                      <div style={{ fontSize:11, color:'#64748B' }}>{isoToBr(o.atualizado_em.slice(0,10))} · {o.local || '—'}{o.nf ? ` · NF ${o.nf}` : ''}</div>
+                    </div>
+                    <div style={{ fontSize:13, fontWeight:700, color:'#065F46', flexShrink:0 }}>{fmt(o.valor)}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+        )
+      })()}
+
+      {modalImportarContasPagar && (
+        <div onClick={e => { if (e.target === e.currentTarget && !contasPagarSalvando) { setModalImportarContasPagar(false); setContasPagarArquivo(null); setContasPagarPreview(null) } }}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}>
+          <div style={{ background:'#fff', borderRadius:14, padding:20, maxWidth:480, width:'100%', maxHeight:'85vh', overflowY:'auto' }}>
+            <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:8 }}>📥 Importar Contas a Pagar (SIGE)</div>
+            <div style={{ fontSize:12, color:'#64748B', marginBottom:14 }}>
+              Exporte do SIGE o relatório com as colunas "É Despesa", "Valor Saída" e "Foi Quitado" (mesmo formato que você já vem usando) e selecione o arquivo abaixo. Só as linhas marcadas como despesa entram aqui — as de entrada (recebível da Tecban) já vêm do faturamento do próprio Pipeline.
+            </div>
+            <input type="file" accept=".xlsx,.xls" onChange={e => { setContasPagarArquivo(e.target.files?.[0] || null); setContasPagarPreview(null); setContasPagarErro('') }}
+              style={{ marginBottom:12 }} />
+            {contasPagarArquivo && !contasPagarPreview && (
+              <button onClick={processarImportacaoContasPagar} disabled={contasPagarProcessando}
+                style={{ width:'100%', padding:10, background: contasPagarProcessando ? '#ccc' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: contasPagarProcessando ? 'default' : 'pointer' }}>
+                {contasPagarProcessando ? 'Lendo planilha...' : 'Analisar planilha'}
+              </button>
+            )}
+            {contasPagarErro && <div style={{ fontSize:12, color:'#B91C1C', marginTop:10 }}>{contasPagarErro}</div>}
+            {contasPagarPreview && (
+              <div style={{ marginTop:6 }}>
+                <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:8, padding:'8px 12px', fontSize:12, color:'#065F46', marginBottom:6 }}>
+                  ✓ {contasPagarPreview.novas.length} lançamento(s) novo(s)
+                </div>
+                <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:8, padding:'8px 12px', fontSize:12, color:'#92400E', marginBottom:6 }}>
+                  ↻ {contasPagarPreview.atualizadas.length} lançamento(s) já existente(s) com valor/data/status alterado
+                </div>
+                <div style={{ fontSize:11, color:'#64748B', marginBottom:14 }}>
+                  {contasPagarPreview.ignoradasEntrada} linha(s) de entrada ignoradas (já cobertas pelo faturamento do Pipeline){contasPagarPreview.semCodigo > 0 ? ` · ${contasPagarPreview.semCodigo} linha(s) sem código, ignoradas` : ''}
+                </div>
+                <div style={{ display:'flex', gap:8 }}>
+                  <button onClick={() => { setModalImportarContasPagar(false); setContasPagarArquivo(null); setContasPagarPreview(null) }} disabled={contasPagarSalvando}
+                    style={{ flex:1, padding:10, background:'#F1F5F9', color:'#1A2340', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                    Cancelar
+                  </button>
+                  <button onClick={confirmarImportacaoContasPagar} disabled={contasPagarSalvando || (contasPagarPreview.novas.length + contasPagarPreview.atualizadas.length === 0)}
+                    style={{ flex:1, padding:10, background: contasPagarSalvando ? '#ccc' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: contasPagarSalvando ? 'default' : 'pointer' }}>
+                    {contasPagarSalvando ? 'Salvando...' : `Confirmar (${contasPagarPreview.novas.length + contasPagarPreview.atualizadas.length})`}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ====== ABA: PIPELINE ====== */}
       {aba === 'pipeline' && <>
