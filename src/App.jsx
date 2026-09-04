@@ -3628,7 +3628,7 @@ export default function App() {
   function montaCorpoRelatorioTecban() {
     if (!modal) return ''
     const localTexto = [editDados.cidade, editDados.uf].filter(Boolean).join('/')
-    return `Prezados,\n\nNossa equipe esteve no local para a atividade de ${modal.tipo}${editDados.numero_pc ? ` (PC ${editDados.numero_pc})` : ''} - ${modal.nome}${localTexto ? `, em ${localTexto}` : ''}. A obra foi concluída até onde compete à nossa atuação.\n\nSegue em anexo o relatório com os detalhes do que foi realizado no local.\n\nEm breve enviaremos o book fotográfico e o encaminhamento para cobrança.\n\nAtenciosamente,\nGrupo PG`
+    return `Prezados,\n\nNossa equipe esteve no local para a atividade de ${modal.tipo}${editDados.numero_pc ? ` (PC ${editDados.numero_pc})` : ''} - ${modal.nome}${localTexto ? `, em ${localTexto}` : ''}. A obra foi concluída até onde compete à nossa atuação.\n\nSegue em anexo o relatório com os detalhes do que foi realizado no local.\n\nEm breve enviaremos o book fotográfico e o encaminhamento para cobrança.\n\nAtenciosamente,\nGrupo PG\n${new Date().toLocaleString('pt-BR')} · Enviado por ${usuario?.email || ''}`
   }
 
   async function enviarRelatorioTecban() {
@@ -3709,7 +3709,7 @@ export default function App() {
     const problemas = divergenciasPedido()
     const pcTexto = editDados.numero_pc ? ` (PC ${editDados.numero_pc})` : ''
     const tomadorTexto = editDados.pedido_tecban_cnpj ? `\nCNPJ do Tomador no pedido: ${editDados.pedido_tecban_cnpj}` : ''
-    return `Prezados,\n\nRecebemos o pedido número ${editDados.pedido || '(sem número)'} referente à OS ${editDados.os_tecban || '(sem OS)'} - ${modal.nome}${pcTexto}, com as seguintes divergências:\n\n${problemas.map(p => `- ${p}`).join('\n')}${tomadorTexto}\n\nSolicitamos a correção do pedido para que possamos seguir com o faturamento.\n\nAtenciosamente,\nGrupo PG`
+    return `Prezados,\n\nRecebemos o pedido número ${editDados.pedido || '(sem número)'} referente à OS ${editDados.os_tecban || '(sem OS)'} - ${modal.nome}${pcTexto}, com as seguintes divergências:\n\n${problemas.map(p => `- ${p}`).join('\n')}${tomadorTexto}\n\nSolicitamos a correção do pedido para que possamos seguir com o faturamento.\n\nAtenciosamente,\nGrupo PG\n${new Date().toLocaleString('pt-BR')} · Enviado por ${usuario?.email || ''}`
   }
 
   async function enviarCorrecaoPedidoTecban() {
