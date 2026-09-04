@@ -2317,6 +2317,10 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
 
 function getGrupoObra(o) {
   const status = o.status || ''
+  // Pedido chegou mas o valor/OS/CNPJ não bate com a obra - sai do balaio genérico de Pendências
+  // pra um grupo próprio, bem visível, pra Shirley achar fácil o que precisa corrigir na mão
+  // (2026-09-04). Não se aplica depois de NF emitida/cancelada - já era.
+  if (status !== 'NF EMITIDO' && status !== 'CANCELADO' && conferePedidoObra(o).precisaCorrecao) return 'erro_pedido'
   if (status === 'AGUARDANDO PEDIDO DA TECBAN') return 'pendencias'
   if (status === 'NF EMITIDO') return 'concluido'
   if (status === 'CANCELADO') return 'outros'
@@ -4171,6 +4175,7 @@ export default function App() {
   const totalFaturar = obrasFaturar.reduce((s,o) => s + Number(o.valor||0), 0)
 
   const grupos = [
+    { label:'🚨 Erro no pedido', obras: obrasFiltradas.filter(o => getGrupoObra(o) === 'erro_pedido') },
     { label:'⚠️ Pendências', obras: obrasFiltradas.filter(o => getGrupoObra(o) === 'pendencias') },
     { label:'🔧 Em andamento', obras: obrasFiltradas.filter(o => getGrupoObra(o) === 'em_andamento') },
     { label:'📋 Elaborar / Book pendente', obras: obrasFiltradas.filter(o => getGrupoObra(o) === 'elaborar') },
@@ -6384,9 +6389,36 @@ export default function App() {
                       {obra.em_negociacao && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FEF3C7', color:'#92400E' }}>Em negociação</span>}
                       {alerta && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:alerta.bg, color:alerta.cor }}>⚠ {alerta.label}</span>}
                       {obra.tipo === 'INSTALAÇÃO ATM' && !obra.pedido && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FFF7ED', color:'#9A3412' }}>⚠ Sem pedido</span>}
+                      {conferePedidoObra(obra).precisaCorrecao && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FEE2E2', color:'#991B1B' }}>🚨 Erro no pedido</span>}
                       {obra.local ? <span style={{ fontSize:11, color:'#888' }}>{obra.local}</span> : null}
                     </div>
                   </div>
+
+                  {(() => {
+                    const confObra = conferePedidoObra(obra)
+                    if (!confObra.precisaCorrecao) return null
+                    return (
+                      <div style={{ padding:'0 14px 8px' }}>
+                        <div style={{ fontSize:11, background:'#FFF7ED', borderLeft:'3px solid #EA580C', padding:'5px 8px', borderRadius:4, color:'#9A3412', marginBottom:8 }}>
+                          ⚠ Divergência no pedido:{confObra.temValor && !confObra.valorBate && ' valor'}{confObra.temOs && !confObra.osBate && ' · OS'}{confObra.temCnpj && !confObra.cnpjBate && ' · CNPJ'}
+                        </div>
+                        {obra.correcao_pedido_solicitada_em && (
+                          <div style={{ fontSize:11, background:'#EFF6FF', borderLeft:'3px solid #1E40AF', padding:'5px 8px', borderRadius:4, color:'#1E40AF', marginBottom:8 }}>
+                            ✉ Correção já solicitada em {new Date(obra.correcao_pedido_solicitada_em).toLocaleDateString('pt-BR')} por {obra.correcao_pedido_solicitada_por}
+                          </div>
+                        )}
+                        <button onClick={e => {
+                          e.stopPropagation()
+                          setModal(obra)
+                          setEditDados({ tipo: obra.tipo||'', nome: obra.nome||'', endereco: obra.endereco||'', cidade: obra.cidade||'', uf: obra.uf||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', numero_pc: obra.numero_pc||'', pedido: obra.pedido||'', nf: obra.nf||'', os_tecban: obra.os_tecban||'', numero_operacao: obra.numero_operacao || sugereOperacao(obra.rede, obra.tipo), pedido_valor: obra.pedido_valor!=null ? String(obra.pedido_valor) : '', pedido_os: obra.pedido_os||'', pedido_cnpj: obra.pedido_cnpj||'', pedido_tecban_cnpj: obra.pedido_tecban_cnpj||'', pedido_tecban_nome: obra.pedido_tecban_nome||'', pedido_tecban_endereco: obra.pedido_tecban_endereco||'' })
+                          setMostrarEnvioCorrecaoPedido(true)
+                        }}
+                          style={{ width:'100%', padding:'8px', background:'#EA580C', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                          📧 Solicitar correção à Tecban
+                        </button>
+                      </div>
+                    )
+                  })()}
 
                   <div style={{ padding:'0 14px 8px' }}>
                     <Regua status={obra.status} rede={obra.rede} tipo={obra.tipo} lembretes={obra.lembretes} onRemoverLembrete={l => removerLembrete(obra.id, l)} />
