@@ -3752,13 +3752,16 @@ export default function App() {
     }
     // Se o pedido da Tecban chegou E bate certinho (valor, OS e CNPJ conferidos - não só o campo
     // Pedido preenchido, que não garantia nada) numa obra que já estava em etapa avançada
-    // (elaborando/enviando RM), considera pronta pra faturar - pula direto pra EMITIR NF. Se não
-    // bater, fica como está pra alguém corrigir manualmente (Shirley, 2026-08-20).
+    // (elaborando/enviando RM ou já aguardando o pedido), considera pronta pra faturar - pula
+    // direto pra EMITIR NF. Se não bater, fica como está pra alguém corrigir manualmente
+    // (Shirley, 2026-08-20). "Aguardando pedido"/"Aguardando pedido da Tecban" faltavam nessa
+    // lista - é justamente o status mais comum de estar quando o pedido chega ou é corrigido na
+    // mão, então a obra ficava presa ali mesmo com tudo conferido (Shirley, 2026-09-04).
     const pedidoConferido = conferePedidoObra({
       valor: editDados.valor, os_tecban: editDados.os_tecban, local: montaLocal(editDados.cidade, editDados.uf),
       pedido_valor: editDados.pedido_valor, pedido_os: editDados.pedido_os, pedido_cnpj: editDados.pedido_cnpj,
     }).completo
-    if (['ELABORAR RM', 'ENVIAR RM', 'RM ENVIADA'].includes(novoStatus) && pedidoConferido) {
+    if (['ELABORAR RM', 'ENVIAR RM', 'RM ENVIADA', 'AGUARDANDO PEDIDO', 'AGUARDANDO PEDIDO DA TECBAN'].includes(novoStatus) && pedidoConferido) {
       statusFinal = 'EMITIR NF'
     }
     // Dados da obra completos (PC até OS Tecban) numa obra ainda na 1ª etapa - avança sozinho pra
