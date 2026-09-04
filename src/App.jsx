@@ -5394,13 +5394,15 @@ export default function App() {
 
       {/* ====== ABA: ATIVIDADES PROGRAMADAS (líder de campo) - nunca mostra valor, em lugar nenhum ====== */}
       {aba === 'atividades_lider' && papel === 'lider_campo' && (() => {
-        // Só entra na lista do líder o que já tem data programada - sem isso a lista virava tudo
-        // que ainda não elaborou RM, o que poluía demais (Shirley, 2026-09-04).
+        // Só entra na lista do líder o que já tem data programada de hoje pra frente - uma data
+        // passada é obra cuja visita já aconteceu (o campo não muda depois, mesmo com registro de
+        // visita posterior), não é mais "programada" (Shirley, 2026-09-04).
+        const hoje = hojeIso()
         const atividades = obras
           .filter(o => temVisitasDeCampo(o.rede, o.tipo) && o.status !== 'NF EMITIDO' && o.status !== 'CANCELADO')
           .filter(o => !filtroCenarioUF || estadoDaObra(o) === filtroCenarioUF)
           .map(o => ({ obra: o, data: dataAtividadeObra(o) }))
-          .filter(({ data }) => !!data)
+          .filter(({ data }) => !!data && data >= hoje)
           .sort((a, b) => (a.data || '9999-99-99').localeCompare(b.data || '9999-99-99'))
         return (
           <div>
