@@ -5401,6 +5401,10 @@ export default function App() {
         const atividades = obras
           .filter(o => temVisitasDeCampo(o.rede, o.tipo) && o.status !== 'NF EMITIDO' && o.status !== 'CANCELADO')
           .filter(o => !filtroCenarioUF || estadoDaObra(o) === filtroCenarioUF)
+          // Clicar num card do Cenário filtra pelo dia selecionado ali (Hoje/◀/▶), igual já
+          // acontece na Pipeline normal - senão o clique só filtrava por estado, ignorando o dia
+          // escolhido (Shirley, 2026-09-04).
+          .filter(o => !filtroCenarioUF || filtroCenarioUF === 'S/UF' || eventosCenarioObra(o, cenarioData).length > 0)
           .map(o => ({ obra: o, data: dataAtividadeObra(o) }))
           .filter(({ data }) => !!data && data >= hoje)
           .sort((a, b) => (a.data || '9999-99-99').localeCompare(b.data || '9999-99-99'))
