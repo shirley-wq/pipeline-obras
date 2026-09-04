@@ -1731,6 +1731,13 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
   const [novoDescontoValorOriginal, setNovoDescontoValorOriginal] = useState('')
   const [novoDescontoRenainf, setNovoDescontoRenainf] = useState('')
   const [novoDescontoRenainfOriginal, setNovoDescontoRenainfOriginal] = useState('')
+  const [novoBancoTipo, setNovoBancoTipo] = useState('pix')
+  const [novoBancoNome, setNovoBancoNome] = useState('')
+  const [novoBancoAgencia, setNovoBancoAgencia] = useState('')
+  const [novoBancoConta, setNovoBancoConta] = useState('')
+  const [novoBancoTipoConta, setNovoBancoTipoConta] = useState('corrente')
+  const [novoBancoChavePix, setNovoBancoChavePix] = useState('')
+  const [novoBancoTipoChave, setNovoBancoTipoChave] = useState('cpf')
   const [ocultarMultasDesconto, setOcultarMultasDesconto] = useState(false)
 
   const vencimentoAso = somaAnos(c.data_aso, 1)
@@ -1741,6 +1748,7 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
   const uniformes = Array.isArray(c.uniformes) ? c.uniformes : []
   const epis = Array.isArray(c.epis) ? c.epis : []
   const descontos = Array.isArray(c.descontos) ? c.descontos : []
+  const dadosBancarios = Array.isArray(c.dados_bancarios) ? c.dados_bancarios : []
 
   const precisa = precisaNR(c.email, perfisLogin)
   const statusNr6 = interpretaStatusDoc(c.nr6, NR_VALIDADE_ANOS.nr6, precisa)
@@ -1975,6 +1983,69 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
                 onUpdate({ epis: [...epis, { item: novoEpiItem.trim(), data: novoEpiData || null, validade: novoEpiValidade || null }] })
                 setNovoEpiItem(''); setNovoEpiData(''); setNovoEpiValidade('')
               }} style={{ padding:'6px 12px', background:'#B45309', color:'#fff', border:'none', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer' }}>+ Adicionar</button>
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize:10, color:'#888', textTransform:'uppercase', display:'block', marginBottom:5 }}>🏦 Dados bancários ({dadosBancarios.length})</label>
+            {dadosBancarios.length > 0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:6 }}>
+                {dadosBancarios.map((b, idx) => (
+                  <div key={idx} style={{ display:'flex', alignItems:'center', gap:6, background:'#F0F4F8', borderRadius:6, padding:'4px 8px' }}>
+                    <span style={{ fontSize:12, color:'#1A2340', flex:1 }}>
+                      {b.tipo === 'pix'
+                        ? `PIX (${b.tipo_chave || '—'}): ${b.chave_pix || '—'}`
+                        : `${b.banco || '—'} — ag. ${b.agencia || '—'} — cc ${b.conta || '—'} (${b.tipo_conta === 'poupanca' ? 'Poupança' : 'Corrente'})`}
+                    </span>
+                    <span onClick={() => onUpdate({ dados_bancarios: dadosBancarios.filter((_, i) => i !== idx) })} style={{ fontSize:12, color:'#EF4444', cursor:'pointer', fontWeight:700 }}>✕</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
+              <select value={novoBancoTipo} onChange={e => setNovoBancoTipo(e.target.value)}
+                style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }}>
+                <option value="pix">Chave PIX</option>
+                <option value="conta">Conta bancária</option>
+              </select>
+              {novoBancoTipo === 'pix' ? (
+                <>
+                  <select value={novoBancoTipoChave} onChange={e => setNovoBancoTipoChave(e.target.value)}
+                    style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }}>
+                    <option value="cpf">CPF</option>
+                    <option value="telefone">Telefone</option>
+                    <option value="email">E-mail</option>
+                    <option value="aleatoria">Aleatória</option>
+                  </select>
+                  <input value={novoBancoChavePix} onChange={e => setNovoBancoChavePix(e.target.value)}
+                    placeholder="Chave PIX" style={{ flex:1, minWidth:140, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+                </>
+              ) : (
+                <>
+                  <input value={novoBancoNome} onChange={e => setNovoBancoNome(e.target.value)}
+                    placeholder="Banco" style={{ flex:1, minWidth:100, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+                  <input value={novoBancoAgencia} onChange={e => setNovoBancoAgencia(e.target.value)}
+                    placeholder="Agência" style={{ width:80, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+                  <input value={novoBancoConta} onChange={e => setNovoBancoConta(e.target.value)}
+                    placeholder="Conta" style={{ width:100, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+                  <select value={novoBancoTipoConta} onChange={e => setNovoBancoTipoConta(e.target.value)}
+                    style={{ padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }}>
+                    <option value="corrente">Corrente</option>
+                    <option value="poupanca">Poupança</option>
+                  </select>
+                </>
+              )}
+              <button onClick={() => {
+                if (novoBancoTipo === 'pix') {
+                  if (!novoBancoChavePix.trim()) return
+                  onUpdate({ dados_bancarios: [...dadosBancarios, { tipo: 'pix', chave_pix: novoBancoChavePix.trim(), tipo_chave: novoBancoTipoChave }] })
+                  setNovoBancoChavePix('')
+                } else {
+                  if (!novoBancoNome.trim() || !novoBancoConta.trim()) return
+                  onUpdate({ dados_bancarios: [...dadosBancarios, { tipo: 'conta', banco: novoBancoNome.trim(), agencia: novoBancoAgencia.trim(), conta: novoBancoConta.trim(), tipo_conta: novoBancoTipoConta }] })
+                  setNovoBancoNome(''); setNovoBancoAgencia(''); setNovoBancoConta('')
+                }
+              }} style={{ padding:'6px 12px', background:'#0F766E', color:'#fff', border:'none', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer' }}>+ Adicionar</button>
             </div>
           </div>
 
