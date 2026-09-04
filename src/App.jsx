@@ -4147,6 +4147,23 @@ export default function App() {
   const centrosCustoContasPagar = [...new Set(contasPagar.map(c => c.centro_custos).filter(Boolean))].sort()
   const gruposContasPagar = [...new Set(contasPagar.map(c => c.grupo).filter(Boolean))].sort()
 
+  // Linha fininha (sparkline) com o total por dia (ou por mês, no modo Ano) dentro do período
+  // filtrado, pra bater o olho em quais dias concentram os picos de pagamento (Shirley, 2026-09-04).
+  const contasPagarSparkline = (() => {
+    if (contasPagarModo === 'ano') {
+      const porMes = Array(12).fill(0)
+      contasPagarFiltradas.forEach(c => { porMes[Number(c.data_vencimento.slice(5, 7)) - 1] += Number(c.valor || 0) })
+      return porMes.map((total, i) => ({ label: String(i + 1).padStart(2, '0'), total }))
+    }
+    const diasNoMes = new Date(contasPagarAno, contasPagarMes, 0).getDate()
+    const porDia = Array(diasNoMes).fill(0)
+    contasPagarFiltradas.forEach(c => {
+      const dia = Number(c.data_vencimento.slice(8, 10))
+      if (dia >= 1 && dia <= diasNoMes) porDia[dia - 1] += Number(c.valor || 0)
+    })
+    return porDia.map((total, i) => ({ label: String(i + 1).padStart(2, '0'), total }))
+  })()
+
   // Resumo "Hoje" - o que vence pra pagar e o que foi faturado hoje, independente do filtro de
   // mês/ano selecionado na tela (pedido da Shirley, 2026-09-04, pra bater o olho no dia a dia).
   const dataHojeIso = new Date().toISOString().slice(0, 10)
@@ -5862,6 +5879,28 @@ export default function App() {
                   <div style={{ fontSize:24, fontWeight:700, color:'#1A2340', marginTop:4 }}>{contasPagarFiltradas.length}</div>
                 </div>
               </div>
+
+              {contasPagarSparkline.some(p => p.total > 0) && (() => {
+                const w = 100, h = 28
+                const n = contasPagarSparkline.length
+                const max = Math.max(...contasPagarSparkline.map(p => p.total), 1)
+                const pontos = contasPagarSparkline.map((p, i) => ({ ...p, x: n > 1 ? (i / (n - 1)) * w : 0, y: h - (p.total / max) * h }))
+                const linha = pontos.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ')
+                const area = `${linha} L ${w},${h} L 0,${h} Z`
+                const passo = Math.max(1, Math.ceil(n / 8))
+                const labelsMostrados = pontos.filter((_, i) => i % passo === 0 || i === n - 1)
+                return (
+                  <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:'8px 14px 6px', marginBottom:14 }}>
+                    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width:'100%', height:28, display:'block' }}>
+                      <path d={area} fill="#FEE2E2" stroke="none" />
+                      <path d={linha} fill="none" stroke="#B91C1C" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                    </svg>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginTop:2 }}>
+                      {labelsMostrados.map(p => <span key={p.label} style={{ fontSize:9, color:'#94A3B8' }}>{p.label}</span>)}
+                    </div>
+                  </div>
+                )
+              })()}
 
               {[
                 { titulo: 'Por categoria (plano de contas)', lista: contasPagarPorCategoriaLista },
