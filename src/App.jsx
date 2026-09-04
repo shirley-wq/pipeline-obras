@@ -4222,6 +4222,15 @@ export default function App() {
     </div>
   )
 
+  // Evita o "flash" da tela completa (todas as abas) antes do papel do usuário resolver -
+  // mesmo carregando de sempre, só que esperando o papel também, não só a sessão (Shirley,
+  // 2026-09-04: o líder de campo via por um instante a tela cheia antes de cair na dele).
+  if (papel === null) return (
+    <div style={{ minHeight:'100vh', background:'#2D3A8C', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ color:'#87CEEB', fontSize:16 }}>Carregando...</div>
+    </div>
+  )
+
   if (importando) return (
     <div style={{ minHeight:'100vh', background:'#2D3A8C', display:'flex', alignItems:'center', justifyContent:'center' }}>
       <div style={{ color:'#87CEEB', fontSize:14, textAlign:'center' }}>
