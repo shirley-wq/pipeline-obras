@@ -4807,6 +4807,77 @@ export default function App() {
     setImportarNovasSalvando(false)
   }
 
+  // Extraído pra fora do JSX da aba Pipeline pra poder reaproveitar no líder de campo também
+  // (Shirley, 2026-09-04: ele precisa ver esse painel visual por estado, não só a lista de
+  // atividades pra designar equipe) - só mostra contagens, nunca valor, seguro pro papel dele.
+  const blocoCenario = (
+    <div style={{ background:'#fff', borderBottom:'1px solid #E0E8F0', padding:'14px 16px' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div onClick={() => setMostrarCenario(v => !v)} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+          <div style={{ fontSize:13, fontWeight:700, color:'#1A2340' }}>📊 Cenário — obras em execução</div>
+          {filtroCenarioUF && (
+            <span onClick={e => { e.stopPropagation(); setFiltroCenarioUF('') }}
+              style={{ fontSize:11, fontWeight:700, padding:'3px 8px', borderRadius:20, background:'#2D3A8C', color:'#fff', cursor:'pointer' }}>
+              Filtrando: {filtroCenarioUF} ✕
+            </span>
+          )}
+        </div>
+        <span onClick={() => setMostrarCenario(v => !v)} style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, cursor:'pointer' }}>{mostrarCenario ? 'Recolher ▲' : 'Expandir ▼'}</span>
+      </div>
+      {mostrarCenario && (
+        <div style={{ marginTop:12 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
+            <button onClick={() => setCenarioData(d => somaDias(d, -1))}
+              style={{ border:'none', background:'#1A2340', color:'#fff', borderRadius:8, width:28, height:28, cursor:'pointer', fontSize:14, flexShrink:0 }}>◀</button>
+            <div style={{ flex:1, textAlign:'center', background:'#1A2340', color:'#fff', borderRadius:8, padding:'6px 10px', fontSize:12, fontWeight:700, letterSpacing:1, textTransform:'uppercase' }}>
+              {cenarioData === hojeIso() ? 'Hoje' : isoToBr(cenarioData)}
+            </div>
+            <button onClick={() => setCenarioData(d => somaDias(d, 1))}
+              style={{ border:'none', background:'#1A2340', color:'#fff', borderRadius:8, width:28, height:28, cursor:'pointer', fontSize:14, flexShrink:0 }}>▶</button>
+            {cenarioData !== hojeIso() && (
+              <span onClick={() => setCenarioData(hojeIso())} style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>voltar pra hoje</span>
+            )}
+          </div>
+          {cenarioPorUF.length === 0 ? (
+            <div style={{ padding:12, fontSize:12, color:'#888', textAlign:'center', border:'1px solid #E0E8F0', borderRadius:10 }}>Nenhuma atividade agendada pra {cenarioData === hojeIso() ? 'hoje' : isoToBr(cenarioData)}</div>
+          ) : (
+            <div>
+              <div ref={cenarioScrollRef} style={{ display:'flex', gap:10, overflowX:'auto', paddingBottom:6, scrollSnapType:'x proximity' }}>
+                {cenarioPorUF.map((c, i) => {
+                  const selecionado = filtroCenarioUF === c.uf
+                  const cor = corPorEstadoCenario[c.uf] || CENARIO_CORES[i % CENARIO_CORES.length]
+                  return (
+                    <div key={c.uf} onClick={() => setFiltroCenarioUF(v => v === c.uf ? '' : c.uf)}
+                      style={{ flex:'0 0 200px', scrollSnapAlign:'start', cursor:'pointer', borderRadius:14, overflow:'hidden',
+                        border: selecionado ? '2px solid #1A2340' : '2px solid transparent' }}>
+                      <div style={{ background:cor, padding:'10px 12px' }}>
+                        <div style={{ fontSize:14, fontWeight:700, color:'#fff', textAlign:'center', marginBottom:8 }}>{c.uf}</div>
+                        {Object.entries(c.categorias).sort((a,b) => b[1]-a[1]).map(([categoria, v]) => (
+                          <div key={categoria} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                            <span style={{ fontSize:10, color:'#fff', flex:1 }}>{categoria.toUpperCase()}</span>
+                            <span style={{ fontSize:11, fontWeight:700, color:cor, background:'#fff', borderRadius:5, padding:'1px 6px', minWidth:18, textAlign:'center' }}>{v}</span>
+                          </div>
+                        ))}
+                        {Object.keys(c.categorias).length === 0 && (
+                          <div style={{ fontSize:10, color:'rgba(255,255,255,.7)', textAlign:'center' }}>—</div>
+                        )}
+                      </div>
+                      <div style={{ background: selecionado ? '#EEF2FF' : '#F8FAFC', padding:'6px 12px' }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color: c.pendenteFaturar > 0 ? '#9A3412' : '#0F766E', fontWeight:600 }}>
+                          <span>PENDENTE DE FATURAR</span><span>{c.pendenteFaturar}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <div style={estilo}>
       {/* Header */}
@@ -5325,6 +5396,8 @@ export default function App() {
           .filter(({ obra, data }) => data || aindaNaoElaborouRM(obra))
           .sort((a, b) => (a.data || '9999-99-99').localeCompare(b.data || '9999-99-99'))
         return (
+          <div>
+          {blocoCenario}
           <div style={{ padding:12 }}>
             <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:4 }}>Atividades Programadas</div>
             <div style={{ fontSize:12, color:'#64748B', marginBottom:14 }}>{atividades.length} atividade(s) · ordenadas por data</div>
@@ -5333,6 +5406,7 @@ export default function App() {
               <CardAtividadeLider key={obra.id} obra={obra} data={data}
                 onSalvar={(id, campos) => setObras(prev => prev.map(o => o.id === id ? { ...o, ...campos } : o))} />
             ))}
+          </div>
           </div>
         )
       })()}
@@ -6387,72 +6461,7 @@ export default function App() {
       {/* ====== ABA: PIPELINE ====== */}
       {aba === 'pipeline' && <>
 
-      {/* Cenário */}
-      <div style={{ background:'#fff', borderBottom:'1px solid #E0E8F0', padding:'14px 16px' }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <div onClick={() => setMostrarCenario(v => !v)} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
-            <div style={{ fontSize:13, fontWeight:700, color:'#1A2340' }}>📊 Cenário — obras em execução</div>
-            {filtroCenarioUF && (
-              <span onClick={e => { e.stopPropagation(); setFiltroCenarioUF('') }}
-                style={{ fontSize:11, fontWeight:700, padding:'3px 8px', borderRadius:20, background:'#2D3A8C', color:'#fff', cursor:'pointer' }}>
-                Filtrando: {filtroCenarioUF} ✕
-              </span>
-            )}
-          </div>
-          <span onClick={() => setMostrarCenario(v => !v)} style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, cursor:'pointer' }}>{mostrarCenario ? 'Recolher ▲' : 'Expandir ▼'}</span>
-        </div>
-        {mostrarCenario && (
-          <div style={{ marginTop:12 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
-              <button onClick={() => setCenarioData(d => somaDias(d, -1))}
-                style={{ border:'none', background:'#1A2340', color:'#fff', borderRadius:8, width:28, height:28, cursor:'pointer', fontSize:14, flexShrink:0 }}>◀</button>
-              <div style={{ flex:1, textAlign:'center', background:'#1A2340', color:'#fff', borderRadius:8, padding:'6px 10px', fontSize:12, fontWeight:700, letterSpacing:1, textTransform:'uppercase' }}>
-                {cenarioData === hojeIso() ? 'Hoje' : isoToBr(cenarioData)}
-              </div>
-              <button onClick={() => setCenarioData(d => somaDias(d, 1))}
-                style={{ border:'none', background:'#1A2340', color:'#fff', borderRadius:8, width:28, height:28, cursor:'pointer', fontSize:14, flexShrink:0 }}>▶</button>
-              {cenarioData !== hojeIso() && (
-                <span onClick={() => setCenarioData(hojeIso())} style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>voltar pra hoje</span>
-              )}
-            </div>
-            {cenarioPorUF.length === 0 ? (
-              <div style={{ padding:12, fontSize:12, color:'#888', textAlign:'center', border:'1px solid #E0E8F0', borderRadius:10 }}>Nenhuma atividade agendada pra {cenarioData === hojeIso() ? 'hoje' : isoToBr(cenarioData)}</div>
-            ) : (
-              <div>
-                <div ref={cenarioScrollRef} style={{ display:'flex', gap:10, overflowX:'auto', paddingBottom:6, scrollSnapType:'x proximity' }}>
-                  {cenarioPorUF.map((c, i) => {
-                    const selecionado = filtroCenarioUF === c.uf
-                    const cor = corPorEstadoCenario[c.uf] || CENARIO_CORES[i % CENARIO_CORES.length]
-                    return (
-                      <div key={c.uf} onClick={() => setFiltroCenarioUF(v => v === c.uf ? '' : c.uf)}
-                        style={{ flex:'0 0 200px', scrollSnapAlign:'start', cursor:'pointer', borderRadius:14, overflow:'hidden',
-                          border: selecionado ? '2px solid #1A2340' : '2px solid transparent' }}>
-                        <div style={{ background:cor, padding:'10px 12px' }}>
-                          <div style={{ fontSize:14, fontWeight:700, color:'#fff', textAlign:'center', marginBottom:8 }}>{c.uf}</div>
-                          {Object.entries(c.categorias).sort((a,b) => b[1]-a[1]).map(([categoria, v]) => (
-                            <div key={categoria} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
-                              <span style={{ fontSize:10, color:'#fff', flex:1 }}>{categoria.toUpperCase()}</span>
-                              <span style={{ fontSize:11, fontWeight:700, color:cor, background:'#fff', borderRadius:5, padding:'1px 6px', minWidth:18, textAlign:'center' }}>{v}</span>
-                            </div>
-                          ))}
-                          {Object.keys(c.categorias).length === 0 && (
-                            <div style={{ fontSize:10, color:'rgba(255,255,255,.7)', textAlign:'center' }}>—</div>
-                          )}
-                        </div>
-                        <div style={{ background: selecionado ? '#EEF2FF' : '#F8FAFC', padding:'6px 12px' }}>
-                          <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color: c.pendenteFaturar > 0 ? '#9A3412' : '#0F766E', fontWeight:600 }}>
-                            <span>PENDENTE DE FATURAR</span><span>{c.pendenteFaturar}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      {blocoCenario}
 
       {/* Filtros */}
       <div style={{ background:'#fff', padding:'10px 16px', borderBottom:'1px solid #E0E8F0' }}>
