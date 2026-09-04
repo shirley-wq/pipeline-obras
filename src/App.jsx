@@ -2486,8 +2486,6 @@ export default function App() {
   const [contasPagarAno, setContasPagarAno] = useState(new Date().getFullYear())
   const [contasPagarFiltroEmpresa, setContasPagarFiltroEmpresa] = useState('')
   const [contasPagarFiltroStatus, setContasPagarFiltroStatus] = useState('')
-  const [contasPagarFiltroCentroCusto, setContasPagarFiltroCentroCusto] = useState('')
-  const [contasPagarFiltroGrupo, setContasPagarFiltroGrupo] = useState('')
   const [modalImportarContasPagar, setModalImportarContasPagar] = useState(false)
   const [contasPagarArquivo, setContasPagarArquivo] = useState(null)
   const [contasPagarProcessando, setContasPagarProcessando] = useState(false)
@@ -3123,7 +3121,6 @@ export default function App() {
         if (!ehDespesa) { ignoradasEntrada++; return }
         const codigo = Number(l['Código'])
         if (!codigo) { semCodigo++; return }
-        const foiQuitadoSige = String(l['Foi Quitado'] || '').trim().toUpperCase() === 'SIM'
         const registro = {
           codigo_sige: codigo,
           data_cadastro: excelSerialParaIso(l['Data de Cadastro']),
@@ -3138,20 +3135,14 @@ export default function App() {
           grupo: String(l['Grupo'] || '').trim() || null,
           banco: String(l['Banco'] || '').trim() || null,
           valor: Number(l['Valor Saída']) || 0,
-          foi_quitado: foiQuitadoSige,
+          foi_quitado: String(l['Foi Quitado'] || '').trim().toUpperCase() === 'SIM',
         }
         const existente = existentesPorCodigo[codigo]
         if (existente) {
-          // Reimportar nunca retrocede um status que já foi avançado manualmente no Pipeline (pago ou
-          // conciliado) - só deixa o SIGE "alcançar" pendente -> pago quando ele passa a marcar quitado.
-          const statusAtual = existente.status_pagamento || (existente.foi_quitado ? 'pago_pendente_conciliacao' : 'pendente')
-          const statusNovo = (foiQuitadoSige && statusAtual === 'pendente') ? 'pago_pendente_conciliacao' : statusAtual
-          registro.status_pagamento = statusNovo
-          const mudou = Number(existente.valor) !== registro.valor || statusNovo !== statusAtual
+          const mudou = Number(existente.valor) !== registro.valor || !!existente.foi_quitado !== registro.foi_quitado
             || existente.data_vencimento !== registro.data_vencimento
           if (mudou) atualizadas.push(registro)
         } else {
-          registro.status_pagamento = foiQuitadoSige ? 'pago_pendente_conciliacao' : 'pendente'
           novas.push(registro)
         }
       })
@@ -3183,15 +3174,6 @@ export default function App() {
       setContasPagarPreview(null)
     }
     setContasPagarSalvando(false)
-  }
-
-  // Marca uma conta como paga / conciliada direto no Pipeline (sem depender de reimportar o SIGE).
-  // Fluxo de 3 estados combinado com a Shirley em 2026-09-04: pendente -> pago (aguardando
-  // conciliação com o extrato do banco) -> conciliado. A próxima etapa vai automatizar essa
-  // conciliação importando o extrato bancário; por enquanto o "conciliado" também é manual.
-  async function atualizarStatusPagamentoContasPagar(id, novoStatus) {
-    const { error } = await supabase.from('contas_pagar').update({ status_pagamento: novoStatus }).eq('id', id)
-    if (!error) setContasPagar(prev => prev.map(c => c.id === id ? { ...c, status_pagamento: novoStatus } : c))
   }
 
   async function importarDadosIniciais() {
@@ -4124,34 +4106,20 @@ export default function App() {
     if (contasPagarModo === 'ano') { if (ano !== contasPagarAno) return false }
     else if (ano !== contasPagarAno || mes !== contasPagarMes) return false
     if (contasPagarFiltroEmpresa && c.empresa !== contasPagarFiltroEmpresa) return false
-    if (contasPagarFiltroStatus && (c.status_pagamento || 'pendente') !== contasPagarFiltroStatus) return false
-    if (contasPagarFiltroCentroCusto && c.centro_custos !== contasPagarFiltroCentroCusto) return false
-    if (contasPagarFiltroGrupo && c.grupo !== contasPagarFiltroGrupo) return false
+    if (contasPagarFiltroStatus === 'pendente' && c.foi_quitado) return false
+    if (contasPagarFiltroStatus === 'quitado' && !c.foi_quitado) return false
     return true
   }).sort((a, b) => (a.data_vencimento || '').localeCompare(b.data_vencimento || ''))
-  const totalContasPagarPendente = contasPagarFiltradas.filter(c => (c.status_pagamento || 'pendente') === 'pendente').reduce((s, c) => s + Number(c.valor || 0), 0)
-  const totalContasPagarAguardandoConciliacao = contasPagarFiltradas.filter(c => c.status_pagamento === 'pago_pendente_conciliacao').reduce((s, c) => s + Number(c.valor || 0), 0)
-  const totalContasPagarConciliado = contasPagarFiltradas.filter(c => c.status_pagamento === 'conciliado').reduce((s, c) => s + Number(c.valor || 0), 0)
-  function agruparContasPagarPor(campo) {
-    const mapa = {}
-    contasPagarFiltradas.forEach(c => {
-      const chave = c[campo] || '(sem informação)'
-      mapa[chave] = (mapa[chave] || 0) + Number(c.valor || 0)
-    })
-    return Object.entries(mapa).map(([nome, total]) => ({ nome, total })).sort((a, b) => b.total - a.total)
-  }
-  const contasPagarPorCategoriaLista = agruparContasPagarPor('plano_contas')
-  const contasPagarPorCentroCustoLista = agruparContasPagarPor('centro_custos')
-  const contasPagarPorGrupoLista = agruparContasPagarPor('grupo')
+  const totalContasPagarPendente = contasPagarFiltradas.filter(c => !c.foi_quitado).reduce((s, c) => s + Number(c.valor || 0), 0)
+  const totalContasPagarQuitado = contasPagarFiltradas.filter(c => c.foi_quitado).reduce((s, c) => s + Number(c.valor || 0), 0)
+  const contasPagarPorCategoriaMap = {}
+  contasPagarFiltradas.forEach(c => {
+    const cat = c.plano_contas || '(sem categoria)'
+    contasPagarPorCategoriaMap[cat] = (contasPagarPorCategoriaMap[cat] || 0) + Number(c.valor || 0)
+  })
+  const contasPagarPorCategoriaLista = Object.entries(contasPagarPorCategoriaMap)
+    .map(([categoria, total]) => ({ categoria, total })).sort((a, b) => b.total - a.total)
   const empresasContasPagar = [...new Set(contasPagar.map(c => c.empresa).filter(Boolean))].sort()
-  const centrosCustoContasPagar = [...new Set(contasPagar.map(c => c.centro_custos).filter(Boolean))].sort()
-  const gruposContasPagar = [...new Set(contasPagar.map(c => c.grupo).filter(Boolean))].sort()
-
-  // Resumo "Hoje" - o que vence pra pagar e o que foi faturado hoje, independente do filtro de
-  // mês/ano selecionado na tela (pedido da Shirley, 2026-09-04, pra bater o olho no dia a dia).
-  const hojeIso = new Date().toISOString().slice(0, 10)
-  const contasPagarVencemHoje = contasPagar.filter(c => c.data_vencimento === hojeIso && (c.status_pagamento || 'pendente') === 'pendente')
-  const totalContasPagarVencemHoje = contasPagarVencemHoje.reduce((s, c) => s + Number(c.valor || 0), 0)
 
   // Contas a Receber - não duplica dado: reaproveita as obras já faturadas (NF EMITIDO) do próprio
   // Pipeline, no mesmo período selecionado (Shirley, 2026-09-04: entrada da Tecban no SIGE é a
@@ -4165,8 +4133,6 @@ export default function App() {
     return ano === contasPagarAno && mes === contasPagarMes
   }).sort((a, b) => new Date(a.atualizado_em) - new Date(b.atualizado_em))
   const totalContasReceberPeriodo = contasReceberFiltradas.reduce((s, o) => s + Number(o.valor || 0), 0)
-  const contasReceberFaturadasHoje = obras.filter(o => o.status === 'NF EMITIDO' && o.atualizado_em && o.atualizado_em.slice(0, 10) === hojeIso)
-  const totalContasReceberFaturadasHoje = contasReceberFaturadasHoje.reduce((s, o) => s + Number(o.valor || 0), 0)
 
   // Relatório só das obras com pedido divergente (aba Disponível para Faturar), pra não precisar
   // abrir uma por uma - pedido da Shirley, 2026-08-31.
@@ -5771,17 +5737,6 @@ export default function App() {
         const anosDisponiveis = Array.from(new Set([anoAtual - 1, anoAtual, anoAtual + 1, contasPagarAno])).sort()
         return (
         <div style={{ padding:12 }}>
-          <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
-            <div style={{ flex:1, minWidth:220, background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:12, padding:'12px 16px' }}>
-              <div style={{ fontSize:11, color:'#991B1B', fontWeight:700, textTransform:'uppercase' }}>Vence hoje (a pagar)</div>
-              <div style={{ fontSize:19, fontWeight:700, color:'#991B1B', marginTop:4 }}>{fmt(totalContasPagarVencemHoje)} <span style={{ fontSize:12, fontWeight:600 }}>· {contasPagarVencemHoje.length} conta(s)</span></div>
-            </div>
-            <div style={{ flex:1, minWidth:220, background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:12, padding:'12px 16px' }}>
-              <div style={{ fontSize:11, color:'#065F46', fontWeight:700, textTransform:'uppercase' }}>Faturado hoje (a receber)</div>
-              <div style={{ fontSize:19, fontWeight:700, color:'#065F46', marginTop:4 }}>{fmt(totalContasReceberFaturadasHoje)} <span style={{ fontSize:12, fontWeight:600 }}>· {contasReceberFaturadasHoje.length} NF(s)</span></div>
-            </div>
-          </div>
-
           <div style={{ display:'flex', gap:8, marginBottom:14, alignItems:'center', flexWrap:'wrap' }}>
             <div style={{ display:'flex', border:'1px solid #CDD8E3', borderRadius:8, overflow:'hidden' }}>
               <button onClick={() => setContasPagarSubaba('pagar')}
@@ -5821,22 +5776,11 @@ export default function App() {
                   <option value="">Todas empresas</option>
                   {empresasContasPagar.map(e => <option key={e} value={e}>{e}</option>)}
                 </select>
-                <select value={contasPagarFiltroCentroCusto} onChange={e => setContasPagarFiltroCentroCusto(e.target.value)}
-                  style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
-                  <option value="">Todos centros de custo</option>
-                  {centrosCustoContasPagar.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <select value={contasPagarFiltroGrupo} onChange={e => setContasPagarFiltroGrupo(e.target.value)}
-                  style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
-                  <option value="">Todos grupos</option>
-                  {gruposContasPagar.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
                 <select value={contasPagarFiltroStatus} onChange={e => setContasPagarFiltroStatus(e.target.value)}
                   style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
                   <option value="">Todos status</option>
                   <option value="pendente">Pendente</option>
-                  <option value="pago_pendente_conciliacao">Pago — aguardando conciliação</option>
-                  <option value="conciliado">Conciliado</option>
+                  <option value="quitado">Quitado</option>
                 </select>
               </>
             )}
@@ -5849,13 +5793,9 @@ export default function App() {
                   <div style={{ fontSize:11, color:'rgba(255,255,255,.8)', fontWeight:600, textTransform:'uppercase' }}>Pendente no período</div>
                   <div style={{ fontSize:24, fontWeight:700, color:'#fff', marginTop:4 }}>{fmt(totalContasPagarPendente)}</div>
                 </div>
-                <div style={{ flex:1, minWidth:160, background:'#92400E', borderRadius:12, padding:'16px 18px' }}>
-                  <div style={{ fontSize:11, color:'rgba(255,255,255,.8)', fontWeight:600, textTransform:'uppercase' }}>Pago — aguard. conciliação</div>
-                  <div style={{ fontSize:24, fontWeight:700, color:'#fff', marginTop:4 }}>{fmt(totalContasPagarAguardandoConciliacao)}</div>
-                </div>
                 <div style={{ flex:1, minWidth:160, background:'#065F46', borderRadius:12, padding:'16px 18px' }}>
-                  <div style={{ fontSize:11, color:'rgba(255,255,255,.8)', fontWeight:600, textTransform:'uppercase' }}>Conciliado no período</div>
-                  <div style={{ fontSize:24, fontWeight:700, color:'#fff', marginTop:4 }}>{fmt(totalContasPagarConciliado)}</div>
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,.8)', fontWeight:600, textTransform:'uppercase' }}>Já quitado no período</div>
+                  <div style={{ fontSize:24, fontWeight:700, color:'#fff', marginTop:4 }}>{fmt(totalContasPagarQuitado)}</div>
                 </div>
                 <div style={{ flex:1, minWidth:160, background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:'16px 18px' }}>
                   <div style={{ fontSize:11, color:'#64748B', fontWeight:600, textTransform:'uppercase' }}>Lançamentos</div>
@@ -5863,21 +5803,17 @@ export default function App() {
                 </div>
               </div>
 
-              {[
-                { titulo: 'Por categoria (plano de contas)', lista: contasPagarPorCategoriaLista },
-                { titulo: 'Por centro de custo', lista: contasPagarPorCentroCustoLista },
-                { titulo: 'Por grupo', lista: contasPagarPorGrupoLista },
-              ].map(bloco => bloco.lista.length > 0 && (
-                <div key={bloco.titulo} style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:14 }}>
-                  <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:10 }}>{bloco.titulo}</div>
-                  {bloco.lista.map(item => {
-                    const totalPeriodo = totalContasPagarPendente + totalContasPagarAguardandoConciliacao + totalContasPagarConciliado
-                    const pct = totalPeriodo > 0 ? (item.total / totalPeriodo * 100) : 0
+              {contasPagarPorCategoriaLista.length > 0 && (
+                <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14, marginBottom:14 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:10 }}>Por categoria</div>
+                  {contasPagarPorCategoriaLista.map(c => {
+                    const totalPeriodo = totalContasPagarPendente + totalContasPagarQuitado
+                    const pct = totalPeriodo > 0 ? (c.total / totalPeriodo * 100) : 0
                     return (
-                      <div key={item.nome} style={{ marginBottom:10 }}>
+                      <div key={c.categoria} style={{ marginBottom:10 }}>
                         <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'#1A2340', marginBottom:3 }}>
-                          <span style={{ fontWeight:600 }}>{item.nome}</span>
-                          <span>{fmt(item.total)}</span>
+                          <span style={{ fontWeight:600 }}>{c.categoria}</span>
+                          <span>{fmt(c.total)}</span>
                         </div>
                         <div style={{ background:'#F1F5F9', borderRadius:6, height:8, overflow:'hidden' }}>
                           <div style={{ width:`${pct}%`, height:'100%', background:'#B91C1C', borderRadius:6 }} />
@@ -5886,46 +5822,23 @@ export default function App() {
                     )
                   })}
                 </div>
-              ))}
+              )}
 
               <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14 }}>
                 <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:10 }}>Lançamentos do período</div>
                 {contasPagarFiltradas.length === 0 && <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'20px 0' }}>Nenhum lançamento nesse período — importe um relatório do SIGE pra começar.</div>}
-                {contasPagarFiltradas.map(c => {
-                  const status = c.status_pagamento || 'pendente'
-                  const cor = status === 'conciliado' ? '#065F46' : status === 'pago_pendente_conciliacao' ? '#92400E' : '#B91C1C'
-                  const label = status === 'conciliado' ? 'Conciliado' : status === 'pago_pendente_conciliacao' ? 'Pago — aguard. conciliação' : 'Pendente'
-                  return (
+                {contasPagarFiltradas.map(c => (
                   <div key={c.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, borderBottom:'1px solid #F1F5F9', padding:'8px 0' }}>
                     <div>
                       <div style={{ fontSize:13, fontWeight:600, color:'#1A2340' }}>{c.fornecedor || '(sem fornecedor)'}</div>
-                      <div style={{ fontSize:11, color:'#64748B' }}>{isoToBr(c.data_vencimento)} · {c.plano_contas || '—'} · {c.centro_custos || '—'} · {c.grupo || '—'} · {c.empresa || '—'}{c.banco ? ` · ${c.banco}` : ''}</div>
+                      <div style={{ fontSize:11, color:'#64748B' }}>{isoToBr(c.data_vencimento)} · {c.plano_contas || '—'} · {c.empresa || '—'}{c.banco ? ` · ${c.banco}` : ''}</div>
                     </div>
                     <div style={{ textAlign:'right', flexShrink:0 }}>
-                      <div style={{ fontSize:13, fontWeight:700, color: cor }}>{fmt(c.valor)}</div>
-                      <div style={{ fontSize:10, fontWeight:700, color: cor }}>{label}</div>
-                      <div style={{ display:'flex', gap:8, marginTop:4, justifyContent:'flex-end' }}>
-                        {status === 'pendente' && (
-                          <button onClick={() => atualizarStatusPagamentoContasPagar(c.id, 'pago_pendente_conciliacao')}
-                            style={{ fontSize:10, fontWeight:700, color:'#0F766E', background:'none', border:'none', cursor:'pointer', padding:0 }}>Marcar como pago</button>
-                        )}
-                        {status === 'pago_pendente_conciliacao' && (
-                          <>
-                            <button onClick={() => atualizarStatusPagamentoContasPagar(c.id, 'conciliado')}
-                              style={{ fontSize:10, fontWeight:700, color:'#0F766E', background:'none', border:'none', cursor:'pointer', padding:0 }}>Marcar conciliado</button>
-                            <button onClick={() => atualizarStatusPagamentoContasPagar(c.id, 'pendente')}
-                              style={{ fontSize:10, color:'#94A3B8', background:'none', border:'none', cursor:'pointer', padding:0 }}>desfazer</button>
-                          </>
-                        )}
-                        {status === 'conciliado' && (
-                          <button onClick={() => atualizarStatusPagamentoContasPagar(c.id, 'pago_pendente_conciliacao')}
-                            style={{ fontSize:10, color:'#94A3B8', background:'none', border:'none', cursor:'pointer', padding:0 }}>desfazer</button>
-                        )}
-                      </div>
+                      <div style={{ fontSize:13, fontWeight:700, color: c.foi_quitado ? '#065F46' : '#B91C1C' }}>{fmt(c.valor)}</div>
+                      <div style={{ fontSize:10, fontWeight:700, color: c.foi_quitado ? '#065F46' : '#92400E' }}>{c.foi_quitado ? 'Quitado' : 'Pendente'}</div>
                     </div>
                   </div>
-                  )
-                })}
+                ))}
               </div>
             </>
           ) : (
