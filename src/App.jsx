@@ -1318,6 +1318,12 @@ function temTelaOperacaoCampo(rede, tipo) {
 function temVisitasDeCampo(rede, tipo) {
   return temTelaOperacaoCampo(rede, tipo) || tipo === 'TRANSF UN' || tipo === 'MANUTENÇÃO ATM' || tipo === 'SINALIZAÇÃO ATM' || tipo === 'PINTURA ATM'
 }
+// Data prevista/confirmada de execução de uma obra - mesma resolução já usada no Cenário
+// (data_inicio_obra_texto pras redes/tipos sem vistoria, data_obra_inicio pros demais). Usada na
+// tela do líder de campo pra ordenar as atividades por data (Shirley, 2026-09-04).
+function dataAtividadeObra(o) {
+  return temTelaOperacaoCampo(o.rede, o.tipo) ? paraIsoDataObraTexto(o.data_inicio_obra_texto) : (o.data_obra_inicio || null)
+}
 // Eventos de uma obra pra um dia especifico do Cenario - usado tanto pra montar os cards por
 // estado quanto pra filtrar a lista de baixo quando um card e clicado (Shirley, 2026-08-19: antes o
 // clique no card so filtrava por estado, ignorando o dia selecionado, e mostrava a pipeline inteira
@@ -1709,6 +1715,47 @@ function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizad
           placeholder="Nome da empresa/pessoa terceirizada"
           style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginTop:8 }} />
       )}
+    </div>
+  )
+}
+
+// Card da tela do líder de campo - propositalmente nunca referencia obra.valor em lugar nenhum
+// (blindagem por ausência, não por condição - Shirley, 2026-09-04). Só designa "quem vai" na
+// atividade, reaproveitando o campo colaboradores_obra que a Shirley já usa na tela normal do
+// Pipeline. Veículo fica pra quando a Frota migrar pro Supabase.
+function CardAtividadeLider({ obra, data, onSalvar }) {
+  const listaInicial = Array.isArray(obra.colaboradores_obra) ? obra.colaboradores_obra : []
+  const [colabs, setColabs] = useState(listaInicial.filter(c => !c.startsWith(TERCEIRIZADO_PREFIXO)))
+  const [terceirizado, setTerceirizado] = useState(listaInicial.some(c => c.startsWith(TERCEIRIZADO_PREFIXO)))
+  const [terceirizadoTexto, setTerceirizadoTexto] = useState(() => {
+    const t = listaInicial.find(c => c.startsWith(TERCEIRIZADO_PREFIXO))
+    return t ? t.slice(TERCEIRIZADO_PREFIXO.length) : ''
+  })
+  const [salvando, setSalvando] = useState(false)
+  const [salvo, setSalvo] = useState(false)
+  return (
+    <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, marginBottom:10, padding:'12px 14px' }}>
+      <div style={{ fontSize:13, fontWeight:600, color:'#1A2340' }}>{obra.nome}</div>
+      <div style={{ fontSize:11, color:'#64748B', marginBottom:8 }}>
+        {obra.tipo}{(obra.numero_pc || obra.sige) ? ` · ${obra.rede === 'BRADESCO' ? 'BDN' : 'PC'} ${obra.numero_pc || obra.sige}` : ''}{obra.local ? ` · ${obra.local}` : ''}
+      </div>
+      <div style={{ fontSize:12, fontWeight:700, color: data ? '#1E40AF' : '#9A3412', marginBottom:10 }}>
+        {data ? `📅 ${isoToBr(data)}` : '⚠ Sem data definida ainda'}
+      </div>
+      <SeletorEquipe titulo="Quem vai" selecionados={colabs} onChangeSelecionados={setColabs}
+        terceirizado={terceirizado} onChangeTerceirizado={setTerceirizado}
+        terceirizadoTexto={terceirizadoTexto} onChangeTerceirizadoTexto={setTerceirizadoTexto} />
+      <button onClick={async () => {
+        setSalvando(true)
+        const lista = [...colabs, ...(terceirizado ? [TERCEIRIZADO_PREFIXO + (terceirizadoTexto.trim() || '(não informado)')] : [])]
+        const valor = lista.length > 0 ? lista : null
+        const { error } = await supabase.from('pipeline_obras').update({ colaboradores_obra: valor }).eq('id', obra.id)
+        if (!error) { onSalvar(obra.id, valor); setSalvo(true); setTimeout(() => setSalvo(false), 2500) }
+        setSalvando(false)
+      }} disabled={salvando}
+        style={{ marginTop:10, width:'100%', padding:10, background: salvando ? '#ccc' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer' }}>
+        {salvando ? 'Salvando...' : salvo ? '✓ Salvo' : 'Salvar equipe designada'}
+      </button>
     </div>
   )
 }
@@ -2635,6 +2682,12 @@ export default function App() {
     supabase.from('perfis_usuarios').select('papel').eq('id', usuario.id).single()
       .then(({ data, error }) => setPapel(error ? 'operacional' : (data?.papel || 'operacional')))
   }, [usuario])
+
+  // Líder de campo tem uma tela própria, enxuta (sem valor em nenhum lugar) - não usa a aba
+  // Pipeline normal. Manda ele direto pra lá assim que o papel carrega (Shirley, 2026-09-04).
+  useEffect(() => {
+    if (papel === 'lider_campo') setAba('atividades_lider')
+  }, [papel])
 
   useEffect(() => {
     if (papel === 'admin' || papel === 'rh' || papel === 'financeiro') {
@@ -4738,7 +4791,14 @@ export default function App() {
 
       {/* Abas */}
       <div style={{ background:'#fff', borderBottom:'2px solid #E0E8F0', display:'flex' }}>
-        {[
+        {(papel === 'lider_campo' ? [
+          // Líder de campo só enxerga essa tela + os documentos dele mesmo - nunca a aba Pipeline
+          // normal (que tem valor em vários cantos). Blindagem por ausência, não por condição
+          // (Shirley, 2026-09-04: "eles e os técnicos não podem de jeito nenhum ter acesso a
+          // valores, isso tem que blindar 100%").
+          { id:'atividades_lider', label:'Atividades Programadas', count:null, cor:'#0F766E' },
+          { id:'meusdados', label:'Meus Documentos', count:null, cor:'#7C3AED' },
+        ] : [
           { id:'pipeline', label:'Pipeline', count: obrasFiltradas.length },
           ...(podeVerValores ? [{ id:'faturar', label:'Disponível para Faturar', count: obrasFaturar.length, cor:'#1A6B4A' }] : []),
           ...(podeVerValores ? [{ id:'indisponivel', label:'Indisponível para Faturar', count: obrasIndisponiveis.length, cor:'#EA580C' }] : []),
@@ -4748,7 +4808,7 @@ export default function App() {
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'jantas', label:'Jantas', count: jantasTodas.filter(j => j.status === 'pendente').length, cor:'#B45309' }] : []),
           ...(EMAILS_CUSTOS_DESPESAS.includes(usuario?.email) ? [{ id:'despesas', label:'Despesas', count:null, cor:'#B91C1C' }] : []),
           ...(EMAILS_CUSTOS_DESPESAS.includes(usuario?.email) ? [{ id:'financeiro', label:'Financeiro', count:null, cor:'#0F766E' }] : []),
-        ].map(a => (
+        ]).map(a => (
           <button key={a.id} onClick={() => setAba(a.id)}
             style={{ flex:1, padding:'12px 8px', border:'none', borderBottom: aba===a.id ? `3px solid ${a.cor||'#2D3A8C'}` : '3px solid transparent',
               background:'none', cursor:'pointer', fontSize:12, fontWeight: aba===a.id ? 700 : 500,
@@ -5191,6 +5251,25 @@ export default function App() {
         </div>
         </div>
       )}
+
+      {/* ====== ABA: ATIVIDADES PROGRAMADAS (líder de campo) - nunca mostra valor, em lugar nenhum ====== */}
+      {aba === 'atividades_lider' && papel === 'lider_campo' && (() => {
+        const atividades = obras
+          .filter(o => temVisitasDeCampo(o.rede, o.tipo) && o.status !== 'NF EMITIDO' && o.status !== 'CANCELADO')
+          .map(o => ({ obra: o, data: dataAtividadeObra(o) }))
+          .sort((a, b) => (a.data || '9999-99-99').localeCompare(b.data || '9999-99-99'))
+        return (
+          <div style={{ padding:12 }}>
+            <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:4 }}>Atividades Programadas</div>
+            <div style={{ fontSize:12, color:'#64748B', marginBottom:14 }}>{atividades.length} atividade(s) · ordenadas por data</div>
+            {atividades.length === 0 && <div style={{ textAlign:'center', color:'#888', marginTop:40, fontSize:14 }}>Nenhuma atividade encontrada.</div>}
+            {atividades.map(({ obra, data }) => (
+              <CardAtividadeLider key={obra.id} obra={obra} data={data}
+                onSalvar={(id, lista) => setObras(prev => prev.map(o => o.id === id ? { ...o, colaboradores_obra: lista } : o))} />
+            ))}
+          </div>
+        )
+      })()}
 
       {/* ====== ABA: MEUS DOCUMENTOS (operacional) ====== */}
       {aba === 'meusdados' && papel && (
