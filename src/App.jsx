@@ -1324,15 +1324,6 @@ function temVisitasDeCampo(rede, tipo) {
 function dataAtividadeObra(o) {
   return temTelaOperacaoCampo(o.rede, o.tipo) ? paraIsoDataObraTexto(o.data_inicio_obra_texto) : (o.data_obra_inicio || null)
 }
-// Uma obra "ainda não elaborou RM" quando o status atual vem antes de ELABORAR RM na régua dela -
-// usado pra filtrar a tela do líder de campo pra pendências reais (Shirley, 2026-09-04): sem data
-// agendada E já passou da etapa de RM não é mais pendência do líder, não deve aparecer pra ele.
-function aindaNaoElaborouRM(o) {
-  const etapas = getEtapas(o.rede, o.tipo)
-  const idxRM = etapas.indexOf('ELABORAR RM')
-  const idxAtual = etapas.findIndex(e => e.toLowerCase() === (o.status || '').toLowerCase())
-  return idxAtual === -1 || idxAtual < idxRM
-}
 // Eventos de uma obra pra um dia especifico do Cenario - usado tanto pra montar os cards por
 // estado quanto pra filtrar a lista de baixo quando um card e clicado (Shirley, 2026-08-19: antes o
 // clique no card so filtrava por estado, ignorando o dia selecionado, e mostrava a pipeline inteira
@@ -5403,14 +5394,13 @@ export default function App() {
 
       {/* ====== ABA: ATIVIDADES PROGRAMADAS (líder de campo) - nunca mostra valor, em lugar nenhum ====== */}
       {aba === 'atividades_lider' && papel === 'lider_campo' && (() => {
-        // Só entra na lista do líder o que é "previsto de acontecer" (tem data agendada) ou o que
-        // ainda não elaborou RM (== pendência real) - o que já passou de RM e só falta data é
-        // acompanhamento de escritório, não é mais atividade de campo (Shirley, 2026-09-04).
+        // Só entra na lista do líder o que já tem data programada - sem isso a lista virava tudo
+        // que ainda não elaborou RM, o que poluía demais (Shirley, 2026-09-04).
         const atividades = obras
           .filter(o => temVisitasDeCampo(o.rede, o.tipo) && o.status !== 'NF EMITIDO' && o.status !== 'CANCELADO')
           .filter(o => !filtroCenarioUF || estadoDaObra(o) === filtroCenarioUF)
           .map(o => ({ obra: o, data: dataAtividadeObra(o) }))
-          .filter(({ obra, data }) => data || aindaNaoElaborouRM(obra))
+          .filter(({ data }) => !!data)
           .sort((a, b) => (a.data || '9999-99-99').localeCompare(b.data || '9999-99-99'))
         return (
           <div>
