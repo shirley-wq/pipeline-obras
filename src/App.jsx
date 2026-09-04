@@ -4104,7 +4104,11 @@ export default function App() {
     if (o.status === 'NF EMITIDO' && !busca) return false
     if (filtroTipo && o.tipo !== filtroTipo) return false
     if (filtroRede && o.rede !== filtroRede) return false
-    if (filtroStatus && o.status !== filtroStatus) return false
+    // Filtro especial "Erro no pedido" (Shirley, 2026-09-04) - não é um status de verdade, é a
+    // mesma conferência de valor/OS/CNPJ usada no grupo "🚨 Erro no pedido" da tela.
+    if (filtroStatus === '__ERRO_PEDIDO__') {
+      if (o.status === 'NF EMITIDO' || o.status === 'CANCELADO' || !conferePedidoObra(o).precisaCorrecao) return false
+    } else if (filtroStatus && o.status !== filtroStatus) return false
     if (filtroResponsavel && o.responsavel_escritorio !== filtroResponsavel && o.auxiliar_escritorio !== filtroResponsavel) return false
     // Card do Cenario clicado: mostra so as obras daquele estado que tem evento no dia selecionado
     // (nao a pipeline inteira do estado, de qualquer dia/status). Exceção: "S/UF" é um problema de
@@ -6293,6 +6297,7 @@ export default function App() {
           <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)} title="Status"
             style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff', flexShrink:0, maxWidth:160 }}>
             <option value="">Todos status</option>
+            <option value="__ERRO_PEDIDO__">🚨 Erro no pedido</option>
             {[...new Set(obras.map(o=>o.status))].filter(Boolean).sort().map(s => <option key={s}>{s}</option>)}
           </select>
           <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar..." title="Busca"
