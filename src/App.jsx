@@ -4885,10 +4885,12 @@ export default function App() {
         <div>
           <div style={{ fontSize:16, fontWeight:700, color:'#fff' }}>Pipeline de Obras</div>
           <div style={{ fontSize:11, color:'rgba(255,255,255,.6)', marginTop:2 }}>
-            Grupo PG — {obras.length} obras · {emAndamento} em execução · <span style={{ color: pendencias > 0 ? '#FCA5A5' : 'inherit' }}>{pendencias} pendência{pendencias === 1 ? '' : 's'}</span>
-            {EMAILS_VER_VALORES_TOPO.includes(usuario?.email) && (
-              <> · R${(totalValor/1000).toFixed(0)}k em andamento · <span style={{ color: obrasFaturar.length > 0 ? '#FDE68A' : 'inherit' }}>R${(totalFaturar/1000).toFixed(0)}k a faturar</span></>
-            )}
+            {papel === 'lider_campo' ? 'Grupo PG' : (<>
+              Grupo PG — {obras.length} obras · {emAndamento} em execução · <span style={{ color: pendencias > 0 ? '#FCA5A5' : 'inherit' }}>{pendencias} pendência{pendencias === 1 ? '' : 's'}</span>
+              {EMAILS_VER_VALORES_TOPO.includes(usuario?.email) && (
+                <> · R${(totalValor/1000).toFixed(0)}k em andamento · <span style={{ color: obrasFaturar.length > 0 ? '#FDE68A' : 'inherit' }}>R${(totalFaturar/1000).toFixed(0)}k a faturar</span></>
+              )}
+            </>)}
           </div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
