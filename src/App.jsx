@@ -1324,6 +1324,15 @@ function temVisitasDeCampo(rede, tipo) {
 function dataAtividadeObra(o) {
   return temTelaOperacaoCampo(o.rede, o.tipo) ? paraIsoDataObraTexto(o.data_inicio_obra_texto) : (o.data_obra_inicio || null)
 }
+// Uma obra "ainda não elaborou RM" quando o status atual vem antes de ELABORAR RM na régua dela -
+// usado pra filtrar a tela do líder de campo pra pendências reais (Shirley, 2026-09-04): sem data
+// agendada E já passou da etapa de RM não é mais pendência do líder, não deve aparecer pra ele.
+function aindaNaoElaborouRM(o) {
+  const etapas = getEtapas(o.rede, o.tipo)
+  const idxRM = etapas.indexOf('ELABORAR RM')
+  const idxAtual = etapas.findIndex(e => e.toLowerCase() === (o.status || '').toLowerCase())
+  return idxAtual === -1 || idxAtual < idxRM
+}
 // Eventos de uma obra pra um dia especifico do Cenario - usado tanto pra montar os cards por
 // estado quanto pra filtrar a lista de baixo quando um card e clicado (Shirley, 2026-08-19: antes o
 // clique no card so filtrava por estado, ignorando o dia selecionado, e mostrava a pipeline inteira
@@ -1731,6 +1740,16 @@ function CardAtividadeLider({ obra, data, onSalvar }) {
     const t = listaInicial.find(c => c.startsWith(TERCEIRIZADO_PREFIXO))
     return t ? t.slice(TERCEIRIZADO_PREFIXO.length) : ''
   })
+  // Mesmo gate do "Consulta ARS e agendamento" na tela principal - só esses tipos/redes têm
+  // contato de EC e critérios de segurança/fixação pedidos no ARS (Shirley, 2026-09-04: líder
+  // também precisa ver/editar isso, não só designar equipe).
+  const temArs = temTelaOperacaoCampo(obra.rede, obra.tipo) && !REDES_SEM_ARS.includes(obra.rede)
+    && obra.tipo !== 'DESATIVAÇÃO ATM' && obra.tipo !== 'SINALIZAÇÃO ATM'
+  const [ecNome, setEcNome] = useState(obra.ec_nome || '')
+  const [ecTelefone, setEcTelefone] = useState(obra.ec_telefone || '')
+  const [segurancaItens, setSegurancaItens] = useState(Array.isArray(obra.seguranca_itens) ? obra.seguranca_itens : [])
+  const [barreiraDissuasao, setBarreiraDissuasao] = useState(obra.barreira_dissuasao || false)
+  const hora = temTelaOperacaoCampo(obra.rede, obra.tipo) ? obra.hora_inicio_obra_texto : null
   const [salvando, setSalvando] = useState(false)
   const [salvo, setSalvo] = useState(false)
   return (
@@ -1740,21 +1759,55 @@ function CardAtividadeLider({ obra, data, onSalvar }) {
         {obra.tipo}{(obra.numero_pc || obra.sige) ? ` · ${obra.rede === 'BRADESCO' ? 'BDN' : 'PC'} ${obra.numero_pc || obra.sige}` : ''}{obra.local ? ` · ${obra.local}` : ''}
       </div>
       <div style={{ fontSize:12, fontWeight:700, color: data ? '#1E40AF' : '#9A3412', marginBottom:10 }}>
-        {data ? `📅 ${isoToBr(data)}` : '⚠ Sem data definida ainda'}
+        {data ? `📅 ${isoToBr(data)}${hora ? ` às ${hora}` : ''}` : '⚠ Sem data definida ainda'}
       </div>
       <SeletorEquipe titulo="Quem vai" selecionados={colabs} onChangeSelecionados={setColabs}
         terceirizado={terceirizado} onChangeTerceirizado={setTerceirizado}
         terceirizadoTexto={terceirizadoTexto} onChangeTerceirizadoTexto={setTerceirizadoTexto} />
+      {temArs && (
+        <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #E0E8F0' }}>
+          <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:6 }}>Contato no local (EC)</div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
+            <input value={ecNome} onChange={e => setEcNome(up(e.target.value))} placeholder="Nome do responsável"
+              style={{ padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+            <input value={ecTelefone} onChange={e => setEcTelefone(e.target.value)} placeholder="Telefone"
+              style={{ padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+          </div>
+          <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:6 }}>O que o ARS solicitou (tipo de fixação / critérios de segurança)</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+            {[...ITENS_SEGURANCA_BANCO24H, 'Tem barreira de dissuasão'].map(item => {
+              const ehBarreira = item === 'Tem barreira de dissuasão'
+              const marcado = ehBarreira ? barreiraDissuasao : segurancaItens.includes(item)
+              return (
+                <label key={item} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontSize:13, color:'#1A2340' }}>
+                  <input type="checkbox" checked={marcado} onChange={e => {
+                    if (ehBarreira) setBarreiraDissuasao(e.target.checked)
+                    else setSegurancaItens(prev => e.target.checked ? [...prev, item] : prev.filter(i => i !== item))
+                  }} />
+                  {item}
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      )}
       <button onClick={async () => {
         setSalvando(true)
         const lista = [...colabs, ...(terceirizado ? [TERCEIRIZADO_PREFIXO + (terceirizadoTexto.trim() || '(não informado)')] : [])]
         const valor = lista.length > 0 ? lista : null
-        const { error } = await supabase.from('pipeline_obras').update({ colaboradores_obra: valor }).eq('id', obra.id)
-        if (!error) { onSalvar(obra.id, valor); setSalvo(true); setTimeout(() => setSalvo(false), 2500) }
+        const campos = { colaboradores_obra: valor }
+        if (temArs) {
+          campos.ec_nome = ecNome.trim() || null
+          campos.ec_telefone = ecTelefone.trim() || null
+          campos.seguranca_itens = segurancaItens.length > 0 ? segurancaItens : null
+          campos.barreira_dissuasao = barreiraDissuasao
+        }
+        const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
+        if (!error) { onSalvar(obra.id, campos); setSalvo(true); setTimeout(() => setSalvo(false), 2500) }
         setSalvando(false)
       }} disabled={salvando}
         style={{ marginTop:10, width:'100%', padding:10, background: salvando ? '#ccc' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer' }}>
-        {salvando ? 'Salvando...' : salvo ? '✓ Salvo' : 'Salvar equipe designada'}
+        {salvando ? 'Salvando...' : salvo ? '✓ Salvo' : 'Salvar'}
       </button>
     </div>
   )
@@ -5254,9 +5307,13 @@ export default function App() {
 
       {/* ====== ABA: ATIVIDADES PROGRAMADAS (líder de campo) - nunca mostra valor, em lugar nenhum ====== */}
       {aba === 'atividades_lider' && papel === 'lider_campo' && (() => {
+        // Só entra na lista do líder o que é "previsto de acontecer" (tem data agendada) ou o que
+        // ainda não elaborou RM (== pendência real) - o que já passou de RM e só falta data é
+        // acompanhamento de escritório, não é mais atividade de campo (Shirley, 2026-09-04).
         const atividades = obras
           .filter(o => temVisitasDeCampo(o.rede, o.tipo) && o.status !== 'NF EMITIDO' && o.status !== 'CANCELADO')
           .map(o => ({ obra: o, data: dataAtividadeObra(o) }))
+          .filter(({ obra, data }) => data || aindaNaoElaborouRM(obra))
           .sort((a, b) => (a.data || '9999-99-99').localeCompare(b.data || '9999-99-99'))
         return (
           <div style={{ padding:12 }}>
@@ -5265,7 +5322,7 @@ export default function App() {
             {atividades.length === 0 && <div style={{ textAlign:'center', color:'#888', marginTop:40, fontSize:14 }}>Nenhuma atividade encontrada.</div>}
             {atividades.map(({ obra, data }) => (
               <CardAtividadeLider key={obra.id} obra={obra} data={data}
-                onSalvar={(id, lista) => setObras(prev => prev.map(o => o.id === id ? { ...o, colaboradores_obra: lista } : o))} />
+                onSalvar={(id, campos) => setObras(prev => prev.map(o => o.id === id ? { ...o, ...campos } : o))} />
             ))}
           </div>
         )
