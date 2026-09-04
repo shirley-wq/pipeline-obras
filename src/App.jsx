@@ -1738,6 +1738,9 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
   const [novoBancoTipoConta, setNovoBancoTipoConta] = useState('corrente')
   const [novoBancoChavePix, setNovoBancoChavePix] = useState('')
   const [novoBancoTipoChave, setNovoBancoTipoChave] = useState('cpf')
+  const [novoBancoTerceiro, setNovoBancoTerceiro] = useState(false)
+  const [novoBancoNomeTitular, setNovoBancoNomeTitular] = useState('')
+  const [novoBancoObservacao, setNovoBancoObservacao] = useState('')
   const [ocultarMultasDesconto, setOcultarMultasDesconto] = useState(false)
 
   const vencimentoAso = somaAnos(c.data_aso, 1)
@@ -1996,6 +1999,9 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
                       {b.tipo === 'pix'
                         ? `PIX (${b.tipo_chave || '—'}): ${b.chave_pix || '—'}`
                         : `${b.banco || '—'} — ag. ${b.agencia || '—'} — cc ${b.conta || '—'} (${b.tipo_conta === 'poupanca' ? 'Poupança' : 'Corrente'})`}
+                      {b.titular === 'terceiro' && (
+                        <span style={{ color:'#B45309', fontWeight:600 }}> — de terceiro: {b.nome_titular || '—'}{b.observacao ? ` (${b.observacao})` : ''}</span>
+                      )}
                     </span>
                     <span onClick={() => onUpdate({ dados_bancarios: dadosBancarios.filter((_, i) => i !== idx) })} style={{ fontSize:12, color:'#EF4444', cursor:'pointer', fontWeight:700 }}>✕</span>
                   </div>
@@ -2036,16 +2042,32 @@ function ColaboradorRHRow({ c, onUpdate, onRemove, emailsLogin, perfisLogin }) {
                 </>
               )}
               <button onClick={() => {
+                const extra = novoBancoTerceiro ? { titular: 'terceiro', nome_titular: novoBancoNomeTitular.trim(), observacao: novoBancoObservacao.trim() || null } : { titular: 'proprio' }
                 if (novoBancoTipo === 'pix') {
-                  if (!novoBancoChavePix.trim()) return
-                  onUpdate({ dados_bancarios: [...dadosBancarios, { tipo: 'pix', chave_pix: novoBancoChavePix.trim(), tipo_chave: novoBancoTipoChave }] })
+                  if (!novoBancoChavePix.trim() || (novoBancoTerceiro && !novoBancoNomeTitular.trim())) return
+                  onUpdate({ dados_bancarios: [...dadosBancarios, { tipo: 'pix', chave_pix: novoBancoChavePix.trim(), tipo_chave: novoBancoTipoChave, ...extra }] })
                   setNovoBancoChavePix('')
                 } else {
-                  if (!novoBancoNome.trim() || !novoBancoConta.trim()) return
-                  onUpdate({ dados_bancarios: [...dadosBancarios, { tipo: 'conta', banco: novoBancoNome.trim(), agencia: novoBancoAgencia.trim(), conta: novoBancoConta.trim(), tipo_conta: novoBancoTipoConta }] })
+                  if (!novoBancoNome.trim() || !novoBancoConta.trim() || (novoBancoTerceiro && !novoBancoNomeTitular.trim())) return
+                  onUpdate({ dados_bancarios: [...dadosBancarios, { tipo: 'conta', banco: novoBancoNome.trim(), agencia: novoBancoAgencia.trim(), conta: novoBancoConta.trim(), tipo_conta: novoBancoTipoConta, ...extra }] })
                   setNovoBancoNome(''); setNovoBancoAgencia(''); setNovoBancoConta('')
                 }
+                setNovoBancoTerceiro(false); setNovoBancoNomeTitular(''); setNovoBancoObservacao('')
               }} style={{ padding:'6px 12px', background:'#0F766E', color:'#fff', border:'none', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer' }}>+ Adicionar</button>
+            </div>
+            <div style={{ marginTop:6 }}>
+              <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, color:'#64748B', cursor:'pointer' }}>
+                <input type="checkbox" checked={novoBancoTerceiro} onChange={e => setNovoBancoTerceiro(e.target.checked)} />
+                Essa conta/chave é de um terceiro (ex: beneficiário de pensão alimentícia)
+              </label>
+              {novoBancoTerceiro && (
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginTop:6 }}>
+                  <input value={novoBancoNomeTitular} onChange={e => setNovoBancoNomeTitular(e.target.value)}
+                    placeholder="Nome do beneficiário" style={{ flex:1, minWidth:140, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+                  <input value={novoBancoObservacao} onChange={e => setNovoBancoObservacao(e.target.value)}
+                    placeholder="Observação (ex: Pensão alimentícia)" style={{ flex:1, minWidth:160, padding:'6px 8px', border:'1px solid #E0E8F0', borderRadius:6, fontSize:12, color:'#1A2340' }} />
+                </div>
+              )}
             </div>
           </div>
 
