@@ -3525,8 +3525,32 @@ export default function App() {
       headStyles: { fillColor: [45, 58, 140], textColor: 255, fontStyle: 'bold' },
       columnStyles: { 4: { cellWidth: 70 } },
     })
+    y = doc.lastAutoTable.finalY + 8
 
-    y = doc.lastAutoTable.finalY + 10
+    // Medição de transporte pedida pela Shirley (2026-09-03), pra todas as atividades com tela de
+    // operação de campo - antes só ficava salva na obra, não aparecia neste relatório.
+    if (temTelaOperacaoCampo(modal.rede, modal.tipo)) {
+      if (y > 265) { doc.addPage(); y = 16 }
+      doc.setFontSize(11)
+      doc.setFont(undefined, 'bold')
+      doc.text('Transporte', 14, y)
+      y += 5
+      doc.setFontSize(9)
+      doc.setFont(undefined, 'normal')
+      const linhaTransporte = (rotulo, valor, detalhe) => {
+        const texto = `${rotulo}: ${valor === 'SIM' ? 'Sim' : valor === 'NAO' ? 'Não' : '—'}${detalhe ? ` — ${detalhe}` : ''}`
+        const linhas = doc.splitTextToSize(texto, 180)
+        doc.text(linhas, 14, y)
+        y += 4.5 * linhas.length
+      }
+      linhaTransporte('Compareceu no horário agendado', transporteCompareceuHorario, '')
+      linhaTransporte('Tinha ajudante', transporteTinhaAjudante, '')
+      linhaTransporte('Danificou piso', transporteDanificouPiso, transporteDanificouPiso === 'SIM' ? `Quantos: ${transporteQuantidadeDanificada || '—'}` : '')
+      linhaTransporte('Teve ocorrência no dia da operação', transporteTeveOcorrencia, transporteTeveOcorrencia === 'SIM' ? (transporteOcorrenciaDescricao || '—') : '')
+      y += 3
+    }
+
+    if (y > 275) { doc.addPage(); y = 16 }
     doc.setFontSize(8)
     doc.setTextColor(120)
     doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')} por ${usuario?.email || ''}`, 14, y)
