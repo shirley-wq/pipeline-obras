@@ -1721,10 +1721,18 @@ function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizad
 
 // Card da tela do líder de campo - propositalmente nunca referencia obra.valor em lugar nenhum
 // (blindagem por ausência, não por condição - Shirley, 2026-09-04). Só designa "quem vai" na
-// atividade, reaproveitando o campo colaboradores_obra que a Shirley já usa na tela normal do
-// Pipeline. Veículo fica pra quando a Frota migrar pro Supabase.
+// atividade, editando a equipe do último item de registros_operacao_campo (mesmo campo que a
+// tela do escritório usa em "Dia da obra" - Shirley, 2026-09-08). Veículo fica pra quando a
+// Frota migrar pro Supabase.
 function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
-  const listaInicial = Array.isArray(obra.colaboradores_obra) ? obra.colaboradores_obra : []
+  // "Quem vai" deixou de ser um campo separado (colaboradores_obra) e passa a ser o mesmo campo
+  // que a tela do escritório edita dentro de "Dia da obra" - a equipe do ÚLTIMO registro de
+  // registros_operacao_campo (Shirley, 2026-09-08: "o campo que o líder preenche não é o mesmo
+  // que a gente clica quando cria visita" - unificado num só). O escritório precisa abrir a
+  // visita ("+ Nova visita") antes que o líder tenha onde designar quem vai.
+  const registros = Array.isArray(obra.registros_operacao_campo) ? obra.registros_operacao_campo : []
+  const ultimoRegistro = registros[registros.length - 1] || null
+  const listaInicial = Array.isArray(ultimoRegistro?.equipe) ? ultimoRegistro.equipe : []
   const [colabs, setColabs] = useState(listaInicial.filter(c => !c.startsWith(TERCEIRIZADO_PREFIXO)))
   const [terceirizado, setTerceirizado] = useState(listaInicial.some(c => c.startsWith(TERCEIRIZADO_PREFIXO)))
   const [terceirizadoTexto, setTerceirizadoTexto] = useState(() => {
@@ -1741,10 +1749,11 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
   const [segurancaItens, setSegurancaItens] = useState(Array.isArray(obra.seguranca_itens) ? obra.seguranca_itens : [])
   const [barreiraDissuasao, setBarreiraDissuasao] = useState(obra.barreira_dissuasao || false)
   const hora = temTelaOperacaoCampo(obra.rede, obra.tipo) ? obra.hora_inicio_obra_texto : null
-  // Histórico de visitas já registradas nesse ponto (mesma fonte da tela "Dia da obra") - o líder
+  // Histórico de visitas já registradas nesse ponto (mesma fonte da tela "Dia da obra"), sem
+  // contar a última (que é a que o líder está designando agora, mostrada abaixo) - o líder
   // precisa disso pra saber se já foi feita alguma etapa antes de designar quem vai de novo
   // (Shirley, 2026-09-04).
-  const registrosAnteriores = Array.isArray(obra.registros_operacao_campo) ? obra.registros_operacao_campo : []
+  const registrosAnteriores = registros.slice(0, -1)
   const [salvando, setSalvando] = useState(false)
   const [salvo, setSalvo] = useState(false)
   return (
@@ -1771,9 +1780,15 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
           ))}
         </div>
       )}
+      {ultimoRegistro ? (
       <SeletorEquipe titulo="Quem vai" selecionados={colabs} onChangeSelecionados={setColabs}
         terceirizado={terceirizado} onChangeTerceirizado={setTerceirizado}
         terceirizadoTexto={terceirizadoTexto} onChangeTerceirizadoTexto={setTerceirizadoTexto} />
+      ) : (
+        <div style={{ fontSize:12, color:'#9A3412', background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:8, padding:'8px 10px' }}>
+          ⏳ Aguardando o escritório abrir uma visita pra você designar a equipe.
+        </div>
+      )}
       {temArs && (
         <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #E0E8F0' }}>
           <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:6 }}>Contato no local (EC)</div>
@@ -1803,9 +1818,12 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
       )}
       <button onClick={async () => {
         setSalvando(true)
-        const lista = [...colabs, ...(terceirizado ? [TERCEIRIZADO_PREFIXO + (terceirizadoTexto.trim() || '(não informado)')] : [])]
-        const valor = lista.length > 0 ? lista : null
-        const campos = { colaboradores_obra: valor, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+        const campos = { atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+        if (ultimoRegistro) {
+          const lista = [...colabs, ...(terceirizado ? [TERCEIRIZADO_PREFIXO + (terceirizadoTexto.trim() || '(não informado)')] : [])]
+          const novoUltimo = { ...ultimoRegistro, equipe: lista }
+          campos.registros_operacao_campo = registros.map((r, i) => i === registros.length - 1 ? novoUltimo : r)
+        }
         if (temArs) {
           campos.ec_nome = ecNome.trim() || null
           campos.ec_telefone = ecTelefone.trim() || null
@@ -1815,8 +1833,8 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
         const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
         if (!error) { onSalvar(obra.id, campos); setSalvo(true); setTimeout(() => setSalvo(false), 2500) }
         setSalvando(false)
-      }} disabled={salvando}
-        style={{ marginTop:10, width:'100%', padding:10, background: salvando ? '#ccc' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer' }}>
+      }} disabled={salvando || !ultimoRegistro}
+        style={{ marginTop:10, width:'100%', padding:10, background: (salvando || !ultimoRegistro) ? '#ccc' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor: (salvando || !ultimoRegistro) ? 'default' : 'pointer' }}>
         {salvando ? 'Salvando...' : salvo ? '✓ Salvo' : 'Salvar'}
       </button>
     </div>
@@ -3752,6 +3770,74 @@ export default function App() {
   async function handleFotoLocalInstalacao(file) {
     if (!file) return
     setFotoLocalInstalacao(await arquivoParaDataUrl(file))
+  }
+
+  // "Visita atual" = último item de registros_operacao_campo. Fica sempre editável direto aqui
+  // (sem precisar clicar em Adicionar/Salvar) enquanto não se está editando uma visita antiga
+  // (editandoVisitaIdx === null) - é o MESMO campo "quem vai" que o líder edita na tela dele
+  // (Shirley, 2026-09-08: antes eram dois campos diferentes, o que confundia quem olhava).
+  function carregarFormularioVisita(registro) {
+    if (registro) {
+      setNovoRegistroData(registro.data || '')
+      setNovoRegistroHora(registro.hora || '')
+      setNovoRegistroEquipe((registro.equipe || []).filter(e => !e.startsWith(TERCEIRIZADO_PREFIXO)))
+      const terceirizadoNome = (registro.equipe || []).find(e => e.startsWith(TERCEIRIZADO_PREFIXO))
+      setNovoRegistroTerceirizado(!!terceirizadoNome)
+      setNovoRegistroTerceirizadoTexto(terceirizadoNome ? terceirizadoNome.slice(TERCEIRIZADO_PREFIXO.length) : '')
+      const atividadesMap = {}
+      ;(registro.atividades || []).forEach(a => { atividadesMap[a.atividade] = { ...a } })
+      setNovoRegistroAtividades(atividadesMap)
+    } else {
+      setNovoRegistroData('')
+      setNovoRegistroHora('')
+      setNovoRegistroEquipe([])
+      setNovoRegistroTerceirizado(false)
+      setNovoRegistroTerceirizadoTexto('')
+      setNovoRegistroAtividades({})
+    }
+  }
+
+  async function salvarVisitaAtual(overrides = {}) {
+    if (editandoVisitaIdx !== null || !modal || registrosOperacaoCampo.length === 0) return
+    const s = {
+      equipe: novoRegistroEquipe, terceirizado: novoRegistroTerceirizado, terceirizadoTexto: novoRegistroTerceirizadoTexto,
+      data: novoRegistroData, hora: novoRegistroHora, atividades: novoRegistroAtividades, ...overrides,
+    }
+    const equipe = [...s.equipe, ...(s.terceirizado ? [TERCEIRIZADO_PREFIXO + (s.terceirizadoTexto.trim() || '(não informado)')] : [])]
+    const atividades = Object.entries(s.atividades).map(([atividade, d]) => ({
+      atividade, feita: d.feita === true || d.feita === false ? d.feita : null, impedimento: !!d.impedimento, motivo: d.impedimento ? (d.motivo || '') : '',
+      ...(atividade === 'Outros' ? { descricao: d.descricao || '' } : {}),
+      ...(atividade === 'Habilitação' ? {
+        dimerFinalizado: d.dimerFinalizado, dimerMotivo: d.dimerFinalizado === false ? (d.dimerMotivo || '') : '',
+        alarme253Finalizado: d.alarme253Finalizado, alarme253Motivo: d.alarme253Finalizado === false ? (d.alarme253Motivo || '') : '',
+        cgrNome: d.cgrNome || '',
+      } : {}),
+    }))
+    const registro = { data: s.data || (paraIsoDataObraTexto(dataInicioObraTexto) || null), hora: s.hora || null, equipe, atividades }
+    const novaLista = registrosOperacaoCampo.map((r, i) => i === registrosOperacaoCampo.length - 1 ? registro : r)
+    setRegistrosOperacaoCampo(novaLista)
+    const campos = { registros_operacao_campo: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
+    if (!error) setObras(prev => prev.map(o => o.id === modal.id ? { ...o, ...campos } : o))
+  }
+
+  function mudarAtividadesVisitaAtual(fn) {
+    setNovoRegistroAtividades(prev => {
+      const next = fn(prev)
+      salvarVisitaAtual({ atividades: next })
+      return next
+    })
+  }
+
+  async function criarNovaVisita() {
+    const novoRegistro = { data: paraIsoDataObraTexto(dataInicioObraTexto) || null, hora: null, equipe: [], atividades: [] }
+    const novaLista = [...registrosOperacaoCampo, novoRegistro]
+    setRegistrosOperacaoCampo(novaLista)
+    setEditandoVisitaIdx(null)
+    carregarFormularioVisita(null)
+    const campos = { registros_operacao_campo: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
+    if (!error) setObras(prev => prev.map(o => o.id === modal.id ? { ...o, ...campos } : o))
   }
 
   async function handleAdicionarFotosRelatorio(fileList) {
@@ -6841,13 +6927,12 @@ export default function App() {
                         setTransporteTeveOcorrencia(obra.transporte_teve_ocorrencia || '')
                         setTransporteOcorrenciaDescricao(obra.transporte_ocorrencia_descricao || '')
                         setAgendamentoData(obra.agendamento_data || '')
-                        setRegistrosOperacaoCampo(Array.isArray(obra.registros_operacao_campo) ? obra.registros_operacao_campo : [])
-                        setNovoRegistroData('')
-                        setNovoRegistroHora('')
-                        setNovoRegistroEquipe([])
-                        setNovoRegistroTerceirizado(false)
-                        setNovoRegistroTerceirizadoTexto('')
-                        setNovoRegistroAtividades({})
+                        {
+                          const listaRegistros = Array.isArray(obra.registros_operacao_campo) ? obra.registros_operacao_campo : []
+                          setRegistrosOperacaoCampo(listaRegistros)
+                          carregarFormularioVisita(listaRegistros[listaRegistros.length - 1] || null)
+                        }
+                        setEditandoVisitaIdx(null)
                         setMostrarEnvioRelatorio(false)
                         setFotosRelatorio([])
                         setErroEnvioRelatorio('')
@@ -7616,15 +7701,9 @@ export default function App() {
                 {modal.tipo === 'TRANSF UN' ? '🔁 Retornos ao ponto — visitas extras' : '🛠️ Dia da obra — visitas de campo'}
               </div>
 
-              {Array.isArray(modal.colaboradores_obra) && modal.colaboradores_obra.length > 0 && (
-                <div style={{ fontSize:12, color:'#1E40AF', background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:8, padding:'8px 10px', marginBottom:10 }}>
-                  👥 Equipe designada (Quem vai): {modal.colaboradores_obra.join(', ')}
-                </div>
-              )}
-
-              {registrosOperacaoCampo.length > 0 && (
+              {registrosOperacaoCampo.length > 1 && (
                 <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:12 }}>
-                  {registrosOperacaoCampo.map((r, idx) => (
+                  {registrosOperacaoCampo.slice(0, -1).map((r, idx) => (
                     <div key={idx} style={{ background:'#fff', border:'1px solid #CDD8E3', borderRadius:8, padding:10 }}>
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                         <div style={{ fontSize:12, fontWeight:600, color:'#1A2340' }}>{r.data ? isoToBr(r.data) : '(sem data)'}{r.hora ? ` ${r.hora}` : ''} — {(r.equipe||[]).join(', ') || '—'}</div>
@@ -7667,37 +7746,36 @@ export default function App() {
                 </div>
               )}
 
+              {(editandoVisitaIdx !== null || registrosOperacaoCampo.length > 0) && (
               <div style={{ background:'#fff', border:'1px dashed #B5D4F4', borderRadius:8, padding:12 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-                  <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700 }}>{editandoVisitaIdx !== null ? '✏️ Editando visita' : '+ Nova visita'}</div>
+                  <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700 }}>{editandoVisitaIdx !== null ? '✏️ Editando visita antiga' : '👥 Quem vai / o que foi feito (visita atual — salva sozinho)'}</div>
                   {editandoVisitaIdx !== null && (
                     <span onClick={() => {
                       setEditandoVisitaIdx(null)
-                      setNovoRegistroData('')
-                      setNovoRegistroHora('')
-                      setNovoRegistroEquipe([])
-                      setNovoRegistroTerceirizado(false)
-                      setNovoRegistroTerceirizadoTexto('')
-                      setNovoRegistroAtividades({})
+                      carregarFormularioVisita(registrosOperacaoCampo[registrosOperacaoCampo.length - 1] || null)
                     }} style={{ fontSize:11, color:'#64748B', cursor:'pointer', fontWeight:600 }}>Cancelar edição</span>
                   )}
                 </div>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
                   <div>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data</label>
-                    <input type="date" value={novoRegistroData || (paraIsoDataObraTexto(dataInicioObraTexto) || '')} onChange={e => setNovoRegistroData(e.target.value)}
+                    <input type="date" value={novoRegistroData || (paraIsoDataObraTexto(dataInicioObraTexto) || '')} onChange={e => { setNovoRegistroData(e.target.value); salvarVisitaAtual({ data: e.target.value }) }}
                       style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                   </div>
                   <div>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Hora</label>
-                    <input type="time" value={novoRegistroHora} onChange={e => setNovoRegistroHora(e.target.value)}
+                    <input type="time" value={novoRegistroHora} onChange={e => { setNovoRegistroHora(e.target.value); salvarVisitaAtual({ hora: e.target.value }) }}
                       style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                   </div>
                 </div>
                 <div style={{ fontSize:10, color:'#64748B', marginTop:-4, marginBottom:8 }}>Data preenchida a partir da data de início da obra confirmada — ajuste se essa visita for em outro dia. Hora é opcional.</div>
-                <SeletorEquipe titulo="Quem foi na obra" selecionados={novoRegistroEquipe} onChangeSelecionados={setNovoRegistroEquipe}
-                  terceirizado={novoRegistroTerceirizado} onChangeTerceirizado={setNovoRegistroTerceirizado}
-                  terceirizadoTexto={novoRegistroTerceirizadoTexto} onChangeTerceirizadoTexto={setNovoRegistroTerceirizadoTexto} />
+                <SeletorEquipe titulo="Quem vai" selecionados={novoRegistroEquipe}
+                  onChangeSelecionados={v => { setNovoRegistroEquipe(v); salvarVisitaAtual({ equipe: v }) }}
+                  terceirizado={novoRegistroTerceirizado}
+                  onChangeTerceirizado={v => { setNovoRegistroTerceirizado(v); salvarVisitaAtual({ terceirizado: v }) }}
+                  terceirizadoTexto={novoRegistroTerceirizadoTexto}
+                  onChangeTerceirizadoTexto={v => { setNovoRegistroTerceirizadoTexto(v); salvarVisitaAtual({ terceirizadoTexto: v }) }} />
                 <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, margin:'10px 0 6px' }}>O que foi feito nesta visita</div>
                 <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                   {atividadesOperacaoCampo(modal.rede, modal.tipo).map(atividade => {
@@ -7707,7 +7785,7 @@ export default function App() {
                       <div key={atividade} style={{ border:'1px solid #E0E8F0', borderRadius:8, padding:8 }}>
                         <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
                           <input type="checkbox" checked={marcado}
-                            onChange={e => setNovoRegistroAtividades(prev => {
+                            onChange={e => mudarAtividadesVisitaAtual(prev => {
                               const next = { ...prev }
                               if (e.target.checked) next[atividade] = { feita: null, impedimento: false, motivo:'' }
                               else delete next[atividade]
@@ -7720,7 +7798,7 @@ export default function App() {
                             <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>A atividade foi concluída?</div>
                             <div style={{ display:'flex', gap:8, marginBottom:8 }}>
                               {[{ v:true, l:'✓ Sim' }, { v:false, l:'✗ Não' }].map(op => (
-                                <span key={String(op.v)} onClick={() => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], feita: op.v } }))}
+                                <span key={String(op.v)} onClick={() => mudarAtividadesVisitaAtual(prev => ({ ...prev, [atividade]: { ...prev[atividade], feita: op.v } }))}
                                   style={{ fontSize:11, fontWeight:700, padding:'4px 10px', borderRadius:6, cursor:'pointer', background: dados.feita === op.v ? (op.v ? '#D1FAE5' : '#FEE2E2') : '#F1F5F9', color: dados.feita === op.v ? (op.v ? '#065F46' : '#991B1B') : '#64748B' }}>
                                   {op.l}
                                 </span>
@@ -7729,30 +7807,30 @@ export default function App() {
                             <div style={{ fontSize:10, color:'#64748B', marginTop:-4, marginBottom:8 }}>Deixe em branco se essa visita ainda não aconteceu — fica registrada como planejada pro Cenário, e você volta aqui pra completar depois (Editar).</div>
                             <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginBottom:6 }}>
                               <input type="checkbox" checked={dados.impedimento || false}
-                                onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], impedimento: e.target.checked } }))} />
+                                onChange={e => mudarAtividadesVisitaAtual(prev => ({ ...prev, [atividade]: { ...prev[atividade], impedimento: e.target.checked } }))} />
                               <span style={{ fontSize:12, color:'#1A2340' }}>Teve impedimento/desvio do que estava previsto (mesmo que a atividade tenha sido concluída de outro jeito)</span>
                             </label>
                             {dados.impedimento && (
                               atividade === 'Base' ? (
-                                <select value={dados.motivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], motivo: e.target.value } }))}
+                                <select value={dados.motivo || ''} onChange={e => mudarAtividadesVisitaAtual(prev => ({ ...prev, [atividade]: { ...prev[atividade], motivo: e.target.value } }))}
                                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
                                   <option value="">Selecione o motivo...</option>
                                   {MOTIVOS_IMPEDIMENTO_BASE.map(m => <option key={m} value={m}>{m}</option>)}
                                 </select>
                               ) : modal.rede === 'BRADESCO' ? (
-                                <select value={dados.motivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], motivo: e.target.value } }))}
+                                <select value={dados.motivo || ''} onChange={e => mudarAtividadesVisitaAtual(prev => ({ ...prev, [atividade]: { ...prev[atividade], motivo: e.target.value } }))}
                                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
                                   <option value="">Selecione o motivo...</option>
                                   {MOTIVOS_IMPEDIMENTO_BRADESCO.map(m => <option key={m} value={m}>{m}</option>)}
                                 </select>
                               ) : modal.tipo === 'SINALIZAÇÃO ATM' ? (
-                                <select value={dados.motivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], motivo: e.target.value } }))}
+                                <select value={dados.motivo || ''} onChange={e => mudarAtividadesVisitaAtual(prev => ({ ...prev, [atividade]: { ...prev[atividade], motivo: e.target.value } }))}
                                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
                                   <option value="">Selecione o motivo...</option>
                                   {MOTIVOS_IMPEDIMENTO_SINALIZACAO.map(m => <option key={m} value={m}>{m}</option>)}
                                 </select>
                               ) : (
-                                <input value={dados.motivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], motivo: up(e.target.value) } }))}
+                                <input value={dados.motivo || ''} onChange={e => mudarAtividadesVisitaAtual(prev => ({ ...prev, [atividade]: { ...prev[atividade], motivo: up(e.target.value) } }))}
                                   placeholder="Motivo do impedimento (lista fechada ainda não definida)"
                                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                               )
@@ -7760,7 +7838,7 @@ export default function App() {
                             {atividade === 'Outros' && (
                               <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #E0E8F0' }}>
                                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:4 }}>O que foi feito (obrigatório)</label>
-                                <input value={dados.descricao || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], descricao: up(e.target.value) } }))}
+                                <input value={dados.descricao || ''} onChange={e => mudarAtividadesVisitaAtual(prev => ({ ...prev, [atividade]: { ...prev[atividade], descricao: up(e.target.value) } }))}
                                   placeholder="Ex: retirar modem na StockTrans pro PC 98972"
                                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                               </div>
@@ -7770,33 +7848,33 @@ export default function App() {
                                 <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>Dimer foi finalizado?</div>
                                 <div style={{ display:'flex', gap:8, marginBottom:8 }}>
                                   {[{ v:true, l:'✓ Sim' }, { v:false, l:'✗ Não' }].map(op => (
-                                    <span key={String(op.v)} onClick={() => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], dimerFinalizado: op.v } }))}
+                                    <span key={String(op.v)} onClick={() => mudarAtividadesVisitaAtual(prev => ({ ...prev, [atividade]: { ...prev[atividade], dimerFinalizado: op.v } }))}
                                       style={{ fontSize:11, fontWeight:700, padding:'4px 10px', borderRadius:6, cursor:'pointer', background: dados.dimerFinalizado === op.v ? (op.v ? '#D1FAE5' : '#FEE2E2') : '#F1F5F9', color: dados.dimerFinalizado === op.v ? (op.v ? '#065F46' : '#991B1B') : '#64748B' }}>
                                       {op.l}
                                     </span>
                                   ))}
                                 </div>
                                 {dados.dimerFinalizado === false && (
-                                  <input value={dados.dimerMotivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], dimerMotivo: up(e.target.value) } }))}
+                                  <input value={dados.dimerMotivo || ''} onChange={e => mudarAtividadesVisitaAtual(prev => ({ ...prev, [atividade]: { ...prev[atividade], dimerMotivo: up(e.target.value) } }))}
                                     placeholder="Motivo do Dimer não finalizado (lista fechada ainda não definida)"
                                     style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', marginBottom:10 }} />
                                 )}
                                 <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>Alarme 253 foi finalizado?</div>
                                 <div style={{ display:'flex', gap:8, marginBottom:8 }}>
                                   {[{ v:true, l:'✓ Sim' }, { v:false, l:'✗ Não' }].map(op => (
-                                    <span key={String(op.v)} onClick={() => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], alarme253Finalizado: op.v } }))}
+                                    <span key={String(op.v)} onClick={() => mudarAtividadesVisitaAtual(prev => ({ ...prev, [atividade]: { ...prev[atividade], alarme253Finalizado: op.v } }))}
                                       style={{ fontSize:11, fontWeight:700, padding:'4px 10px', borderRadius:6, cursor:'pointer', background: dados.alarme253Finalizado === op.v ? (op.v ? '#D1FAE5' : '#FEE2E2') : '#F1F5F9', color: dados.alarme253Finalizado === op.v ? (op.v ? '#065F46' : '#991B1B') : '#64748B' }}>
                                       {op.l}
                                     </span>
                                   ))}
                                 </div>
                                 {dados.alarme253Finalizado === false && (
-                                  <input value={dados.alarme253Motivo || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], alarme253Motivo: up(e.target.value) } }))}
+                                  <input value={dados.alarme253Motivo || ''} onChange={e => mudarAtividadesVisitaAtual(prev => ({ ...prev, [atividade]: { ...prev[atividade], alarme253Motivo: up(e.target.value) } }))}
                                     placeholder="Motivo do Alarme 253 não finalizado (lista fechada ainda não definida)"
                                     style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', marginBottom:10 }} />
                                 )}
                                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Nome de quem atendeu a equipe no CGR</label>
-                                <input value={dados.cgrNome || ''} onChange={e => setNovoRegistroAtividades(prev => ({ ...prev, [atividade]: { ...prev[atividade], cgrNome: up(e.target.value) } }))}
+                                <input value={dados.cgrNome || ''} onChange={e => mudarAtividadesVisitaAtual(prev => ({ ...prev, [atividade]: { ...prev[atividade], cgrNome: up(e.target.value) } }))}
                                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                               </div>
                             )}
@@ -7828,14 +7906,12 @@ export default function App() {
                   })
                   function limparFormularioVisita() {
                     setEditandoVisitaIdx(null)
-                    setNovoRegistroData('')
-                    setNovoRegistroHora('')
-                    setNovoRegistroEquipe([])
-                    setNovoRegistroTerceirizado(false)
-                    setNovoRegistroTerceirizadoTexto('')
-                    setNovoRegistroAtividades({})
+                    carregarFormularioVisita(registrosOperacaoCampo[registrosOperacaoCampo.length - 1] || null)
                   }
-                  return (
+                  // Só existe botão explícito de salvar quando se está editando uma visita ANTIGA
+                  // (com a validação completa de sempre) - a visita atual salva sozinha a cada
+                  // mudança, direto nos campos acima (Shirley, 2026-09-08).
+                  return editandoVisitaIdx !== null && (
                     <button onClick={() => {
                       const atividades = marcadas.map(([atividade, d]) => ({
                         atividade, feita: d.feita === true || d.feita === false ? d.feita : null, impedimento: !!d.impedimento, motivo: d.impedimento ? (d.motivo || '') : '',
@@ -7848,20 +7924,27 @@ export default function App() {
                       }))
                       const equipe = [...novoRegistroEquipe, ...(novoRegistroTerceirizado ? [TERCEIRIZADO_PREFIXO + (novoRegistroTerceirizadoTexto.trim() || '(não informado)')] : [])]
                       const registro = { data: dataVisita || null, hora: novoRegistroHora || null, equipe, atividades }
-                      if (editandoVisitaIdx !== null) {
-                        setRegistrosOperacaoCampo(prev => prev.map((r, i) => i === editandoVisitaIdx ? registro : r))
-                      } else {
-                        setRegistrosOperacaoCampo(prev => [...prev, registro])
-                      }
+                      const novaLista = registrosOperacaoCampo.map((r, i) => i === editandoVisitaIdx ? registro : r)
+                      setRegistrosOperacaoCampo(novaLista)
+                      supabase.from('pipeline_obras').update({ registros_operacao_campo: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }).eq('id', modal.id)
+                        .then(({ error }) => { if (!error) setObras(prev => prev.map(o => o.id === modal.id ? { ...o, registros_operacao_campo: novaLista } : o)) })
                       limparFormularioVisita()
                     }}
                       disabled={!valida}
                       style={{ width:'100%', marginTop:10, padding:10, background: !valida ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: !valida ? 'default' : 'pointer' }}>
-                      {editandoVisitaIdx !== null ? '💾 Salvar edição' : '+ Adicionar visita'}
+                      💾 Salvar edição
                     </button>
                   )
                 })()}
               </div>
+              )}
+
+              {editandoVisitaIdx === null && (
+                <button onClick={criarNovaVisita}
+                  style={{ width:'100%', padding:10, background:'#2563EB', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer' }}>
+                  + Nova visita
+                </button>
+              )}
 
               {temTelaOperacaoCampo(modal.rede, modal.tipo) && (
               <>
