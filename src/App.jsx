@@ -6735,10 +6735,23 @@ export default function App() {
                         {obra.inicio && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Início</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.inicio}</div></div>}
                         {obra.termino && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Término</div><div style={{ fontSize:12, color:'#1A2340', fontWeight:500 }}>{obra.termino}</div></div>}
                         {obra.data_art && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>ART pronta</div><div style={{ fontSize:12, color:'#1A6B4A', fontWeight:600 }}>{isoToBr(obra.data_art)}</div></div>}
+                        {obra.correcao_pedido_solicitada_em && <div><div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:2 }}>Correção solicitada à Tecban</div><div style={{ fontSize:12, color:'#1E40AF', fontWeight:600 }}>✉ {new Date(obra.correcao_pedido_solicitada_em).toLocaleDateString('pt-BR')}</div><div style={{ fontSize:10, color:'#888' }}>por {obra.correcao_pedido_solicitada_por}</div></div>}
                       </div>
                       {obra.atualizado_por && (
                         <div style={{ fontSize:10, color:'#4A7FC1', marginBottom:8 }}>
                           Atualizado por {obra.atualizado_por} — {obra.atualizado_em ? new Date(obra.atualizado_em).toLocaleString('pt-BR') : ''}
+                        </div>
+                      )}
+                      {Array.isArray(obra.historico_edicoes) && obra.historico_edicoes.length > 0 && (
+                        <div style={{ marginBottom:10 }}>
+                          <div style={{ fontSize:10, color:'#888', textTransform:'uppercase', marginBottom:4 }}>Histórico de edições ({obra.historico_edicoes.length})</div>
+                          <div style={{ maxHeight:120, overflowY:'auto', border:'1px solid #E0E8F0', borderRadius:8, padding:'6px 8px' }}>
+                            {[...obra.historico_edicoes].reverse().map((h, i) => (
+                              <div key={i} style={{ fontSize:10, color:'#64748B', marginBottom:2 }}>
+                                {h.em ? new Date(h.em).toLocaleString('pt-BR') : '—'} — {h.por || '—'}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                       <div style={{ display:'flex', gap:8 }}>
