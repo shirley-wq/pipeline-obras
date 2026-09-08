@@ -7616,6 +7616,12 @@ export default function App() {
                 {modal.tipo === 'TRANSF UN' ? '🔁 Retornos ao ponto — visitas extras' : '🛠️ Dia da obra — visitas de campo'}
               </div>
 
+              {Array.isArray(modal.colaboradores_obra) && modal.colaboradores_obra.length > 0 && (
+                <div style={{ fontSize:12, color:'#1E40AF', background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:8, padding:'8px 10px', marginBottom:10 }}>
+                  👥 Equipe designada (Quem vai): {modal.colaboradores_obra.join(', ')}
+                </div>
+              )}
+
               {registrosOperacaoCampo.length > 0 && (
                 <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:12 }}>
                   {registrosOperacaoCampo.map((r, idx) => (
