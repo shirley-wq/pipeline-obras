@@ -2588,6 +2588,9 @@ export default function App() {
   const [checklistReprogramarTransportadora, setChecklistReprogramarTransportadora] = useState('')
   const [checklistComprovacaoImagem, setChecklistComprovacaoImagem] = useState('')
   const [checklistComprovacaoImagemProporcao, setChecklistComprovacaoImagemProporcao] = useState(0)
+  // Foto indicando onde o ATM será fixado, pro ADM anexar depois de conversar com o líder/EC
+  // (Shirley, 2026-09-08) - mesmo padrão do print de comprovação, mas sem entrar no PDF.
+  const [fotoLocalInstalacao, setFotoLocalInstalacao] = useState('')
   const [agendamentoData, setAgendamentoData] = useState('')
   const [registrosOperacaoCampo, setRegistrosOperacaoCampo] = useState([])
   const [novoRegistroData, setNovoRegistroData] = useState('')
@@ -3746,6 +3749,11 @@ export default function App() {
     setChecklistComprovacaoImagemProporcao(proporcao)
   }
 
+  async function handleFotoLocalInstalacao(file) {
+    if (!file) return
+    setFotoLocalInstalacao(await arquivoParaDataUrl(file))
+  }
+
   async function handleAdicionarFotosRelatorio(fileList) {
     const arquivos = Array.from(fileList || [])
     const novas = await Promise.all(arquivos.map(async file => ({
@@ -4021,6 +4029,7 @@ export default function App() {
       campos.checklist_pre_obra_reprogramar_transportadora = checklistAlteracaoSolicitada === 'SIM' ? (checklistReprogramarTransportadora || null) : null
       campos.checklist_pre_obra_comprovacao_imagem = checklistComprovacaoImagem || null
       campos.checklist_pre_obra_comprovacao_imagem_proporcao = checklistComprovacaoImagem ? checklistComprovacaoImagemProporcao : null
+      campos.foto_local_instalacao = fotoLocalInstalacao || null
       campos.transporte_compareceu_horario = transporteCompareceuHorario || null
       campos.transporte_tinha_ajudante = transporteTinhaAjudante || null
       campos.transporte_danificou_piso = transporteDanificouPiso || null
@@ -4104,6 +4113,7 @@ export default function App() {
     setChecklistReprogramarTransportadora('')
     setChecklistComprovacaoImagem('')
     setChecklistComprovacaoImagemProporcao(0)
+    setFotoLocalInstalacao('')
     setTransporteCompareceuHorario('')
     setTransporteTinhaAjudante('')
     setTransporteDanificouPiso('')
@@ -6823,6 +6833,7 @@ export default function App() {
                         setChecklistReprogramarTransportadora(obra.checklist_pre_obra_reprogramar_transportadora || '')
                         setChecklistComprovacaoImagem(obra.checklist_pre_obra_comprovacao_imagem || '')
                         setChecklistComprovacaoImagemProporcao(obra.checklist_pre_obra_comprovacao_imagem_proporcao || 0)
+                        setFotoLocalInstalacao(obra.foto_local_instalacao || '')
                         setTransporteCompareceuHorario(obra.transporte_compareceu_horario || '')
                         setTransporteTinhaAjudante(obra.transporte_tinha_ajudante || '')
                         setTransporteDanificouPiso(obra.transporte_danificou_piso || '')
@@ -7506,6 +7517,18 @@ export default function App() {
                   placeholder="Ex: João Silva, 14/08/2026 09:30"
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                 <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Preencher só quando o que foi realizado em campo é diferente do que o ARS indicava.</div>
+              </div>
+
+              <div style={{ marginBottom:12 }}>
+                <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>📷 Foto indicando o local de fixação do ATM</label>
+                <input type="file" accept="image/*" onChange={e => handleFotoLocalInstalacao(e.target.files?.[0])} />
+                {fotoLocalInstalacao && (
+                  <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:8 }}>
+                    <img src={fotoLocalInstalacao} alt="Local de fixação do ATM" style={{ maxWidth:160, maxHeight:160, borderRadius:6, border:'1px solid #CDD8E3', display:'block' }} />
+                    <span onClick={() => setFotoLocalInstalacao('')}
+                      style={{ color:'#EF4444', cursor:'pointer', fontSize:12, fontWeight:700 }}>✕ remover</span>
+                  </div>
+                )}
               </div>
 
               {modal.rede === 'BANCO24HORAS' && modal.tipo === 'INSTALAÇÃO ATM' && (
