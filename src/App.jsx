@@ -1723,7 +1723,7 @@ function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizad
 // (blindagem por ausência, não por condição - Shirley, 2026-09-04). Só designa "quem vai" na
 // atividade, reaproveitando o campo colaboradores_obra que a Shirley já usa na tela normal do
 // Pipeline. Veículo fica pra quando a Frota migrar pro Supabase.
-function CardAtividadeLider({ obra, data, onSalvar }) {
+function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
   const listaInicial = Array.isArray(obra.colaboradores_obra) ? obra.colaboradores_obra : []
   const [colabs, setColabs] = useState(listaInicial.filter(c => !c.startsWith(TERCEIRIZADO_PREFIXO)))
   const [terceirizado, setTerceirizado] = useState(listaInicial.some(c => c.startsWith(TERCEIRIZADO_PREFIXO)))
@@ -1805,7 +1805,7 @@ function CardAtividadeLider({ obra, data, onSalvar }) {
         setSalvando(true)
         const lista = [...colabs, ...(terceirizado ? [TERCEIRIZADO_PREFIXO + (terceirizadoTexto.trim() || '(não informado)')] : [])]
         const valor = lista.length > 0 ? lista : null
-        const campos = { colaboradores_obra: valor }
+        const campos = { colaboradores_obra: valor, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
         if (temArs) {
           campos.ec_nome = ecNome.trim() || null
           campos.ec_telefone = ecTelefone.trim() || null
@@ -5430,7 +5430,7 @@ export default function App() {
             <div style={{ fontSize:12, color:'#64748B', marginBottom:14 }}>{atividades.length} atividade(s) · ordenadas por data</div>
             {atividades.length === 0 && <div style={{ textAlign:'center', color:'#888', marginTop:40, fontSize:14 }}>Nenhuma atividade encontrada.</div>}
             {atividades.map(({ obra, data }) => (
-              <CardAtividadeLider key={obra.id} obra={obra} data={data}
+              <CardAtividadeLider key={obra.id} obra={obra} data={data} usuario={usuario}
                 onSalvar={(id, campos) => setObras(prev => prev.map(o => o.id === id ? { ...o, ...campos } : o))} />
             ))}
           </div>
