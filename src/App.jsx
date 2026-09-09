@@ -7923,7 +7923,7 @@ export default function App() {
                     }} style={{ fontSize:11, color:'#64748B', cursor:'pointer', fontWeight:600 }}>Cancelar edição</span>
                   )}
                 </div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 2fr', gap:8, marginBottom:4 }}>
                   <div>
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data</label>
                     <input type="date" value={novoRegistroData || (paraIsoDataObraTexto(dataInicioObraTexto) || '')} onChange={e => { setNovoRegistroData(e.target.value); salvarVisitaAtual({ data: e.target.value }) }}
@@ -7934,14 +7934,14 @@ export default function App() {
                     <input type="time" value={novoRegistroHora} onChange={e => { setNovoRegistroHora(e.target.value); salvarVisitaAtual({ hora: e.target.value }) }}
                       style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                   </div>
+                  <SeletorEquipe titulo="Quem vai" selecionados={novoRegistroEquipe}
+                    onChangeSelecionados={v => { setNovoRegistroEquipe(v); salvarVisitaAtual({ equipe: v }) }}
+                    terceirizado={novoRegistroTerceirizado}
+                    onChangeTerceirizado={v => { setNovoRegistroTerceirizado(v); salvarVisitaAtual({ terceirizado: v }) }}
+                    terceirizadoTexto={novoRegistroTerceirizadoTexto}
+                    onChangeTerceirizadoTexto={v => { setNovoRegistroTerceirizadoTexto(v); salvarVisitaAtual({ terceirizadoTexto: v }) }} />
                 </div>
-                <div style={{ fontSize:10, color:'#64748B', marginTop:-4, marginBottom:8 }}>Data preenchida a partir da data de início da obra confirmada — ajuste se essa visita for em outro dia. Hora é opcional.</div>
-                <SeletorEquipe titulo="Quem vai" selecionados={novoRegistroEquipe}
-                  onChangeSelecionados={v => { setNovoRegistroEquipe(v); salvarVisitaAtual({ equipe: v }) }}
-                  terceirizado={novoRegistroTerceirizado}
-                  onChangeTerceirizado={v => { setNovoRegistroTerceirizado(v); salvarVisitaAtual({ terceirizado: v }) }}
-                  terceirizadoTexto={novoRegistroTerceirizadoTexto}
-                  onChangeTerceirizadoTexto={v => { setNovoRegistroTerceirizadoTexto(v); salvarVisitaAtual({ terceirizadoTexto: v }) }} />
+                <div style={{ fontSize:10, color:'#64748B', marginTop:-2, marginBottom:8 }}>Data preenchida a partir da data de início da obra confirmada — ajuste se essa visita for em outro dia. Hora é opcional.</div>
                 <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, margin:'10px 0 6px' }}>O que foi feito nesta visita</div>
                 <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                   {atividadesOperacaoCampo(modal.rede, modal.tipo).map(atividade => {
