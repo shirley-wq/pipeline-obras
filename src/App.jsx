@@ -7591,54 +7591,54 @@ export default function App() {
 
             {podeVerValores && (
               <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:12, padding:14, marginBottom:16 }}>
-                <div style={{ fontSize:12, color:'#9A3412', fontWeight:700, marginBottom:10 }}>📥 Conferência do pedido de faturamento</div>
-                <div style={{ background:'#FEF2F2', border:'2px solid #DC2626', borderRadius:8, padding:'10px 14px', marginBottom:12, textAlign:'center' }}>
-                  <div style={{ fontSize:14, color:'#991B1B', fontWeight:800 }}>⚠️ NÃO PRECISA PREENCHER AQUI</div>
-                  <div style={{ fontSize:11, color:'#991B1B', fontWeight:600, marginTop:2 }}>Esses campos são preenchidos automaticamente pelo robô a partir do PDF do pedido. Se estiver em branco, é porque o robô ainda não processou — não é pra preencher na mão.</div>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10, flexWrap:'wrap' }}>
+                  <div style={{ fontSize:12, color:'#9A3412', fontWeight:700 }}>📥 Conferência do pedido de faturamento</div>
+                  <div style={{ flex:1, minWidth:260, background:'#FEF2F2', border:'2px solid #DC2626', borderRadius:8, padding:'5px 10px', display:'flex', alignItems:'baseline', gap:6, flexWrap:'wrap' }}>
+                    <span style={{ fontSize:12, color:'#991B1B', fontWeight:800, whiteSpace:'nowrap' }}>⚠️ NÃO PRECISA PREENCHER AQUI</span>
+                    <span style={{ fontSize:10, color:'#991B1B', fontWeight:600 }}>Esses campos são preenchidos automaticamente pelo robô a partir do PDF do pedido. Se estiver em branco, é porque o robô ainda não processou.</span>
+                  </div>
                 </div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:10 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'0.8fr 0.8fr 1.2fr 1.2fr 1.5fr 2.5fr', gap:8, marginBottom:6 }}>
                   <div>
-                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Valor no pedido (R$)</label>
+                    <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Valor no pedido (R$)</label>
                     <input type="number" value={editDados.pedido_valor} onChange={e => setEditDados(d => ({...d, pedido_valor:e.target.value}))}
-                      style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                      style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                   </div>
                   <div>
-                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>OS no pedido</label>
+                    <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>OS no pedido</label>
                     <input value={editDados.pedido_os} onChange={e => setEditDados(d => ({...d, pedido_os:e.target.value}))}
-                      style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                      style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                   </div>
                   <div>
-                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>CNPJ indicado no pedido</label>
+                    <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>CNPJ indicado no pedido</label>
                     <select value={editDados.pedido_cnpj} onChange={e => setEditDados(d => ({...d, pedido_cnpj:e.target.value}))}
-                      style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
+                      style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
                       <option value="">—</option>
                       <option value={CNPJS_GRUPOPG.SP}>SP — {CNPJS_GRUPOPG.SP}</option>
                       <option value={CNPJS_GRUPOPG.RJ}>RJ — {CNPJS_GRUPOPG.RJ}</option>
                       <option value={CNPJS_GRUPOPG.MG}>MG — {CNPJS_GRUPOPG.MG}</option>
                     </select>
                   </div>
-                </div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
                   <div>
-                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>CNPJ da Tecban (dados para faturamento)</label>
+                    <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>CNPJ da Tecban (faturamento)</label>
                     <input value={editDados.pedido_tecban_cnpj} onChange={e => setEditDados(d => ({...d, pedido_tecban_cnpj:e.target.value}))}
                       placeholder="Ex: 51.427.102/0019-58"
-                      style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                      style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                   </div>
                   <div>
-                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Razão social da Tecban no pedido</label>
+                    <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Razão social da Tecban no pedido</label>
                     <input value={editDados.pedido_tecban_nome} onChange={e => setEditDados(d => ({...d, pedido_tecban_nome:up(e.target.value)}))}
                       placeholder="Ex: TECNOLOGIA BANCARIA S.A. / TBSI"
-                      style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                      style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Endereço do tomador no pedido</label>
+                    <input value={editDados.pedido_tecban_endereco} onChange={e => setEditDados(d => ({...d, pedido_tecban_endereco:up(e.target.value)}))}
+                      placeholder="Ex: AV PROFESSOR JOAO FIUSA 1901 - JD BOTANICO - RIBEIRAO PRETO - SP - CEP: 14024-250"
+                      style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                   </div>
                 </div>
-                <div style={{ marginBottom:10 }}>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Endereço do tomador no pedido ("Dados para Faturamento")</label>
-                  <input value={editDados.pedido_tecban_endereco} onChange={e => setEditDados(d => ({...d, pedido_tecban_endereco:up(e.target.value)}))}
-                    placeholder="Ex: AV PROFESSOR JOAO FIUSA 1901 - JD BOTANICO - RIBEIRAO PRETO - SP - CEP: 14024-250"
-                    style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-                </div>
-                <div style={{ fontSize:10, color:'#64748B', marginTop:-6, marginBottom:10 }}>Dado informativo pro faturamento (Aline) — não entra na conferência de bate/não bate. O endereço é o "padrão" da unidade tomadora (o mesmo do pedido), não o endereço físico da obra.</div>
+                <div style={{ fontSize:10, color:'#64748B', marginBottom:10 }}>Dado informativo pro faturamento (Aline) — não entra na conferência de bate/não bate. O endereço é o "padrão" da unidade tomadora (o mesmo do pedido), não o endereço físico da obra.</div>
                 {(editDados.pedido_valor !== '' || editDados.pedido_os.trim() || editDados.pedido_cnpj) && (() => {
                   const valorObra = parseFloat(String(editDados.valor).replace(',', '.')) || 0
                   const valorPedido = parseFloat(String(editDados.pedido_valor).replace(',', '.')) || 0
