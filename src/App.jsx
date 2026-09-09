@@ -7491,102 +7491,97 @@ export default function App() {
                   🔁 Duplicar p/ nova operação (mesma OS)
                 </span>
               </div>
-              <div style={{ display:'flex', gap:8, marginBottom:4, alignItems:'flex-end' }}>
+              <div style={{ display:'flex', gap:8, marginBottom:8, alignItems:'flex-end' }}>
                 {modal.rede === 'BANCO24HORAS' && (
-                <div style={{ width:110, flexShrink:0 }}>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Número do PC</label>
+                <div style={{ width:100, flexShrink:0 }}>
+                  <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Número do PC</label>
                   <input value={editDados.numero_pc} onChange={e => setEditDados(d => ({...d, numero_pc:e.target.value}))}
-                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                    style={{ width:'100%', padding:'6px 8px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                 </div>
                 )}
-                <div style={{ flex:2 }}>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Nome</label>
+                <div style={{ flex:1.6 }}>
+                  <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Nome</label>
                   <input value={editDados.nome} onChange={e => setEditDados(d => ({...d, nome:up(e.target.value)}))}
-                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                    style={{ width:'100%', padding:'6px 8px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                 </div>
-                <div style={{ flex:1.3 }}>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Tipo de serviço</label>
+                <div style={{ flex:2.4 }}>
+                  <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Endereço</label>
+                  <input value={editDados.endereco} onChange={e => setEditDados(d => ({...d, endereco:up(e.target.value)}))}
+                    placeholder="Rua, número, CEP"
+                    style={{ width:'100%', padding:'6px 8px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+                <div style={{ flex:1 }}>
+                  <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Cidade</label>
+                  <input value={editDados.cidade} onChange={e => setEditDados(d => ({...d, cidade:up(e.target.value)}))}
+                    style={{ width:'100%', padding:'6px 8px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+                <div style={{ width:50, flexShrink:0 }}>
+                  <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>UF</label>
+                  <input value={editDados.uf} maxLength={2} onChange={e => setEditDados(d => ({...d, uf:e.target.value.toUpperCase()}))}
+                    style={{ width:'100%', padding:'6px 8px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box', textTransform:'uppercase' }} />
+                </div>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns: `1.3fr ${(TIPOS_BDN.includes(modal.tipo) && modal.rede !== 'BANCO24HORAS') ? '0.8fr ' : ''}0.8fr 0.8fr 0.8fr ${podeVerValores ? '0.8fr ' : ''}0.8fr 0.8fr 1.3fr 1.3fr`, gap:8 }}>
+                <div>
+                  <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Tipo de serviço</label>
                   <select value={editDados.tipo || modal.tipo} onChange={e => setEditDados(d => ({...d, tipo:e.target.value}))}
                     title="Corrige tipo importado errado do SIGE - só troca entre tipos que usam a mesma régua (ATM entre si, obra de agência entre si)."
-                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
+                    style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
                     {tiposDaMesmaFamilia(modal.tipo).map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
-              </div>
-              <div style={{ display:'grid', gridTemplateColumns: `2.2fr 1fr 0.5fr ${podeVerValores ? '0.9fr ' : ''}0.9fr ${(TIPOS_BDN.includes(modal.tipo) && modal.rede !== 'BANCO24HORAS') ? '0.9fr ' : ''}0.9fr 0.9fr 0.9fr 0.9fr`, gap:8, marginTop:10 }}>
+                {TIPOS_BDN.includes(modal.tipo) && modal.rede !== 'BANCO24HORAS' && (
                 <div>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Endereço</label>
-                  <input value={editDados.endereco} onChange={e => setEditDados(d => ({...d, endereco:up(e.target.value)}))}
-                    placeholder="Rua, número, CEP"
-                    style={{ width:'100%', padding:'8px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                  <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>PC/BDN</label>
+                  <input value={editDados.numero_pc} onChange={e => setEditDados(d => ({...d, numero_pc:e.target.value}))}
+                    style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                </div>
+                )}
+                <div>
+                  <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>OS Tecban</label>
+                  <input value={editDados.os_tecban} onChange={e => setEditDados(d => ({...d, os_tecban:e.target.value}))}
+                    style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Cidade</label>
-                  <input value={editDados.cidade} onChange={e => setEditDados(d => ({...d, cidade:up(e.target.value)}))}
-                    style={{ width:'100%', padding:'8px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                  <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Nº operação (RM)</label>
+                  <input value={editDados.numero_operacao} onChange={e => setEditDados(d => ({...d, numero_operacao:e.target.value}))}
+                    placeholder="ex: 10, 20..."
+                    style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>UF</label>
-                  <input value={editDados.uf} maxLength={2} onChange={e => setEditDados(d => ({...d, uf:e.target.value.toUpperCase()}))}
-                    style={{ width:'100%', padding:'8px 8px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', textTransform:'uppercase' }} />
+                  <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>SIGE</label>
+                  <input value={editDados.sige} onChange={e => setEditDados(d => ({...d, sige:e.target.value}))}
+                    style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                 </div>
                 {podeVerValores && (
                 <div>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Valor (R$)</label>
+                  <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Valor (R$)</label>
                   <input type="number" value={editDados.valor} onChange={e => setEditDados(d => ({...d, valor:e.target.value}))}
-                    style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                    style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                 </div>
                 )}
                 <div>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>SIGE</label>
-                  <input value={editDados.sige} onChange={e => setEditDados(d => ({...d, sige:e.target.value}))}
-                    style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-                </div>
-                {TIPOS_BDN.includes(modal.tipo) && modal.rede !== 'BANCO24HORAS' && (
-                <div>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>PC/BDN</label>
-                  <input value={editDados.numero_pc} onChange={e => setEditDados(d => ({...d, numero_pc:e.target.value}))}
-                    style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-                </div>
-                )}
-                <div>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>OS Tecban</label>
-                  <input value={editDados.os_tecban} onChange={e => setEditDados(d => ({...d, os_tecban:e.target.value}))}
-                    style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Nº operação (RM)</label>
-                  <input value={editDados.numero_operacao} onChange={e => setEditDados(d => ({...d, numero_operacao:e.target.value}))}
-                    placeholder="ex: 10, 20..."
-                    style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Pedido</label>
+                  <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Pedido</label>
                   <input value={editDados.pedido} onChange={e => setEditDados(d => ({...d, pedido:e.target.value}))}
-                    style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                    style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>NF</label>
+                  <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>NF</label>
                   <input value={editDados.nf} onChange={e => setEditDados(d => ({...d, nf:e.target.value}))}
-                    style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                    style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
                 </div>
-              </div>
-            </div>
-
-            <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
                 <div>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Responsável do escritório *</label>
+                  <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Responsável do escritório *</label>
                   <select value={responsavelEscritorio} onChange={e => setResponsavelEscritorio(e.target.value)}
-                    style={{ width:'100%', padding:'8px 6px', border: !responsavelEscritorio.trim() ? '1px solid #DC2626' : '1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
+                    style={{ width:'100%', padding:'6px 6px', border: !responsavelEscritorio.trim() ? '1px solid #DC2626' : '1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
                     <option value="">—</option>
                     {COLABORADORES_ESCRITORIO.map(nome => <option key={nome} value={nome}>{nome}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Auxiliar do escritório</label>
+                  <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Auxiliar do escritório</label>
                   <select value={auxiliarEscritorio} onChange={e => setAuxiliarEscritorio(e.target.value)}
-                    style={{ width:'100%', padding:'8px 6px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
+                    style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
                     <option value="">—</option>
                     {COLABORADORES_ESCRITORIO.map(nome => <option key={nome} value={nome}>{nome}</option>)}
                   </select>
