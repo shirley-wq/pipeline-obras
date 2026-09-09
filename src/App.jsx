@@ -4053,7 +4053,23 @@ export default function App() {
     const acordoTexto = clienteAcordoFixacao === 'SIM' ? 'Sim, está de acordo'
       : clienteAcordoFixacao === 'NAO' ? `Não está de acordo — Motivo: ${clienteAcordoFixacaoMotivo || '—'}`
       : '—'
-    return `Prezados,\n\nContato realizado com o EC e agendamento confirmado para a atividade de ${modal.tipo}${editDados.numero_pc ? ` (PC ${editDados.numero_pc})` : ''} - ${modal.nome}${localTexto ? `, em ${localTexto}` : ''}.\n\nContato do EC: ${ecNome || '—'}${ecTelefone ? ` (${ecTelefone})` : ''}\nData/hora confirmada com o cliente: ${dataHora || '—'}\nCliente de acordo com o tipo de fixação: ${acordoTexto}${autorizacaoMudanca.trim() ? `\nMudança autorizada por: ${autorizacaoMudanca}` : ''}\n\nAtenciosamente,\nGrupo PG\n${new Date().toLocaleString('pt-BR')} · Enviado por ${usuario?.email || ''}`
+    let checklistTexto = ''
+    if (modal.rede === 'BANCO24HORAS' && modal.tipo === 'INSTALAÇÃO ATM') {
+      const linha = (rotulo, valor, detalhe) => `- ${rotulo}: ${valor === 'SIM' ? 'Sim' : valor === 'NAO' ? 'Não' : '—'}${detalhe ? ` — ${detalhe}` : ''}`
+      const itens = [
+        linha('O acesso à obra está autorizado?', checklistAcessoAutorizado, checklistAcessoAutorizado === 'NAO' ? checklistAcessoMotivo : ''),
+        linha('O local estará aberto/funcionando no horário da obra?', checklistLocalAberto, ''),
+        linha('O local está em obra?', checklistLocalEmObra, checklistLocalEmObra === 'SIM' ? `Previsão de término: ${checklistTerminoPrevisao || '—'}` : ''),
+        linha('O local já foi inaugurado?', checklistLocalInaugurado, checklistLocalInaugurado === 'NAO' ? `Previsão de inauguração: ${checklistInauguracaoPrevisao || '—'}` : ''),
+        linha('O local está liberado para execução da obra?', checklistLocalLiberado, checklistLocalLiberado === 'NAO' ? checklistLocalLiberadoMotivo : ''),
+        linha('O EC autoriza a realização de barulho?', checklistBarulhoAutorizado, checklistBarulhoAutorizado === 'SIM' ? `Horário/período: ${checklistBarulhoHorario || '—'}` : ''),
+        linha('O EC solicitou alteração de data ou horário?', checklistAlteracaoSolicitada, checklistAlteracaoSolicitada === 'SIM'
+          ? `Nova data/horário: ${isoToBr(checklistNovaData) || '—'} ${checklistNovoHorario || ''} — Reprogramar transportadora: ${checklistReprogramarTransportadora === 'SIM' ? 'Sim' : checklistReprogramarTransportadora === 'NAO' ? 'Não' : '—'}`
+          : ''),
+      ]
+      checklistTexto = `\n\nChecklist de validação pré-obra:\n${itens.join('\n')}`
+    }
+    return `Prezados,\n\nContato realizado com o EC e agendamento confirmado para a atividade de ${modal.tipo}${editDados.numero_pc ? ` (PC ${editDados.numero_pc})` : ''} - ${modal.nome}${localTexto ? `, em ${localTexto}` : ''}.\n\nContato do EC: ${ecNome || '—'}${ecTelefone ? ` (${ecTelefone})` : ''}\nData/hora confirmada com o cliente: ${dataHora || '—'}\nCliente de acordo com o tipo de fixação: ${acordoTexto}${autorizacaoMudanca.trim() ? `\nMudança autorizada por: ${autorizacaoMudanca}` : ''}${checklistTexto}\n\nAtenciosamente,\nGrupo PG\n${new Date().toLocaleString('pt-BR')} · Enviado por ${usuario?.email || ''}`
   }
 
   function dataUrlParaFoto(dataUrl, filename) {
@@ -4067,7 +4083,10 @@ export default function App() {
     try {
       const assunto = montaAssuntoAgendamentoTecban()
       const corpo = montaCorpoAgendamentoTecban()
-      const fotos = [dataUrlParaFoto(fotoLocalInstalacao, 'local_fixacao.jpg')].filter(Boolean)
+      const fotos = [
+        dataUrlParaFoto(fotoLocalInstalacao, 'local_fixacao.jpg'),
+        dataUrlParaFoto(checklistComprovacaoImagem, 'print_comprovacao.jpg'),
+      ].filter(Boolean)
       const { data: { session } } = await supabase.auth.getSession()
       const resp = await fetch(EDGE_FUNCTION_TECBAN_URL, {
         method: 'POST',
@@ -7843,7 +7862,11 @@ export default function App() {
                   <div style={{ fontSize:12, color:'#374151', marginBottom:8 }}><strong>Assunto:</strong> {montaAssuntoAgendamentoTecban()}</div>
                   <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>Texto do e-mail</div>
                   <div style={{ fontSize:12, color:'#374151', whiteSpace:'pre-wrap', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, padding:10, marginBottom:10 }}>{montaCorpoAgendamentoTecban()}</div>
-                  {fotoLocalInstalacao && <div style={{ fontSize:11, color:'#64748B', marginBottom:8 }}>Anexo: foto do local de fixação</div>}
+                  {(fotoLocalInstalacao || checklistComprovacaoImagem) && (
+                    <div style={{ fontSize:11, color:'#64748B', marginBottom:8 }}>
+                      Anexo: {[fotoLocalInstalacao && 'foto do local de fixação', checklistComprovacaoImagem && 'print da comprovação'].filter(Boolean).join(' + ')}
+                    </div>
+                  )}
                   {erroEnvioAgendamento && <div style={{ fontSize:12, color:'#DC2626', marginBottom:8 }}>{erroEnvioAgendamento}</div>}
                   <div style={{ display:'flex', gap:8 }}>
                     <button onClick={() => { setMostrarEnvioAgendamento(false); setErroEnvioAgendamento('') }} disabled={enviandoAgendamento}
