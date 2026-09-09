@@ -7589,111 +7589,6 @@ export default function App() {
               </div>
             </div>
 
-            {podeVerValores && (
-              <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:12, padding:14, marginBottom:16 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10, flexWrap:'wrap' }}>
-                  <div style={{ fontSize:12, color:'#9A3412', fontWeight:700 }}>📥 Conferência do pedido de faturamento</div>
-                  <div style={{ flex:1, minWidth:260, background:'#FEF2F2', border:'2px solid #DC2626', borderRadius:8, padding:'5px 10px', display:'flex', alignItems:'baseline', gap:6, flexWrap:'wrap' }}>
-                    <span style={{ fontSize:12, color:'#991B1B', fontWeight:800, whiteSpace:'nowrap' }}>⚠️ NÃO PRECISA PREENCHER AQUI</span>
-                    <span style={{ fontSize:10, color:'#991B1B', fontWeight:600 }}>Esses campos são preenchidos automaticamente pelo robô a partir do PDF do pedido. Se estiver em branco, é porque o robô ainda não processou.</span>
-                  </div>
-                </div>
-                <div style={{ display:'grid', gridTemplateColumns:'0.8fr 0.8fr 1.2fr 1.2fr 1.5fr 2.5fr', gap:8, marginBottom:6 }}>
-                  <div>
-                    <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Valor no pedido (R$)</label>
-                    <input type="number" value={editDados.pedido_valor} onChange={e => setEditDados(d => ({...d, pedido_valor:e.target.value}))}
-                      style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>OS no pedido</label>
-                    <input value={editDados.pedido_os} onChange={e => setEditDados(d => ({...d, pedido_os:e.target.value}))}
-                      style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>CNPJ indicado no pedido</label>
-                    <select value={editDados.pedido_cnpj} onChange={e => setEditDados(d => ({...d, pedido_cnpj:e.target.value}))}
-                      style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
-                      <option value="">—</option>
-                      <option value={CNPJS_GRUPOPG.SP}>SP — {CNPJS_GRUPOPG.SP}</option>
-                      <option value={CNPJS_GRUPOPG.RJ}>RJ — {CNPJS_GRUPOPG.RJ}</option>
-                      <option value={CNPJS_GRUPOPG.MG}>MG — {CNPJS_GRUPOPG.MG}</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>CNPJ da Tecban (faturamento)</label>
-                    <input value={editDados.pedido_tecban_cnpj} onChange={e => setEditDados(d => ({...d, pedido_tecban_cnpj:e.target.value}))}
-                      placeholder="Ex: 51.427.102/0019-58"
-                      style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Razão social da Tecban no pedido</label>
-                    <input value={editDados.pedido_tecban_nome} onChange={e => setEditDados(d => ({...d, pedido_tecban_nome:up(e.target.value)}))}
-                      placeholder="Ex: TECNOLOGIA BANCARIA S.A. / TBSI"
-                      style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Endereço do tomador no pedido</label>
-                    <input value={editDados.pedido_tecban_endereco} onChange={e => setEditDados(d => ({...d, pedido_tecban_endereco:up(e.target.value)}))}
-                      placeholder="Ex: AV PROFESSOR JOAO FIUSA 1901 - JD BOTANICO - RIBEIRAO PRETO - SP - CEP: 14024-250"
-                      style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
-                  </div>
-                </div>
-                <div style={{ fontSize:10, color:'#64748B', marginBottom:10 }}>Dado informativo pro faturamento (Aline) — não entra na conferência de bate/não bate. O endereço é o "padrão" da unidade tomadora (o mesmo do pedido), não o endereço físico da obra.</div>
-                {(editDados.pedido_valor !== '' || editDados.pedido_os.trim() || editDados.pedido_cnpj) && (() => {
-                  const valorObra = parseFloat(String(editDados.valor).replace(',', '.')) || 0
-                  const valorPedido = parseFloat(String(editDados.pedido_valor).replace(',', '.')) || 0
-                  const valorBate = editDados.pedido_valor !== '' && Math.abs(valorPedido - valorObra) < 0.01
-                  const osBate = editDados.pedido_os.trim() !== '' && editDados.pedido_os.trim() === editDados.os_tecban.trim()
-                  const ufObra = editDados.uf.trim().toUpperCase()
-                  const cnpjEsperado = cnpjEsperadoParaUF(ufObra)
-                  const cnpjBate = !!editDados.pedido_cnpj && editDados.pedido_cnpj === cnpjEsperado
-                  const linha = (ok, label) => (
-                    <div style={{ fontSize:12, color: ok ? '#065F46' : '#991B1B', fontWeight:600 }}>{ok ? '✓' : '✗'} {label}</div>
-                  )
-                  return (
-                    <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-                      {editDados.pedido_valor !== '' && linha(valorBate, valorBate ? `Valor bate (R$ ${valorObra.toFixed(2)})` : `Valor não bate — pedido R$ ${valorPedido.toFixed(2)} x obra R$ ${valorObra.toFixed(2)}`)}
-                      {editDados.pedido_os.trim() && linha(osBate, osBate ? 'OS bate' : `OS não bate — pedido "${editDados.pedido_os}" x cadastro "${editDados.os_tecban}"`)}
-                      {editDados.pedido_cnpj && linha(cnpjBate, cnpjBate ? `CNPJ bate (esperado pra ${ufObra || '—'})` : `CNPJ não bate — obra é ${ufObra || '?'}, esperado ${cnpjEsperado}`)}
-                    </div>
-                  )
-                })()}
-                {divergenciasPedido().length > 0 && (
-                  <div style={{ marginTop:10 }}>
-                    {modal.correcao_pedido_solicitada_em && (
-                      <div style={{ fontSize:11, color:'#92400E', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'6px 10px', marginBottom:6 }}>
-                        ⚠ Correção já solicitada em {new Date(modal.correcao_pedido_solicitada_em).toLocaleString('pt-BR')} por {modal.correcao_pedido_solicitada_por} — confira antes de enviar de novo.
-                      </div>
-                    )}
-                    <button onClick={() => { setMostrarEnvioCorrecaoPedido(true); setErroEnvioCorrecaoPedido('') }}
-                      style={{ width:'100%', padding:10, background:'#DC2626', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
-                      📧 Solicitar correção à Tecban
-                    </button>
-                    {mostrarEnvioCorrecaoPedido && (
-                      <div style={{ marginTop:10, background:'#fff', border:'1px solid #CDD8E3', borderRadius:8, padding:12 }}>
-                        <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:8 }}>Revisar antes de enviar</div>
-                        <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Para:</strong> {EMAIL_CORRECAO_PEDIDO_TECBAN}</div>
-                        <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Cc:</strong> {EMAIL_CC_CORRECAO_PEDIDO}</div>
-                        <div style={{ fontSize:12, color:'#374151', marginBottom:8 }}><strong>Assunto:</strong> {montaAssuntoCorrecaoPedido()}</div>
-                        <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>Texto do e-mail</div>
-                        <div style={{ fontSize:12, color:'#374151', whiteSpace:'pre-wrap', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, padding:10, marginBottom:10 }}>{montaCorpoCorrecaoPedido()}</div>
-                        {erroEnvioCorrecaoPedido && <div style={{ fontSize:12, color:'#DC2626', marginBottom:8 }}>{erroEnvioCorrecaoPedido}</div>}
-                        <div style={{ display:'flex', gap:8 }}>
-                          <button onClick={() => { setMostrarEnvioCorrecaoPedido(false); setErroEnvioCorrecaoPedido('') }} disabled={enviandoCorrecaoPedido}
-                            style={{ flex:1, padding:10, background:'#F1F5F9', color:'#1A2340', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
-                            Cancelar
-                          </button>
-                          <button onClick={enviarCorrecaoPedidoTecban} disabled={enviandoCorrecaoPedido}
-                            style={{ flex:1, padding:10, background: enviandoCorrecaoPedido ? '#94A3B8' : '#DC2626', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: enviandoCorrecaoPedido ? 'default' : 'pointer' }}>
-                            {enviandoCorrecaoPedido ? 'Enviando...' : 'Confirmar envio'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
 
             {!(modal.rede && modal.rede !== 'BRADESCO' && SEM_VISTORIA_BANCO24H.includes(modal.tipo)) && (
             <>
@@ -8350,6 +8245,112 @@ export default function App() {
               </>
               )}
             </div>
+            )}
+
+            {podeVerValores && (
+              <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:12, padding:14, marginBottom:16 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10, flexWrap:'wrap' }}>
+                  <div style={{ fontSize:12, color:'#9A3412', fontWeight:700 }}>📥 Conferência do pedido de faturamento</div>
+                  <div style={{ flex:1, minWidth:260, background:'#FEF2F2', border:'2px solid #DC2626', borderRadius:8, padding:'5px 10px', display:'flex', alignItems:'baseline', gap:6, flexWrap:'wrap' }}>
+                    <span style={{ fontSize:12, color:'#991B1B', fontWeight:800, whiteSpace:'nowrap' }}>⚠️ NÃO PRECISA PREENCHER AQUI</span>
+                    <span style={{ fontSize:10, color:'#991B1B', fontWeight:600 }}>Esses campos são preenchidos automaticamente pelo robô a partir do PDF do pedido. Se estiver em branco, é porque o robô ainda não processou.</span>
+                  </div>
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'0.8fr 0.8fr 1.2fr 1.2fr 1.5fr 2.5fr', gap:8, marginBottom:6 }}>
+                  <div>
+                    <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Valor no pedido (R$)</label>
+                    <input type="number" value={editDados.pedido_valor} onChange={e => setEditDados(d => ({...d, pedido_valor:e.target.value}))}
+                      style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>OS no pedido</label>
+                    <input value={editDados.pedido_os} onChange={e => setEditDados(d => ({...d, pedido_os:e.target.value}))}
+                      style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>CNPJ indicado no pedido</label>
+                    <select value={editDados.pedido_cnpj} onChange={e => setEditDados(d => ({...d, pedido_cnpj:e.target.value}))}
+                      style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
+                      <option value="">—</option>
+                      <option value={CNPJS_GRUPOPG.SP}>SP — {CNPJS_GRUPOPG.SP}</option>
+                      <option value={CNPJS_GRUPOPG.RJ}>RJ — {CNPJS_GRUPOPG.RJ}</option>
+                      <option value={CNPJS_GRUPOPG.MG}>MG — {CNPJS_GRUPOPG.MG}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>CNPJ da Tecban (faturamento)</label>
+                    <input value={editDados.pedido_tecban_cnpj} onChange={e => setEditDados(d => ({...d, pedido_tecban_cnpj:e.target.value}))}
+                      placeholder="Ex: 51.427.102/0019-58"
+                      style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Razão social da Tecban no pedido</label>
+                    <input value={editDados.pedido_tecban_nome} onChange={e => setEditDados(d => ({...d, pedido_tecban_nome:up(e.target.value)}))}
+                      placeholder="Ex: TECNOLOGIA BANCARIA S.A. / TBSI"
+                      style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:10, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Endereço do tomador no pedido</label>
+                    <input value={editDados.pedido_tecban_endereco} onChange={e => setEditDados(d => ({...d, pedido_tecban_endereco:up(e.target.value)}))}
+                      placeholder="Ex: AV PROFESSOR JOAO FIUSA 1901 - JD BOTANICO - RIBEIRAO PRETO - SP - CEP: 14024-250"
+                      style={{ width:'100%', padding:'6px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                </div>
+                <div style={{ fontSize:10, color:'#64748B', marginBottom:10 }}>Dado informativo pro faturamento (Aline) — não entra na conferência de bate/não bate. O endereço é o "padrão" da unidade tomadora (o mesmo do pedido), não o endereço físico da obra.</div>
+                {(editDados.pedido_valor !== '' || editDados.pedido_os.trim() || editDados.pedido_cnpj) && (() => {
+                  const valorObra = parseFloat(String(editDados.valor).replace(',', '.')) || 0
+                  const valorPedido = parseFloat(String(editDados.pedido_valor).replace(',', '.')) || 0
+                  const valorBate = editDados.pedido_valor !== '' && Math.abs(valorPedido - valorObra) < 0.01
+                  const osBate = editDados.pedido_os.trim() !== '' && editDados.pedido_os.trim() === editDados.os_tecban.trim()
+                  const ufObra = editDados.uf.trim().toUpperCase()
+                  const cnpjEsperado = cnpjEsperadoParaUF(ufObra)
+                  const cnpjBate = !!editDados.pedido_cnpj && editDados.pedido_cnpj === cnpjEsperado
+                  const linha = (ok, label) => (
+                    <div style={{ fontSize:12, color: ok ? '#065F46' : '#991B1B', fontWeight:600 }}>{ok ? '✓' : '✗'} {label}</div>
+                  )
+                  return (
+                    <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                      {editDados.pedido_valor !== '' && linha(valorBate, valorBate ? `Valor bate (R$ ${valorObra.toFixed(2)})` : `Valor não bate — pedido R$ ${valorPedido.toFixed(2)} x obra R$ ${valorObra.toFixed(2)}`)}
+                      {editDados.pedido_os.trim() && linha(osBate, osBate ? 'OS bate' : `OS não bate — pedido "${editDados.pedido_os}" x cadastro "${editDados.os_tecban}"`)}
+                      {editDados.pedido_cnpj && linha(cnpjBate, cnpjBate ? `CNPJ bate (esperado pra ${ufObra || '—'})` : `CNPJ não bate — obra é ${ufObra || '?'}, esperado ${cnpjEsperado}`)}
+                    </div>
+                  )
+                })()}
+                {divergenciasPedido().length > 0 && (
+                  <div style={{ marginTop:10 }}>
+                    {modal.correcao_pedido_solicitada_em && (
+                      <div style={{ fontSize:11, color:'#92400E', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'6px 10px', marginBottom:6 }}>
+                        ⚠ Correção já solicitada em {new Date(modal.correcao_pedido_solicitada_em).toLocaleString('pt-BR')} por {modal.correcao_pedido_solicitada_por} — confira antes de enviar de novo.
+                      </div>
+                    )}
+                    <button onClick={() => { setMostrarEnvioCorrecaoPedido(true); setErroEnvioCorrecaoPedido('') }}
+                      style={{ width:'100%', padding:10, background:'#DC2626', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                      📧 Solicitar correção à Tecban
+                    </button>
+                    {mostrarEnvioCorrecaoPedido && (
+                      <div style={{ marginTop:10, background:'#fff', border:'1px solid #CDD8E3', borderRadius:8, padding:12 }}>
+                        <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:8 }}>Revisar antes de enviar</div>
+                        <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Para:</strong> {EMAIL_CORRECAO_PEDIDO_TECBAN}</div>
+                        <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Cc:</strong> {EMAIL_CC_CORRECAO_PEDIDO}</div>
+                        <div style={{ fontSize:12, color:'#374151', marginBottom:8 }}><strong>Assunto:</strong> {montaAssuntoCorrecaoPedido()}</div>
+                        <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>Texto do e-mail</div>
+                        <div style={{ fontSize:12, color:'#374151', whiteSpace:'pre-wrap', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, padding:10, marginBottom:10 }}>{montaCorpoCorrecaoPedido()}</div>
+                        {erroEnvioCorrecaoPedido && <div style={{ fontSize:12, color:'#DC2626', marginBottom:8 }}>{erroEnvioCorrecaoPedido}</div>}
+                        <div style={{ display:'flex', gap:8 }}>
+                          <button onClick={() => { setMostrarEnvioCorrecaoPedido(false); setErroEnvioCorrecaoPedido('') }} disabled={enviandoCorrecaoPedido}
+                            style={{ flex:1, padding:10, background:'#F1F5F9', color:'#1A2340', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                            Cancelar
+                          </button>
+                          <button onClick={enviarCorrecaoPedidoTecban} disabled={enviandoCorrecaoPedido}
+                            style={{ flex:1, padding:10, background: enviandoCorrecaoPedido ? '#94A3B8' : '#DC2626', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: enviandoCorrecaoPedido ? 'default' : 'pointer' }}>
+                            {enviandoCorrecaoPedido ? 'Enviando...' : 'Confirmar envio'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
 
 
