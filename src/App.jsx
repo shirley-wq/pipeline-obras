@@ -2640,6 +2640,9 @@ export default function App() {
   const [mostrarEnvioStatusDia, setMostrarEnvioStatusDia] = useState(false)
   const [enviandoStatusDia, setEnviandoStatusDia] = useState(false)
   const [erroEnvioStatusDia, setErroEnvioStatusDia] = useState('')
+  const [mostrarEnvioAgendamento, setMostrarEnvioAgendamento] = useState(false)
+  const [enviandoAgendamento, setEnviandoAgendamento] = useState(false)
+  const [erroEnvioAgendamento, setErroEnvioAgendamento] = useState('')
   const [mostrarEnvioCorrecaoPedido, setMostrarEnvioCorrecaoPedido] = useState(false)
   const [enviandoCorrecaoPedido, setEnviandoCorrecaoPedido] = useState(false)
   const [erroEnvioCorrecaoPedido, setErroEnvioCorrecaoPedido] = useState('')
@@ -4029,6 +4032,64 @@ export default function App() {
       setErroEnvioStatusDia('Não foi possível enviar: ' + err.message)
     } finally {
       setEnviandoStatusDia(false)
+    }
+  }
+
+  // Confirmação de agendamento com o EC pra Tecban (Shirley, 2026-09-09) - modelo de texto e botão
+  // separados do relatório de "o que aconteceu na obra": isso avisa ANTES da obra que o contato foi
+  // feito e o agendamento confirmado (contato do EC, data/hora, critérios de segurança se aplicável,
+  // foto do local), não depois. Fica no formulário logo após a "Foto indicando o local de fixação",
+  // antes do checklist pré-obra (que é um assunto à parte).
+  function montaAssuntoAgendamentoTecban() {
+    const ordem = (editDados.os_tecban || modal?.os_tecban || '').trim() || '(sem OS)'
+    const tipoCodigo = (modal?.tipo || '').replace(/\s*ATM\s*$/i, '').trim().toUpperCase()
+    return `Agendamento confirmado - B24H_${ordem}_${tipoCodigo}`
+  }
+
+  function montaCorpoAgendamentoTecban() {
+    if (!modal) return ''
+    const localTexto = [editDados.cidade, editDados.uf].filter(Boolean).join('/')
+    const dataHora = `${isoToBr(paraIsoDataObraTexto(dataInicioObraTexto)) || '—'} ${horaInicioObraTexto || ''}`.trim()
+    const acordoTexto = clienteAcordoFixacao === 'SIM' ? 'Sim, está de acordo'
+      : clienteAcordoFixacao === 'NAO' ? `Não está de acordo — Motivo: ${clienteAcordoFixacaoMotivo || '—'}`
+      : '—'
+    return `Prezados,\n\nContato realizado com o EC e agendamento confirmado para a atividade de ${modal.tipo}${editDados.numero_pc ? ` (PC ${editDados.numero_pc})` : ''} - ${modal.nome}${localTexto ? `, em ${localTexto}` : ''}.\n\nContato do EC: ${ecNome || '—'}${ecTelefone ? ` (${ecTelefone})` : ''}\nData/hora confirmada com o cliente: ${dataHora || '—'}\nCliente de acordo com o tipo de fixação: ${acordoTexto}${autorizacaoMudanca.trim() ? `\nMudança autorizada por: ${autorizacaoMudanca}` : ''}\n\nAtenciosamente,\nGrupo PG\n${new Date().toLocaleString('pt-BR')} · Enviado por ${usuario?.email || ''}`
+  }
+
+  function dataUrlParaFoto(dataUrl, filename) {
+    const m = (dataUrl || '').match(/^data:([^;]+);base64,(.*)$/)
+    return m ? { filename, mimeType: m[1], base64: m[2] } : null
+  }
+
+  async function enviarAgendamentoTecban() {
+    setEnviandoAgendamento(true)
+    setErroEnvioAgendamento('')
+    try {
+      const assunto = montaAssuntoAgendamentoTecban()
+      const corpo = montaCorpoAgendamentoTecban()
+      const fotos = [dataUrlParaFoto(fotoLocalInstalacao, 'local_fixacao.jpg')].filter(Boolean)
+      const { data: { session } } = await supabase.auth.getSession()
+      const resp = await fetch(EDGE_FUNCTION_TECBAN_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || ''}`,
+        },
+        body: JSON.stringify({ to: EMAIL_RM_TECBAN, cc: EMAIL_CC_OPERACAO_GRUPOPG, subject: assunto, body: corpo, fotos }),
+      })
+      const resultado = await resp.json()
+      if (!resultado.ok) throw new Error(resultado.error || 'Falha no envio')
+      const agora = new Date().toISOString()
+      const campos = { agendamento_enviado_em: agora, agendamento_enviado_por: usuario.email }
+      await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
+      setObras(prev => prev.map(o => o.id === modal.id ? { ...o, ...campos } : o))
+      setModal(m => m ? { ...m, ...campos } : m)
+      setMostrarEnvioAgendamento(false)
+      alert('Confirmação de agendamento enviada para a Tecban.')
+    } catch (err) {
+      setErroEnvioAgendamento('Não foi possível enviar: ' + err.message)
+    } finally {
+      setEnviandoAgendamento(false)
     }
   }
 
@@ -7760,6 +7821,42 @@ export default function App() {
                   </div>
                 )}
               </div>
+
+              {modal.agendamento_enviado_em && (
+                <div style={{ fontSize:11, color:'#64748B', marginBottom:8 }}>
+                  Agendamento confirmado enviado à Tecban em {new Date(modal.agendamento_enviado_em).toLocaleString('pt-BR')} por {modal.agendamento_enviado_por}
+                </div>
+              )}
+
+              {EMAILS_ENVIO_RELATORIO.includes(usuario?.email) && (
+                <button onClick={() => { setMostrarEnvioAgendamento(true); setErroEnvioAgendamento('') }}
+                  style={{ width:'100%', padding:'16px 14px', background:'#1A6B4A', color:'#fff', border:'none', borderRadius:10, fontSize:16, fontWeight:700, cursor:'pointer', marginBottom:12 }}>
+                  📧 Enviar confirmação de agendamento pra Tecban
+                </button>
+              )}
+
+              {mostrarEnvioAgendamento && (
+                <div style={{ marginBottom:12, background:'#fff', border:'1px solid #CDD8E3', borderRadius:8, padding:12 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:8 }}>Revisar antes de enviar</div>
+                  <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Para:</strong> {EMAIL_RM_TECBAN}</div>
+                  <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Cc:</strong> {EMAIL_CC_OPERACAO_GRUPOPG}</div>
+                  <div style={{ fontSize:12, color:'#374151', marginBottom:8 }}><strong>Assunto:</strong> {montaAssuntoAgendamentoTecban()}</div>
+                  <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>Texto do e-mail</div>
+                  <div style={{ fontSize:12, color:'#374151', whiteSpace:'pre-wrap', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, padding:10, marginBottom:10 }}>{montaCorpoAgendamentoTecban()}</div>
+                  {fotoLocalInstalacao && <div style={{ fontSize:11, color:'#64748B', marginBottom:8 }}>Anexo: foto do local de fixação</div>}
+                  {erroEnvioAgendamento && <div style={{ fontSize:12, color:'#DC2626', marginBottom:8 }}>{erroEnvioAgendamento}</div>}
+                  <div style={{ display:'flex', gap:8 }}>
+                    <button onClick={() => { setMostrarEnvioAgendamento(false); setErroEnvioAgendamento('') }} disabled={enviandoAgendamento}
+                      style={{ flex:1, padding:10, background:'#F1F5F9', color:'#1A2340', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                      Cancelar
+                    </button>
+                    <button onClick={enviarAgendamentoTecban} disabled={enviandoAgendamento}
+                      style={{ flex:1, padding:10, background: enviandoAgendamento ? '#94A3B8' : '#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: enviandoAgendamento ? 'default' : 'pointer' }}>
+                      {enviandoAgendamento ? 'Enviando...' : 'Confirmar envio'}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {modal.rede === 'BANCO24HORAS' && modal.tipo === 'INSTALAÇÃO ATM' && (
               <div style={{ marginBottom:12, background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:10, padding:14 }}>
