@@ -8072,7 +8072,7 @@ export default function App() {
                     {EMAILS_ENVIO_RELATORIO.includes(usuario?.email) && (
                       <button onClick={() => { setMostrarEnvioStatusDia(true); setErroEnvioStatusDia('') }}
                         disabled={novoRegistroConcluido === null || Object.keys(novoRegistroAtividades).length === 0}
-                        style={{ width:'100%', padding:10, background: (novoRegistroConcluido === null || Object.keys(novoRegistroAtividades).length === 0) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: (novoRegistroConcluido === null || Object.keys(novoRegistroAtividades).length === 0) ? 'default' : 'pointer' }}>
+                        style={{ width:'100%', padding:'16px 14px', background: (novoRegistroConcluido === null || Object.keys(novoRegistroAtividades).length === 0) ? '#94A3B8' : '#1A6B4A', color:'#fff', border:'none', borderRadius:10, fontSize:16, fontWeight:700, cursor: (novoRegistroConcluido === null || Object.keys(novoRegistroAtividades).length === 0) ? 'default' : 'pointer' }}>
                         📧 Enviar status do dia pra Tecban
                       </button>
                     )}
