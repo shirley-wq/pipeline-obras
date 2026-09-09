@@ -1316,7 +1316,7 @@ function temTelaOperacaoCampo(rede, tipo) {
 // Pintura ATM ganharam o mesmo registro simples de visitas (2026-08-25, Shirley) - sem checklist
 // ARS, só data + equipe + descrição livre (atividade "Outros"), igual TRANSF UN.
 function temVisitasDeCampo(rede, tipo) {
-  return temTelaOperacaoCampo(rede, tipo) || tipo === 'TRANSF UN' || tipo === 'MANUTENÇÃO ATM' || tipo === 'SINALIZAÇÃO ATM' || tipo === 'PINTURA ATM'
+  return temTelaOperacaoCampo(rede, tipo) || tipo === 'TRANSF UN' || tipo === 'MANUTENÇÃO ATM' || tipo === 'SINALIZAÇÃO ATM' || tipo === 'PINTURA ATM' || tipo === 'DESATIVAÇÃO ATM'
 }
 // Data prevista/confirmada de execução de uma obra - mesma resolução já usada no Cenário
 // (data_inicio_obra_texto pras redes/tipos sem vistoria, data_obra_inicio pros demais). Usada na
