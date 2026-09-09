@@ -2617,6 +2617,7 @@ export default function App() {
   const [novoRegistroTerceirizado, setNovoRegistroTerceirizado] = useState(false)
   const [novoRegistroTerceirizadoTexto, setNovoRegistroTerceirizadoTexto] = useState('')
   const [novoRegistroAtividades, setNovoRegistroAtividades] = useState({})
+  const [novoRegistroConcluido, setNovoRegistroConcluido] = useState(null)
   const [editandoVisitaIdx, setEditandoVisitaIdx] = useState(null)
   // Medição de transporte pedida pela Shirley (2026-09-03) - preenchida antes de gerar o relatório
   // ao cliente, pra todas as atividades que passam por essa tela (não só o checklist do Banco24Horas).
@@ -2630,6 +2631,9 @@ export default function App() {
   const [fotosRelatorio, setFotosRelatorio] = useState([])
   const [enviandoRelatorio, setEnviandoRelatorio] = useState(false)
   const [erroEnvioRelatorio, setErroEnvioRelatorio] = useState('')
+  const [mostrarEnvioStatusDia, setMostrarEnvioStatusDia] = useState(false)
+  const [enviandoStatusDia, setEnviandoStatusDia] = useState(false)
+  const [erroEnvioStatusDia, setErroEnvioStatusDia] = useState('')
   const [mostrarEnvioCorrecaoPedido, setMostrarEnvioCorrecaoPedido] = useState(false)
   const [enviandoCorrecaoPedido, setEnviandoCorrecaoPedido] = useState(false)
   const [erroEnvioCorrecaoPedido, setErroEnvioCorrecaoPedido] = useState('')
@@ -3698,6 +3702,32 @@ export default function App() {
     })
     y = doc.lastAutoTable.finalY + 8
 
+    // Status diário enviado à Tecban (Shirley, 2026-09-09) - o aviso rápido de fim de dia (concluído
+    // sim/não) fica gravado por visita e aparece aqui, além de ir por e-mail no mesmo dia.
+    if (registrosOperacaoCampo.some(r => r.concluido === true || r.concluido === false)) {
+      if (y > 265) { doc.addPage(); y = 16 }
+      doc.setFontSize(11)
+      doc.setFont(undefined, 'bold')
+      doc.text('Status diário informado à Tecban', 14, y)
+      y += 3
+      const linhasStatus = registrosOperacaoCampo
+        .filter(r => r.concluido === true || r.concluido === false)
+        .map(r => [
+          r.data ? isoToBr(r.data) : '—',
+          r.concluido ? 'Concluído' : 'Não concluído',
+          r.status_enviado_em ? new Date(r.status_enviado_em).toLocaleString('pt-BR') : 'Não enviado',
+        ])
+      autoTable(doc, {
+        startY: y,
+        head: [['Data', 'Status do dia', 'Enviado à Tecban em']],
+        body: linhasStatus,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 1.5 },
+        headStyles: { fillColor: [45, 58, 140], textColor: 255, fontStyle: 'bold' },
+      })
+      y = doc.lastAutoTable.finalY + 8
+    }
+
     // Medição de transporte pedida pela Shirley (2026-09-03), pra todas as atividades com tela de
     // operação de campo - antes só ficava salva na obra, não aparecia neste relatório.
     if (temTelaOperacaoCampo(modal.rede, modal.tipo)) {
@@ -3789,6 +3819,7 @@ export default function App() {
       const atividadesMap = {}
       ;(registro.atividades || []).forEach(a => { atividadesMap[a.atividade] = { ...a } })
       setNovoRegistroAtividades(atividadesMap)
+      setNovoRegistroConcluido(registro.concluido ?? null)
     } else {
       setNovoRegistroData('')
       setNovoRegistroHora('')
@@ -3796,6 +3827,7 @@ export default function App() {
       setNovoRegistroTerceirizado(false)
       setNovoRegistroTerceirizadoTexto('')
       setNovoRegistroAtividades({})
+      setNovoRegistroConcluido(null)
     }
   }
 
@@ -3803,7 +3835,7 @@ export default function App() {
     if (editandoVisitaIdx !== null || !modal || registrosOperacaoCampo.length === 0) return
     const s = {
       equipe: novoRegistroEquipe, terceirizado: novoRegistroTerceirizado, terceirizadoTexto: novoRegistroTerceirizadoTexto,
-      data: novoRegistroData, hora: novoRegistroHora, atividades: novoRegistroAtividades, ...overrides,
+      data: novoRegistroData, hora: novoRegistroHora, atividades: novoRegistroAtividades, concluido: novoRegistroConcluido, ...overrides,
     }
     const equipe = [...s.equipe, ...(s.terceirizado ? [TERCEIRIZADO_PREFIXO + (s.terceirizadoTexto.trim() || '(não informado)')] : [])]
     const atividades = Object.entries(s.atividades).map(([atividade, d]) => ({
@@ -3815,7 +3847,11 @@ export default function App() {
         cgrNome: d.cgrNome || '',
       } : {}),
     }))
-    const registro = { data: s.data || (paraIsoDataObraTexto(dataInicioObraTexto) || null), hora: s.hora || null, equipe, atividades }
+    const ultimo = registrosOperacaoCampo[registrosOperacaoCampo.length - 1] || {}
+    const registro = {
+      data: s.data || (paraIsoDataObraTexto(dataInicioObraTexto) || null), hora: s.hora || null, equipe, atividades,
+      concluido: s.concluido ?? null, status_enviado_em: ultimo.status_enviado_em || null, status_enviado_por: ultimo.status_enviado_por || null,
+    }
     const novaLista = registrosOperacaoCampo.map((r, i) => i === registrosOperacaoCampo.length - 1 ? registro : r)
     setRegistrosOperacaoCampo(novaLista)
     const campos = { registros_operacao_campo: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
@@ -3832,7 +3868,7 @@ export default function App() {
   }
 
   async function criarNovaVisita(dataOverride) {
-    const novoRegistro = { data: dataOverride || paraIsoDataObraTexto(dataInicioObraTexto) || null, hora: null, equipe: [], atividades: [] }
+    const novoRegistro = { data: dataOverride || paraIsoDataObraTexto(dataInicioObraTexto) || null, hora: null, equipe: [], atividades: [], concluido: null, status_enviado_em: null, status_enviado_por: null }
     const novaLista = [...registrosOperacaoCampo, novoRegistro]
     setRegistrosOperacaoCampo(novaLista)
     setEditandoVisitaIdx(null)
@@ -3902,6 +3938,63 @@ export default function App() {
       setErroEnvioRelatorio('Não foi possível enviar: ' + err.message)
     } finally {
       setEnviandoRelatorio(false)
+    }
+  }
+
+  // Aviso rápido de fim de dia pra Tecban (Shirley, 2026-09-09) - separado do relatório formal com
+  // book/PDF, que continua indo à parte depois. Reaproveita o mesmo canal (EDGE_FUNCTION_TECBAN_URL)
+  // e os mesmos destinatários do relatório, só sem anexo - manda o "deu certo ou não" no mesmo dia
+  // em vez de esperar o book+valor.
+  function montaAssuntoStatusDiaTecban() {
+    const ordem = (editDados.os_tecban || modal?.os_tecban || '').trim() || '(sem OS)'
+    const tipoCodigo = (modal?.tipo || '').replace(/\s*ATM\s*$/i, '').trim().toUpperCase()
+    const dataVisita = novoRegistroData || (paraIsoDataObraTexto(dataInicioObraTexto) || '')
+    return `Status do dia ${isoToBr(dataVisita) || ''} - B24H_${ordem}_${tipoCodigo}`
+  }
+
+  function montaCorpoStatusDiaTecban() {
+    if (!modal) return ''
+    const localTexto = [editDados.cidade, editDados.uf].filter(Boolean).join('/')
+    const dataVisita = novoRegistroData || (paraIsoDataObraTexto(dataInicioObraTexto) || '')
+    const equipe = [...novoRegistroEquipe, ...(novoRegistroTerceirizado ? [TERCEIRIZADO_PREFIXO + (novoRegistroTerceirizadoTexto.trim() || '(não informado)')] : [])]
+    const linhasAtividades = Object.entries(novoRegistroAtividades).map(([atividade, d]) => {
+      let linha = `- ${atividade}: ${d.feita === true ? 'concluída' : d.feita === false ? 'não concluída' : 'em andamento'}`
+      if (d.impedimento && d.motivo) linha += ` (desvio: ${d.motivo})`
+      if (atividade === 'Outros' && d.descricao) linha += ` — ${d.descricao}`
+      return linha
+    }).join('\n')
+    return `Prezados,\n\nAtualização do dia ${isoToBr(dataVisita) || '—'} sobre a atividade de ${modal.tipo}${editDados.numero_pc ? ` (PC ${editDados.numero_pc})` : ''} - ${modal.nome}${localTexto ? `, em ${localTexto}` : ''}.\n\nEquipe em campo: ${equipe.join(', ') || '—'}\n\nStatus do dia: ${novoRegistroConcluido === true ? 'CONCLUÍDO' : novoRegistroConcluido === false ? 'NÃO CONCLUÍDO' : '—'}\n\nO que foi feito:\n${linhasAtividades || '(nenhuma atividade registrada)'}\n\nO relatório completo com book fotográfico e encaminhamento para cobrança seguirá à parte.\n\nAtenciosamente,\nGrupo PG\n${new Date().toLocaleString('pt-BR')} · Enviado por ${usuario?.email || ''}`
+  }
+
+  async function enviarStatusDiaTecban() {
+    setEnviandoStatusDia(true)
+    setErroEnvioStatusDia('')
+    try {
+      const assunto = montaAssuntoStatusDiaTecban()
+      const corpo = montaCorpoStatusDiaTecban()
+      const { data: { session } } = await supabase.auth.getSession()
+      const resp = await fetch(EDGE_FUNCTION_TECBAN_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || ''}`,
+        },
+        body: JSON.stringify({ to: EMAIL_RM_TECBAN, cc: EMAIL_CC_OPERACAO_GRUPOPG, subject: assunto, body: corpo }),
+      })
+      const resultado = await resp.json()
+      if (!resultado.ok) throw new Error(resultado.error || 'Falha no envio')
+      const agora = new Date().toISOString()
+      const novaLista = registrosOperacaoCampo.map((r, i) => i === registrosOperacaoCampo.length - 1
+        ? { ...r, status_enviado_em: agora, status_enviado_por: usuario.email } : r)
+      setRegistrosOperacaoCampo(novaLista)
+      await supabase.from('pipeline_obras').update({ registros_operacao_campo: novaLista, atualizado_em: agora, atualizado_por: usuario.email }).eq('id', modal.id)
+      setObras(prev => prev.map(o => o.id === modal.id ? { ...o, registros_operacao_campo: novaLista } : o))
+      setMostrarEnvioStatusDia(false)
+      alert('Status do dia enviado para a Tecban.')
+    } catch (err) {
+      setErroEnvioStatusDia('Não foi possível enviar: ' + err.message)
+    } finally {
+      setEnviandoStatusDia(false)
     }
   }
 
@@ -7712,7 +7805,17 @@ export default function App() {
                   {registrosOperacaoCampo.slice(0, -1).map((r, idx) => (
                     <div key={idx} style={{ background:'#fff', border:'1px solid #CDD8E3', borderRadius:8, padding:10 }}>
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                        <div style={{ fontSize:12, fontWeight:600, color:'#1A2340' }}>{r.data ? isoToBr(r.data) : '(sem data)'}{r.hora ? ` ${r.hora}` : ''} — {(r.equipe||[]).join(', ') || '—'}</div>
+                        <div style={{ fontSize:12, fontWeight:600, color:'#1A2340' }}>
+                          {r.data ? isoToBr(r.data) : '(sem data)'}{r.hora ? ` ${r.hora}` : ''} — {(r.equipe||[]).join(', ') || '—'}
+                          {(r.concluido === true || r.concluido === false) && (
+                            <span style={{ marginLeft:8, fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:4, background: r.concluido ? '#D1FAE5' : '#FEE2E2', color: r.concluido ? '#065F46' : '#991B1B' }}>
+                              {r.concluido ? 'Concluído' : 'Não concluído'}
+                            </span>
+                          )}
+                          {r.status_enviado_em && (
+                            <span style={{ marginLeft:6, fontSize:10, color:'#64748B' }}>· enviado à Tecban {new Date(r.status_enviado_em).toLocaleDateString('pt-BR')}</span>
+                          )}
+                        </div>
                         <div style={{ display:'flex', gap:10 }}>
                           <span onClick={() => {
                             setEditandoVisitaIdx(idx)
@@ -7725,6 +7828,7 @@ export default function App() {
                             const atividadesMap = {}
                             ;(r.atividades || []).forEach(a => { atividadesMap[a.atividade] = { ...a } })
                             setNovoRegistroAtividades(atividadesMap)
+                            setNovoRegistroConcluido(r.concluido ?? null)
                           }} style={{ fontSize:11, color:'#2D3A8C', cursor:'pointer', fontWeight:600 }}>Editar</span>
                           <span onClick={() => {
                             setRegistrosOperacaoCampo(prev => prev.filter((_, i) => i !== idx))
@@ -7929,7 +8033,11 @@ export default function App() {
                         } : {}),
                       }))
                       const equipe = [...novoRegistroEquipe, ...(novoRegistroTerceirizado ? [TERCEIRIZADO_PREFIXO + (novoRegistroTerceirizadoTexto.trim() || '(não informado)')] : [])]
-                      const registro = { data: dataVisita || null, hora: novoRegistroHora || null, equipe, atividades }
+                      const antigo = registrosOperacaoCampo[editandoVisitaIdx] || {}
+                      const registro = {
+                        data: dataVisita || null, hora: novoRegistroHora || null, equipe, atividades,
+                        concluido: novoRegistroConcluido ?? null, status_enviado_em: antigo.status_enviado_em || null, status_enviado_por: antigo.status_enviado_por || null,
+                      }
                       const novaLista = registrosOperacaoCampo.map((r, i) => i === editandoVisitaIdx ? registro : r)
                       setRegistrosOperacaoCampo(novaLista)
                       supabase.from('pipeline_obras').update({ registros_operacao_campo: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }).eq('id', modal.id)
@@ -7942,6 +8050,56 @@ export default function App() {
                     </button>
                   )
                 })()}
+
+                {editandoVisitaIdx === null && (
+                  <div style={{ marginTop:14, paddingTop:12, borderTop:'1px solid #E0E8F0' }}>
+                    <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:6 }}>A atividade do dia foi concluída?</div>
+                    <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+                      {[{ v:true, l:'✓ Sim' }, { v:false, l:'✗ Não' }].map(op => (
+                        <span key={String(op.v)} onClick={() => { setNovoRegistroConcluido(op.v); salvarVisitaAtual({ concluido: op.v }) }}
+                          style={{ fontSize:11, fontWeight:700, padding:'4px 10px', borderRadius:6, cursor:'pointer', background: novoRegistroConcluido === op.v ? (op.v ? '#D1FAE5' : '#FEE2E2') : '#F1F5F9', color: novoRegistroConcluido === op.v ? (op.v ? '#065F46' : '#991B1B') : '#64748B' }}>
+                          {op.l}
+                        </span>
+                      ))}
+                    </div>
+
+                    {registrosOperacaoCampo[registrosOperacaoCampo.length - 1]?.status_enviado_em && (
+                      <div style={{ fontSize:11, color:'#64748B', marginBottom:8 }}>
+                        Status já enviado à Tecban em {new Date(registrosOperacaoCampo[registrosOperacaoCampo.length - 1].status_enviado_em).toLocaleString('pt-BR')} por {registrosOperacaoCampo[registrosOperacaoCampo.length - 1].status_enviado_por}
+                      </div>
+                    )}
+
+                    {EMAILS_ENVIO_RELATORIO.includes(usuario?.email) && (
+                      <button onClick={() => { setMostrarEnvioStatusDia(true); setErroEnvioStatusDia('') }}
+                        disabled={novoRegistroConcluido === null || Object.keys(novoRegistroAtividades).length === 0}
+                        style={{ width:'100%', padding:10, background: (novoRegistroConcluido === null || Object.keys(novoRegistroAtividades).length === 0) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: (novoRegistroConcluido === null || Object.keys(novoRegistroAtividades).length === 0) ? 'default' : 'pointer' }}>
+                        📧 Enviar status do dia pra Tecban
+                      </button>
+                    )}
+
+                    {mostrarEnvioStatusDia && (
+                      <div style={{ marginTop:10, background:'#fff', border:'1px solid #CDD8E3', borderRadius:8, padding:12 }}>
+                        <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:8 }}>Revisar antes de enviar</div>
+                        <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Para:</strong> {EMAIL_RM_TECBAN}</div>
+                        <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Cc:</strong> {EMAIL_CC_OPERACAO_GRUPOPG}</div>
+                        <div style={{ fontSize:12, color:'#374151', marginBottom:8 }}><strong>Assunto:</strong> {montaAssuntoStatusDiaTecban()}</div>
+                        <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>Texto do e-mail</div>
+                        <div style={{ fontSize:12, color:'#374151', whiteSpace:'pre-wrap', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, padding:10, marginBottom:10 }}>{montaCorpoStatusDiaTecban()}</div>
+                        {erroEnvioStatusDia && <div style={{ fontSize:12, color:'#DC2626', marginBottom:8 }}>{erroEnvioStatusDia}</div>}
+                        <div style={{ display:'flex', gap:8 }}>
+                          <button onClick={() => { setMostrarEnvioStatusDia(false); setErroEnvioStatusDia('') }} disabled={enviandoStatusDia}
+                            style={{ flex:1, padding:10, background:'#F1F5F9', color:'#1A2340', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                            Cancelar
+                          </button>
+                          <button onClick={enviarStatusDiaTecban} disabled={enviandoStatusDia}
+                            style={{ flex:1, padding:10, background: enviandoStatusDia ? '#94A3B8' : '#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: enviandoStatusDia ? 'default' : 'pointer' }}>
+                            {enviandoStatusDia ? 'Enviando...' : 'Confirmar envio'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               )}
 
