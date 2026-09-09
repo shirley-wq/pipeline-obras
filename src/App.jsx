@@ -3504,6 +3504,8 @@ export default function App() {
       data_cadastro: novaObra.data_cadastro || new Date().toISOString().split('T')[0],
       data_inicio_obra_texto: (novaObra.tipo !== 'TRANSF UN' && temTelaOperacaoCampo(novaObra.rede, novaObra.tipo)) ? dataPrevistaIso : null,
       data_obra_inicio: (novaObra.tipo !== 'TRANSF UN' && !temTelaOperacaoCampo(novaObra.rede, novaObra.tipo)) ? dataPrevistaIso : null,
+      registros_operacao_campo: (dataPrevistaIso && temVisitasDeCampo(novaObra.rede, novaObra.tipo))
+        ? [{ data: dataPrevistaIso, hora: null, equipe: [], atividades: [] }] : null,
       criado_por: usuario.email,
       atualizado_por: usuario.email,
       atualizado_em: new Date().toISOString(),
@@ -3829,8 +3831,8 @@ export default function App() {
     })
   }
 
-  async function criarNovaVisita() {
-    const novoRegistro = { data: paraIsoDataObraTexto(dataInicioObraTexto) || null, hora: null, equipe: [], atividades: [] }
+  async function criarNovaVisita(dataOverride) {
+    const novoRegistro = { data: dataOverride || paraIsoDataObraTexto(dataInicioObraTexto) || null, hora: null, equipe: [], atividades: [] }
     const novaLista = [...registrosOperacaoCampo, novoRegistro]
     setRegistrosOperacaoCampo(novaLista)
     setEditandoVisitaIdx(null)
@@ -7535,7 +7537,11 @@ export default function App() {
               <div style={{ marginBottom:12 }}>
                 <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data e hora de início da obra (confirmada com o cliente)</label>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                  <input type="date" value={paraIsoDataObraTexto(dataInicioObraTexto) || ''} onChange={e => setDataInicioObraTexto(e.target.value)}
+                  <input type="date" value={paraIsoDataObraTexto(dataInicioObraTexto) || ''} onChange={e => {
+                    const novaData = e.target.value
+                    setDataInicioObraTexto(novaData)
+                    if (novaData && temVisitasDeCampo(modal.rede, modal.tipo) && registrosOperacaoCampo.length === 0) criarNovaVisita(novaData)
+                  }}
                     style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                   <input value={horaInicioObraTexto} onChange={e => setHoraInicioObraTexto(e.target.value)}
                     placeholder="HH:MM"
