@@ -7841,46 +7841,6 @@ export default function App() {
                 )}
               </div>
 
-              {modal.agendamento_enviado_em && (
-                <div style={{ fontSize:11, color:'#64748B', marginBottom:8 }}>
-                  Agendamento confirmado enviado à Tecban em {new Date(modal.agendamento_enviado_em).toLocaleString('pt-BR')} por {modal.agendamento_enviado_por}
-                </div>
-              )}
-
-              {EMAILS_ENVIO_RELATORIO.includes(usuario?.email) && (
-                <button onClick={() => { setMostrarEnvioAgendamento(true); setErroEnvioAgendamento('') }}
-                  style={{ width:'100%', padding:'16px 14px', background:'#1A6B4A', color:'#fff', border:'none', borderRadius:10, fontSize:16, fontWeight:700, cursor:'pointer', marginBottom:12 }}>
-                  📧 Enviar confirmação de agendamento pra Tecban
-                </button>
-              )}
-
-              {mostrarEnvioAgendamento && (
-                <div style={{ marginBottom:12, background:'#fff', border:'1px solid #CDD8E3', borderRadius:8, padding:12 }}>
-                  <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:8 }}>Revisar antes de enviar</div>
-                  <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Para:</strong> {EMAIL_RM_TECBAN}</div>
-                  <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Cc:</strong> {EMAIL_CC_OPERACAO_GRUPOPG}</div>
-                  <div style={{ fontSize:12, color:'#374151', marginBottom:8 }}><strong>Assunto:</strong> {montaAssuntoAgendamentoTecban()}</div>
-                  <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>Texto do e-mail</div>
-                  <div style={{ fontSize:12, color:'#374151', whiteSpace:'pre-wrap', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, padding:10, marginBottom:10 }}>{montaCorpoAgendamentoTecban()}</div>
-                  {(fotoLocalInstalacao || checklistComprovacaoImagem) && (
-                    <div style={{ fontSize:11, color:'#64748B', marginBottom:8 }}>
-                      Anexo: {[fotoLocalInstalacao && 'foto do local de fixação', checklistComprovacaoImagem && 'print da comprovação'].filter(Boolean).join(' + ')}
-                    </div>
-                  )}
-                  {erroEnvioAgendamento && <div style={{ fontSize:12, color:'#DC2626', marginBottom:8 }}>{erroEnvioAgendamento}</div>}
-                  <div style={{ display:'flex', gap:8 }}>
-                    <button onClick={() => { setMostrarEnvioAgendamento(false); setErroEnvioAgendamento('') }} disabled={enviandoAgendamento}
-                      style={{ flex:1, padding:10, background:'#F1F5F9', color:'#1A2340', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
-                      Cancelar
-                    </button>
-                    <button onClick={enviarAgendamentoTecban} disabled={enviandoAgendamento}
-                      style={{ flex:1, padding:10, background: enviandoAgendamento ? '#94A3B8' : '#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: enviandoAgendamento ? 'default' : 'pointer' }}>
-                      {enviandoAgendamento ? 'Enviando...' : 'Confirmar envio'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
               {modal.rede === 'BANCO24HORAS' && modal.tipo === 'INSTALAÇÃO ATM' && (
               <div style={{ marginBottom:12, background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:10, padding:14 }}>
                 <div style={{ fontSize:12, color:'#1E3A8A', fontWeight:700, marginBottom:2 }}>📋 Checklist de validação pré-obra (TecBan)</div>
@@ -7954,6 +7914,46 @@ export default function App() {
                   )}
                 </div>
               </div>
+              )}
+
+              {modal.agendamento_enviado_em && (
+                <div style={{ fontSize:11, color:'#64748B', marginBottom:8 }}>
+                  Agendamento confirmado enviado à Tecban em {new Date(modal.agendamento_enviado_em).toLocaleString('pt-BR')} por {modal.agendamento_enviado_por}
+                </div>
+              )}
+
+              {EMAILS_ENVIO_RELATORIO.includes(usuario?.email) && (
+                <button onClick={() => { setMostrarEnvioAgendamento(true); setErroEnvioAgendamento('') }}
+                  style={{ width:'100%', padding:'16px 14px', background:'#1A6B4A', color:'#fff', border:'none', borderRadius:10, fontSize:16, fontWeight:700, cursor:'pointer', marginBottom:12 }}>
+                  📧 Enviar confirmação de agendamento pra Tecban
+                </button>
+              )}
+
+              {mostrarEnvioAgendamento && (
+                <div style={{ marginBottom:12, background:'#fff', border:'1px solid #CDD8E3', borderRadius:8, padding:12 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:8 }}>Revisar antes de enviar</div>
+                  <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Para:</strong> {EMAIL_RM_TECBAN}</div>
+                  <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Cc:</strong> {EMAIL_CC_OPERACAO_GRUPOPG}</div>
+                  <div style={{ fontSize:12, color:'#374151', marginBottom:8 }}><strong>Assunto:</strong> {montaAssuntoAgendamentoTecban()}</div>
+                  <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>Texto do e-mail</div>
+                  <div style={{ fontSize:12, color:'#374151', whiteSpace:'pre-wrap', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, padding:10, marginBottom:10 }}>{montaCorpoAgendamentoTecban()}</div>
+                  {(fotoLocalInstalacao || checklistComprovacaoImagem) && (
+                    <div style={{ fontSize:11, color:'#64748B', marginBottom:8 }}>
+                      Anexo: {[fotoLocalInstalacao && 'foto do local de fixação', checklistComprovacaoImagem && 'print da comprovação'].filter(Boolean).join(' + ')}
+                    </div>
+                  )}
+                  {erroEnvioAgendamento && <div style={{ fontSize:12, color:'#DC2626', marginBottom:8 }}>{erroEnvioAgendamento}</div>}
+                  <div style={{ display:'flex', gap:8 }}>
+                    <button onClick={() => { setMostrarEnvioAgendamento(false); setErroEnvioAgendamento('') }} disabled={enviandoAgendamento}
+                      style={{ flex:1, padding:10, background:'#F1F5F9', color:'#1A2340', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                      Cancelar
+                    </button>
+                    <button onClick={enviarAgendamentoTecban} disabled={enviandoAgendamento}
+                      style={{ flex:1, padding:10, background: enviandoAgendamento ? '#94A3B8' : '#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: enviandoAgendamento ? 'default' : 'pointer' }}>
+                      {enviandoAgendamento ? 'Enviando...' : 'Confirmar envio'}
+                    </button>
+                  </div>
+                </div>
               )}
               </>
               )}
