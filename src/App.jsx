@@ -370,6 +370,12 @@ function brToIso(br) {
 // observações etc.) - pedido da Shirley, 2026-08-20, pra padronizar como fica escrito nos
 // relatórios. Não usar em busca/nomes vindos de datalist de colaboradores (autocomplete quebra).
 const up = v => v.toUpperCase()
+// Só os dígitos de um CNPJ, pra comparar sem depender de pontuação (a obra guarda o CNPJ do
+// tomador como texto livre digitado a partir do pedido - ver tecbanCnpjIss/buscarIssPorCnpj,
+// Shirley/Aline, 2026-09-09).
+function soDigitosCnpj(s) {
+  return (s || '').replace(/\D/g, '')
+}
 // data_inicio_obra_texto foi digitado como texto livre "DD/MM/AAAA" até 2026-08-19 (fonte comum de
 // erro - qualquer formato levemente diferente falhava calado e sumia do Cenário). Virou <input
 // type="date"> a partir de agora (ISO direto), mas registros antigos continuam em texto BR - esse
@@ -2675,6 +2681,7 @@ export default function App() {
   const [buscaHist, setBuscaHist] = useState('')
   const [buscaIndisponivel, setBuscaIndisponivel] = useState('')
   const [rhColaboradores, setRhColaboradores] = useState([])
+  const [tecbanCnpjIss, setTecbanCnpjIss] = useState([])
   const [emailsLogin, setEmailsLogin] = useState([])
   const [perfisLogin, setPerfisLogin] = useState([])
   const [meuRH, setMeuRH] = useState(null)
@@ -2764,6 +2771,33 @@ export default function App() {
 
   useEffect(() => { if (usuario) carregarObras() }, [usuario])
   useEffect(() => { if (usuario && EMAILS_CUSTOS_DESPESAS.includes(usuario.email)) carregarContasPagar() }, [usuario])
+  // Alíquota de ISS por CNPJ do tomador (Shirley/Aline, 2026-09-09) - vem da planilha própria deles
+  // (ALIQUOTA ISS, aba FORNECEDOR: 1 CNPJ da Tecban por município/filial), não da base oficial
+  // genérica - carregada uma vez e usada na tela de faturamento (ver buscarIssPorCnpj). O valor é
+  // editável ali mesmo pra corrigir quando a planilha não tiver a alíquota de um CNPJ ainda.
+  useEffect(() => {
+    if (usuario) supabase.from('tecban_cnpj_iss').select('*').then(({ data }) => setTecbanCnpjIss(data || []))
+  }, [usuario])
+  function buscarIssPorCnpj(cnpj) {
+    const digitos = soDigitosCnpj(cnpj)
+    if (!digitos) return null
+    return tecbanCnpjIss.find(r => r.cnpj_digitos === digitos) || null
+  }
+  async function salvarAliquotaIss(cnpj, novaAliquota) {
+    const digitos = soDigitosCnpj(cnpj)
+    if (!digitos) return
+    const aliquota = novaAliquota === '' ? null : parseFloat(String(novaAliquota).replace(',', '.'))
+    const existente = tecbanCnpjIss.find(r => r.cnpj_digitos === digitos)
+    const campos = { aliquota, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+    if (existente) {
+      const { error } = await supabase.from('tecban_cnpj_iss').update(campos).eq('cnpj_digitos', digitos)
+      if (!error) setTecbanCnpjIss(prev => prev.map(r => r.cnpj_digitos === digitos ? { ...r, ...campos } : r))
+    } else {
+      const novo = { cnpj_digitos: digitos, cnpj, ...campos }
+      const { error } = await supabase.from('tecban_cnpj_iss').insert(novo)
+      if (!error) setTecbanCnpjIss(prev => [...prev, novo])
+    }
+  }
 
   useEffect(() => {
     if (!usuario) { setPapel(null); return }
@@ -5275,6 +5309,18 @@ export default function App() {
                               <> · Recebimento via <b>{bancoRecebimentoParaCnpjFornecedor(g.cnpjFornecedor)}</b></>
                             )}
                           </div>
+                          {g.cnpjTomador && (() => {
+                            const issInfo = buscarIssPorCnpj(g.cnpjTomador)
+                            return (
+                              <div style={{ fontSize:11, color:'#475569', margin:'0 0 10px', display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+                                Tomador (Tecban): <b>{g.cnpjTomador}</b>{issInfo?.municipio ? ` · ${issInfo.municipio}` : ''} · ISS:
+                                <input type="number" step="0.01" defaultValue={issInfo?.aliquota ?? ''} placeholder="não informado"
+                                  onBlur={e => salvarAliquotaIss(g.cnpjTomador, e.target.value)}
+                                  style={{ width:70, padding:'3px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:11, color:'#1A2340' }} />
+                                %
+                              </div>
+                            )
+                          })()}
                           <div style={{ background:'#F8FAFC', borderRadius:8, padding:'6px 10px', marginBottom:10 }}>
                             {g.obras.map(o => (
                               <div key={o.id} style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#334155', padding:'3px 0' }}>
