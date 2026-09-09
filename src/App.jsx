@@ -7507,13 +7507,13 @@ export default function App() {
                 <div style={{ flex:1.3 }}>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Tipo de serviço</label>
                   <select value={editDados.tipo || modal.tipo} onChange={e => setEditDados(d => ({...d, tipo:e.target.value}))}
+                    title="Corrige tipo importado errado do SIGE - só troca entre tipos que usam a mesma régua (ATM entre si, obra de agência entre si)."
                     style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
                     {tiposDaMesmaFamilia(modal.tipo).map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
               </div>
-              <div style={{ fontSize:10, color:'#64748B', marginBottom:10 }}>Corrige tipo importado errado do SIGE - só troca entre tipos que usam a mesma régua (ATM entre si, obra de agência entre si).</div>
-              <div style={{ display:'grid', gridTemplateColumns: `2.2fr 1fr 0.5fr ${podeVerValores ? '0.9fr ' : ''}0.9fr ${(TIPOS_BDN.includes(modal.tipo) && modal.rede !== 'BANCO24HORAS') ? '0.9fr ' : ''}0.9fr 0.9fr 0.9fr 0.9fr`, gap:8 }}>
+              <div style={{ display:'grid', gridTemplateColumns: `2.2fr 1fr 0.5fr ${podeVerValores ? '0.9fr ' : ''}0.9fr ${(TIPOS_BDN.includes(modal.tipo) && modal.rede !== 'BANCO24HORAS') ? '0.9fr ' : ''}0.9fr 0.9fr 0.9fr 0.9fr`, gap:8, marginTop:10 }}>
                 <div>
                   <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Endereço</label>
                   <input value={editDados.endereco} onChange={e => setEditDados(d => ({...d, endereco:up(e.target.value)}))}
