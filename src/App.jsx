@@ -295,6 +295,21 @@ function pedidoDuplicadoSuspeito(obra, todasObras) {
   ) || null
 }
 
+// Mostra o alerta de pedidoDuplicadoSuspeito e devolve false se o usuário cancelar (usado em
+// todo lugar que efetivamente emite NF: salvarStatus, marcarFaturado, marcarFaturadoGrupo).
+function confirmaSemPedidoDuplicado(obra, todasObras) {
+  const suspeito = pedidoDuplicadoSuspeito(obra, todasObras)
+  if (!suspeito) return true
+  const operacaoTxt = (obra.numero_operacao || '').trim()
+  return window.confirm(
+    `⚠ ATENÇÃO - possível pedido duplicado\n\n` +
+    `A obra "${suspeito.nome}" já tem NF ${suspeito.nf} emitida com o pedido ${suspeito.pedido} pra essa mesma OS Tecban (${obra.os_tecban})` +
+    `${operacaoTxt ? ` / operação ${operacaoTxt}` : ''}.\n\n` +
+    `O pedido desta obra (${obra.pedido}) é diferente. Isso costuma acontecer quando a Tecban manda 2 pedidos por engano pro mesmo serviço, ou quando o mesmo ponto foi lançado 2 vezes aqui - emitir NF de novo vai faturar 2 vezes.\n\n` +
+    `Confirme antes de continuar. Quer seguir mesmo assim?`
+  )
+}
+
 // Agrupa obras 100% conferidas por CNPJ fornecedor (Grupo PG, pela UF) + CNPJ tomador (Tecban,
 // vindo do pedido) pra faturar várias de uma vez com uma única NF - máximo de 15 serviços por
 // grupo (Shirley, 2026-08-25); quando um par de CNPJs passa disso, quebra em mais de um grupo.
@@ -4255,25 +4270,12 @@ export default function App() {
 
   async function salvarStatus() {
     if (!novoStatus) return
-    if (editDados.pedido) {
-      const suspeito = pedidoDuplicadoSuspeito({
-        id: modal.id,
-        os_tecban: editDados.os_tecban || modal.os_tecban,
-        numero_operacao: editDados.numero_operacao || modal.numero_operacao,
-        pedido: editDados.pedido,
-      }, obras)
-      if (suspeito) {
-        const operacaoTxt = (editDados.numero_operacao || modal.numero_operacao || '').trim()
-        const confirma = window.confirm(
-          `⚠ ATENÇÃO - possível pedido duplicado da Tecban\n\n` +
-          `A obra "${suspeito.nome}" já tem NF ${suspeito.nf} emitida com o pedido ${suspeito.pedido} pra essa mesma OS Tecban (${editDados.os_tecban || modal.os_tecban})` +
-          `${operacaoTxt ? ` / operação ${operacaoTxt}` : ''}.\n\n` +
-          `O pedido desta obra (${editDados.pedido}) é diferente. Isso costuma acontecer quando a Tecban manda 2 pedidos por engano pro mesmo serviço - emitir NF de novo vai faturar 2 vezes.\n\n` +
-          `Confirme com a Tecban antes de continuar. Quer seguir mesmo assim?`
-        )
-        if (!confirma) return
-      }
-    }
+    if (editDados.pedido && !confirmaSemPedidoDuplicado({
+      id: modal.id,
+      os_tecban: editDados.os_tecban || modal.os_tecban,
+      numero_operacao: editDados.numero_operacao || modal.numero_operacao,
+      pedido: editDados.pedido,
+    }, obras)) return
     setSalvando(true)
     // "RM Enviada" pula pra próxima etapa da régua daquele tipo/rede, não direto pra EMITIR NF -
     // em Banco24Horas/AgiBank/Crefisa e Bradesco existe "Aguardando OS Tecban"/"Aguardando pedido"
@@ -4526,6 +4528,8 @@ export default function App() {
   }
 
   async function marcarFaturado(id) {
+    const obra = obras.find(o => o.id === id)
+    if (obra && !confirmaSemPedidoDuplicado(obra, obras)) return
     const d = faturarDados[id] || {}
     const campos = {
       status: 'NF EMITIDO',
@@ -4545,6 +4549,9 @@ export default function App() {
   // Marca todas as obras de um grupo (mesmo CNPJ fornecedor+tomador) como faturadas de uma vez,
   // com o mesmo número de NF e vencimento (Shirley, 2026-08-25).
   async function marcarFaturadoGrupo(chaveGrupo, ids) {
+    for (const obraDoGrupo of obras.filter(o => ids.includes(o.id))) {
+      if (!confirmaSemPedidoDuplicado(obraDoGrupo, obras)) return
+    }
     const d = grupoFaturarDados[chaveGrupo] || {}
     const campos = {
       status: 'NF EMITIDO',
