@@ -3925,10 +3925,20 @@ export default function App() {
     setFotosRelatorio(prev => [...prev, ...novas])
   }
 
+  // Prefixo de rede usado no assunto dos e-mails pra Tecban - BANCO24HORAS abrevia "B24H" e
+  // BRADESCO abrevia "BDN" (convenção já usada por eles); as demais redes (AGIBANK, CREFISA...)
+  // vão por extenso mesmo, sem abreviação própria (Shirley, 2026-09-10 - achou "B24H" errado num
+  // assunto de ponto Bradesco, que devia estar como "BDN").
+  function prefixoRedeAssunto(rede) {
+    if (rede === 'BRADESCO') return 'BDN'
+    if (rede === 'BANCO24HORAS') return 'B24H'
+    return rede || ''
+  }
+
   function montaAssuntoRelatorioTecban() {
     const ordem = (editDados.os_tecban || modal?.os_tecban || '').trim() || '(sem OS)'
     const tipoCodigo = (modal?.tipo || '').replace(/\s*ATM\s*$/i, '').trim().toUpperCase()
-    return `B24H_${ordem}_${tipoCodigo}`
+    return `${prefixoRedeAssunto(modal?.rede)}_${ordem}_${tipoCodigo}`
   }
 
   function montaCorpoRelatorioTecban() {
@@ -3986,7 +3996,7 @@ export default function App() {
     const ordem = (editDados.os_tecban || modal?.os_tecban || '').trim() || '(sem OS)'
     const tipoCodigo = (modal?.tipo || '').replace(/\s*ATM\s*$/i, '').trim().toUpperCase()
     const dataVisita = novoRegistroData || (paraIsoDataObraTexto(dataInicioObraTexto) || '')
-    return `Status do dia ${isoToBr(dataVisita) || ''} - B24H_${ordem}_${tipoCodigo}`
+    return `Status do dia ${isoToBr(dataVisita) || ''} - ${prefixoRedeAssunto(modal?.rede)}_${ordem}_${tipoCodigo}`
   }
 
   function montaCorpoStatusDiaTecban() {
@@ -4043,7 +4053,7 @@ export default function App() {
   function montaAssuntoAgendamentoTecban() {
     const ordem = (editDados.os_tecban || modal?.os_tecban || '').trim() || '(sem OS)'
     const tipoCodigo = (modal?.tipo || '').replace(/\s*ATM\s*$/i, '').trim().toUpperCase()
-    return `Agendamento confirmado - B24H_${ordem}_${tipoCodigo}`
+    return `Agendamento confirmado - ${prefixoRedeAssunto(modal?.rede)}_${ordem}_${tipoCodigo}`
   }
 
   function montaCorpoAgendamentoTecban() {
