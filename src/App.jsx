@@ -355,6 +355,12 @@ function alertaDias(dias, status) {
   return null
 }
 
+// Remove acentos antes de comparar, senão buscar "sao lucas" não acha "São Lucas" (Shirley,
+// 2026-09-10 - líder relatou obra que só aparecia filtrando por tipo de serviço, nunca por nome).
+function normalizarBusca(s) {
+  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+}
+
 function isoToBr(iso) {
   if (!iso) return null
   const [y, m, d] = iso.split('-')
@@ -4589,8 +4595,8 @@ export default function App() {
       // agora acha "BTG - AG. FLUMINENSE" ou "FLUMINENSE BTG", que a busca antiga (substring unico)
       // não achava (Shirley, 2026-08-19).
       const campos = [o.nome, o.local, o.cidade, o.uf, o.os_tecban, o.pedido, o.sige, o.numero_pc]
-        .map(c => (c || '').toLowerCase()).join(' ')
-      const palavras = busca.toLowerCase().trim().split(/\s+/).filter(Boolean)
+        .map(c => normalizarBusca(c)).join(' ')
+      const palavras = normalizarBusca(busca).trim().split(/\s+/).filter(Boolean)
       if (!palavras.every(p => campos.includes(p))) return false
     }
     if (filtroDe || filtroAte) {
@@ -4609,8 +4615,8 @@ export default function App() {
     if (conferePedidoObra(o).temConferencia) return false
     if (buscaIndisponivel) {
       const campos = [o.nome, o.local, o.cidade, o.uf, o.os_tecban, o.pedido, o.sige, o.numero_pc]
-        .map(c => (c || '').toLowerCase()).join(' ')
-      const palavras = buscaIndisponivel.toLowerCase().trim().split(/\s+/).filter(Boolean)
+        .map(c => normalizarBusca(c)).join(' ')
+      const palavras = normalizarBusca(buscaIndisponivel).trim().split(/\s+/).filter(Boolean)
       if (!palavras.every(p => campos.includes(p))) return false
     }
     return true
@@ -4627,8 +4633,8 @@ export default function App() {
       // vira NF EMITIDO (Shirley, 2026-08-27 - "não encontro o PC 98813"). NF incluída na busca a
       // pedido da Aline, 2026-09-02.
       const campos = [o.nome, o.local, o.cidade, o.uf, o.os_tecban, o.pedido, o.sige, o.numero_pc, o.nf]
-        .map(c => (c || '').toLowerCase()).join(' ')
-      const palavras = buscaHist.toLowerCase().trim().split(/\s+/).filter(Boolean)
+        .map(c => normalizarBusca(c)).join(' ')
+      const palavras = normalizarBusca(buscaHist).trim().split(/\s+/).filter(Boolean)
       if (!palavras.every(p => campos.includes(p))) return false
     }
     if (filtroHistDe || filtroHistAte) {
