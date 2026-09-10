@@ -3578,6 +3578,31 @@ export default function App() {
     setMenuAberto(null)
   }
 
+  // Cancela uma NF já emitida (Shirley/Aline, 2026-09-10 - caso dos pedidos duplicados faturados
+  // 2x: não existia nenhum jeito de cancelar uma NF no sistema, só editar status na mão sem
+  // registrar motivo/quem/quando). Motivo é obrigatório pra sempre sobrar explicação registrada.
+  // Se a mesma NF cobrir mais de uma obra (fatura em lote - agruparParaFaturamento), avisa quais
+  // são as outras antes de cancelar só uma, pra não esquecer de cancelar o grupo inteiro.
+  async function cancelarNf(obra) {
+    setMenuAberto(null)
+    const irmas = obras.filter(o => obra.nf && o.nf === obra.nf && o.id !== obra.id)
+    const avisoIrmas = irmas.length > 0
+      ? `\n\nAtenção: a NF ${obra.nf} também cobre ${irmas.length} outra(s) obra(s) (${irmas.map(o => o.nome).join(', ')}) - cancele elas também se o cancelamento for da nota inteira.`
+      : ''
+    const motivo = window.prompt(`Cancelar a NF ${obra.nf || '(sem número)'} desta obra (${obra.nome})?\n\nDescreva o motivo do cancelamento (obrigatório):${avisoIrmas}`)
+    if (motivo === null) return
+    if (!motivo.trim()) { alert('Motivo é obrigatório - cancelamento não foi feito.'); return }
+    const campos = {
+      status: 'CANCELADO',
+      cancelamento_motivo: motivo.trim(),
+      cancelamento_por: usuario?.email || null,
+      cancelamento_em: new Date().toISOString(),
+    }
+    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
+    if (error) { alert('Erro ao cancelar: ' + error.message); return }
+    setObras(prev => prev.map(o => o.id === obra.id ? { ...o, ...campos } : o))
+  }
+
   async function duplicarParaNovaOperacao(obra) {
     if (!obra.os_tecban || !obra.os_tecban.trim()) {
       alert('Essa obra ainda não tem OS Tecban preenchida. Preencha e salve a OS antes de duplicar pra uma nova operação.')
@@ -4652,7 +4677,7 @@ export default function App() {
   })
 
   const podeVerValores = papel === 'admin' || papel === 'administrativo' || papel === 'financeiro'
-  const obrasAtivas = obras.filter(o => o.status !== 'NF EMITIDO')
+  const obrasAtivas = obras.filter(o => o.status !== 'NF EMITIDO' && o.status !== 'CANCELADO')
   const totalValor = obrasAtivas.reduce((s,o) => s + Number(o.valor||0), 0)
   const emAndamento = obrasAtivas.filter(o => o.status === 'EM ANDAMENTO').length
   const pendencias = obrasAtivas.filter(o => ['PENDÊNCIA','PRECISA DE ARQUIVO RM','AG. PEDIDO','ENVIAR RM'].includes(o.status)).length
@@ -6890,7 +6915,13 @@ export default function App() {
                       style={{ position:'absolute', top:8, right:8, background:'none', border:'none', fontSize:18, cursor:'pointer', color:'#888', zIndex:2, lineHeight:1 }}>•••</button>
                   )}
                   {menuAberto === obra.id && (
-                    <div style={{ position:'absolute', top:32, right:8, background:'#fff', border:'1px solid #E0E8F0', borderRadius:10, boxShadow:'0 4px 12px rgba(0,0,0,.15)', zIndex:10, minWidth:140 }}>
+                    <div style={{ position:'absolute', top:32, right:8, background:'#fff', border:'1px solid #E0E8F0', borderRadius:10, boxShadow:'0 4px 12px rgba(0,0,0,.15)', zIndex:10, minWidth:170 }}>
+                      {obra.status === 'NF EMITIDO' && (
+                        <div onClick={e => { e.stopPropagation(); cancelarNf(obra) }}
+                          style={{ padding:'12px 16px', fontSize:13, color:'#B45309', fontWeight:600, cursor:'pointer', borderBottom:'1px solid #F1F5F9' }}>
+                          🚫 Cancelar NF
+                        </div>
+                      )}
                       <div onClick={e => { e.stopPropagation(); excluirObra(obra.id) }}
                         style={{ padding:'12px 16px', fontSize:13, color:'#E24B4A', fontWeight:600, cursor:'pointer' }}>
                         🗑 Excluir obra
@@ -6928,7 +6959,8 @@ export default function App() {
                       )}
                       {obra.rede && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#EEF2FF', color:'#3730A3' }}>{obra.rede}</span>}
                       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:tc.bg, color:tc.text }}>{obra.tipo}</span>
-                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text }}>{obra.status}</span>
+                      <span title={obra.cancelamento_motivo ? `Cancelada em ${isoToBr((obra.cancelamento_em || '').split('T')[0])} por ${obra.cancelamento_por || '—'}\nMotivo: ${obra.cancelamento_motivo}` : undefined}
+                        style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text, cursor: obra.cancelamento_motivo ? 'help' : 'default' }}>{obra.status}{obra.cancelamento_motivo ? ' ℹ' : ''}</span>
                       {obra.em_negociacao && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FEF3C7', color:'#92400E' }}>Em negociação</span>}
                       {alerta && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:alerta.bg, color:alerta.cor }}>⚠ {alerta.label}</span>}
                       {obra.tipo === 'INSTALAÇÃO ATM' && !obra.pedido && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FFF7ED', color:'#9A3412' }}>⚠ Sem pedido</span>}
