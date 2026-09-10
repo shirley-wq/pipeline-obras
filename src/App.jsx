@@ -1334,7 +1334,13 @@ function temVisitasDeCampo(rede, tipo) {
 // (data_inicio_obra_texto pras redes/tipos sem vistoria, data_obra_inicio pros demais). Usada na
 // tela do líder de campo pra ordenar as atividades por data (Shirley, 2026-09-04).
 function dataAtividadeObra(o) {
-  return temTelaOperacaoCampo(o.rede, o.tipo) ? paraIsoDataObraTexto(o.data_inicio_obra_texto) : (o.data_obra_inicio || null)
+  // Antes só olhava a data de execução (data_obra_inicio/data_inicio_obra_texto), então uma obra
+  // ainda na etapa de Vistoria - sem data de execução marcada ainda - não aparecia pra nenhum
+  // líder, mesmo já tendo vistoria agendada pra hoje (Shirley, 2026-09-10 - caso do Prime São
+  // Lucas: o Anderson cadastrou a vistoria de hoje, mas sumia da lista do Aguinaldo). Vistoria
+  // conta como a atividade "programada" até a obra avançar pra execução.
+  const dataExecucao = temTelaOperacaoCampo(o.rede, o.tipo) ? paraIsoDataObraTexto(o.data_inicio_obra_texto) : (o.data_obra_inicio || null)
+  return dataExecucao || o.data_vistoria || null
 }
 // Eventos de uma obra pra um dia especifico do Cenario - usado tanto pra montar os cards por
 // estado quanto pra filtrar a lista de baixo quando um card e clicado (Shirley, 2026-08-19: antes o
