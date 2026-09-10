@@ -277,6 +277,24 @@ function conferePedidoObra(obra) {
   return { temValor, temOs, temCnpj, temConferencia, valorBate, osBate, cnpjBate, completo, precisaCorrecao }
 }
 
+// A Tecban às vezes manda 2 números de pedido diferentes pra mesma OS/operação por erro deles
+// (Shirley, 2026-09-10 - caso real: pedidos 4501905168 e 4501908573 chegaram pra mesma OS/
+// operação, e como não tinha trava nenhuma, as duas viraram NF - faturou 2x o mesmo serviço).
+// "Mesma operação" usa numero_operacao (ver project-numero-operacao-rule) porque a mesma OS pode
+// legitimamente ter mais de um pedido quando são atividades DIFERENTES no mesmo ponto - só é
+// suspeito quando OS e operação são as duas iguais mas o pedido é diferente.
+function pedidoDuplicadoSuspeito(obra, todasObras) {
+  const os = (obra.os_tecban || '').trim()
+  if (!os || !obra.pedido) return null
+  const operacao = (obra.numero_operacao || '').trim()
+  return todasObras.find(o =>
+    o.id !== obra.id &&
+    (o.os_tecban || '').trim() === os &&
+    (o.numero_operacao || '').trim() === operacao &&
+    o.nf && String(o.pedido || '').trim() !== String(obra.pedido || '').trim()
+  ) || null
+}
+
 // Agrupa obras 100% conferidas por CNPJ fornecedor (Grupo PG, pela UF) + CNPJ tomador (Tecban,
 // vindo do pedido) pra faturar várias de uma vez com uma única NF - máximo de 15 serviços por
 // grupo (Shirley, 2026-08-25); quando um par de CNPJs passa disso, quebra em mais de um grupo.
@@ -4237,6 +4255,25 @@ export default function App() {
 
   async function salvarStatus() {
     if (!novoStatus) return
+    if (editDados.pedido) {
+      const suspeito = pedidoDuplicadoSuspeito({
+        id: modal.id,
+        os_tecban: editDados.os_tecban || modal.os_tecban,
+        numero_operacao: editDados.numero_operacao || modal.numero_operacao,
+        pedido: editDados.pedido,
+      }, obras)
+      if (suspeito) {
+        const operacaoTxt = (editDados.numero_operacao || modal.numero_operacao || '').trim()
+        const confirma = window.confirm(
+          `⚠ ATENÇÃO - possível pedido duplicado da Tecban\n\n` +
+          `A obra "${suspeito.nome}" já tem NF ${suspeito.nf} emitida com o pedido ${suspeito.pedido} pra essa mesma OS Tecban (${editDados.os_tecban || modal.os_tecban})` +
+          `${operacaoTxt ? ` / operação ${operacaoTxt}` : ''}.\n\n` +
+          `O pedido desta obra (${editDados.pedido}) é diferente. Isso costuma acontecer quando a Tecban manda 2 pedidos por engano pro mesmo serviço - emitir NF de novo vai faturar 2 vezes.\n\n` +
+          `Confirme com a Tecban antes de continuar. Quer seguir mesmo assim?`
+        )
+        if (!confirma) return
+      }
+    }
     setSalvando(true)
     // "RM Enviada" pula pra próxima etapa da régua daquele tipo/rede, não direto pra EMITIR NF -
     // em Banco24Horas/AgiBank/Crefisa e Bradesco existe "Aguardando OS Tecban"/"Aguardando pedido"
@@ -6965,6 +7002,15 @@ export default function App() {
                       {alerta && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:alerta.bg, color:alerta.cor }}>⚠ {alerta.label}</span>}
                       {obra.tipo === 'INSTALAÇÃO ATM' && !obra.pedido && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FFF7ED', color:'#9A3412' }}>⚠ Sem pedido</span>}
                       {conferePedidoObra(obra).precisaCorrecao && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FEE2E2', color:'#991B1B' }}>🚨 Erro no pedido</span>}
+                      {(() => {
+                        const dup = pedidoDuplicadoSuspeito(obra, obras)
+                        return dup ? (
+                          <span title={`Mesma OS/operação já faturada na obra "${dup.nome}" com pedido ${dup.pedido} (NF ${dup.nf})`}
+                            style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FEE2E2', color:'#991B1B', cursor:'help' }}>
+                            🚨 Pedido duplicado?
+                          </span>
+                        ) : null
+                      })()}
                       {obra.local ? <span style={{ fontSize:11, color:'#888' }}>{obra.local}</span> : null}
                     </div>
                   </div>
