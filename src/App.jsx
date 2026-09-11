@@ -1694,6 +1694,61 @@ function SidebarRH({ ativa, onChange, totalColaboradores, totalHolerites }) {
 
 // Pergunta Sim/Não do checklist de validação pré-obra pedido pela Fernanda (TecBan, 2026-09-03) -
 // segue exatamente o texto do checklist dela pra evitar ambiguidade na hora de preencher.
+// Formulário de cadastro/edição de fornecedor (Bruna, 2026-09-11) - mesmos campos usados tanto pra
+// editar um fornecedor já importado quanto pra cadastrar um novo do zero.
+const CAMPOS_FORNECEDOR = [
+  { campo:'nome_fantasia', label:'Nome Fantasia' },
+  { campo:'razao_social', label:'Razão Social' },
+  { campo:'cnpj', label:'CPF / CNPJ' },
+  { campo:'categoria', label:'Categoria' },
+  { campo:'produto_servico', label:'Produto / Serviço' },
+  { campo:'telefone', label:'Telefone' },
+  { campo:'email', label:'E-mail' },
+  { campo:'endereco', label:'Endereço' },
+  { campo:'cep', label:'CEP' },
+]
+function FornecedorForm({ dados, setDados, onSalvar, onCancelar, onExcluir, salvando }) {
+  const inp = { width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }
+  return (
+    <div style={{ background:'#F8FAFC', border:'1px solid #E0E8F0', borderRadius:10, padding:14, marginBottom:10 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
+        {CAMPOS_FORNECEDOR.map(({ campo, label }) => (
+          <div key={campo}>
+            <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>{label}</label>
+            <input value={dados[campo] || ''} onChange={e => setDados(prev => ({ ...prev, [campo]: e.target.value }))} style={inp} />
+          </div>
+        ))}
+      </div>
+      <div style={{ marginBottom:10 }}>
+        <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Observações</label>
+        <textarea value={dados.observacoes || ''} onChange={e => setDados(prev => ({ ...prev, observacoes: e.target.value }))} rows={2}
+          style={{ ...inp, resize:'none' }} />
+      </div>
+      {dados.link_pasta && (
+        <div style={{ fontSize:11, marginBottom:10 }}>
+          <a href={dados.link_pasta} target="_blank" rel="noreferrer" style={{ color:'#0369A1' }}>📁 Pasta do fornecedor no Drive</a>
+        </div>
+      )}
+      <div style={{ display:'flex', gap:8 }}>
+        <button onClick={onSalvar} disabled={salvando}
+          style={{ padding:'9px 16px', background: salvando ? '#94A3B8' : '#0369A1', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor: salvando ? 'default' : 'pointer' }}>
+          {salvando ? 'Salvando...' : '💾 Salvar'}
+        </button>
+        {onCancelar && (
+          <button onClick={onCancelar} style={{ padding:'9px 16px', background:'#F1F5F9', color:'#1A2340', border:'none', borderRadius:8, fontSize:12, fontWeight:600, cursor:'pointer' }}>
+            Cancelar
+          </button>
+        )}
+        {onExcluir && (
+          <button onClick={onExcluir} style={{ marginLeft:'auto', padding:'9px 16px', background:'none', color:'#E24B4A', border:'none', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+            🗑 Excluir
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function PerguntaSimNao({ numero, pergunta, valor, onChange, seguirQuando, detalheLabel, detalheValor, onChangeDetalhe, detalheTipo }) {
   return (
     <div style={{ marginBottom:10 }}>
@@ -2752,6 +2807,11 @@ export default function App() {
   const [buscaIndisponivel, setBuscaIndisponivel] = useState('')
   const [rhColaboradores, setRhColaboradores] = useState([])
   const [tecbanCnpjIss, setTecbanCnpjIss] = useState([])
+  const [fornecedores, setFornecedores] = useState([])
+  const [buscaFornecedor, setBuscaFornecedor] = useState('')
+  const [fornecedorAberto, setFornecedorAberto] = useState(null)
+  const [novoFornecedor, setNovoFornecedor] = useState(null)
+  const [salvandoFornecedor, setSalvandoFornecedor] = useState(false)
   const [emailsLogin, setEmailsLogin] = useState([])
   const [perfisLogin, setPerfisLogin] = useState([])
   const [meuRH, setMeuRH] = useState(null)
@@ -2874,6 +2934,33 @@ export default function App() {
   useEffect(() => {
     if (usuario) supabase.from('tecban_cnpj_iss').select('*').then(({ data }) => setTecbanCnpjIss(data || []))
   }, [usuario])
+
+  // Cadastro de fornecedores (Bruna, 2026-09-11) - levantamento feito com IA a partir do histórico
+  // de pagamentos/pastas do Drive, importado de uma vez só; daqui pra frente mantido direto aqui.
+  useEffect(() => {
+    if (usuario) supabase.from('fornecedores').select('*').order('nome_fantasia').then(({ data }) => setFornecedores(data || []))
+  }, [usuario])
+
+  async function salvarFornecedor(id, campos) {
+    setSalvandoFornecedor(true)
+    const camposCompletos = { ...campos, atualizado_em: new Date().toISOString(), atualizado_por: usuario?.email || null }
+    if (id) {
+      const { error } = await supabase.from('fornecedores').update(camposCompletos).eq('id', id)
+      if (!error) setFornecedores(prev => prev.map(f => f.id === id ? { ...f, ...camposCompletos } : f).sort((a,b) => (a.nome_fantasia||'').localeCompare(b.nome_fantasia||'')))
+      setSalvandoFornecedor(false)
+      return !error
+    }
+    const { data, error } = await supabase.from('fornecedores').insert(camposCompletos).select().single()
+    if (!error && data) setFornecedores(prev => [...prev, data].sort((a,b) => (a.nome_fantasia||'').localeCompare(b.nome_fantasia||'')))
+    setSalvandoFornecedor(false)
+    return !error
+  }
+
+  async function excluirFornecedor(id) {
+    if (!window.confirm('Excluir este fornecedor?')) return
+    const { error } = await supabase.from('fornecedores').delete().eq('id', id)
+    if (!error) { setFornecedores(prev => prev.filter(f => f.id !== id)); setFornecedorAberto(null) }
+  }
   function buscarIssPorCnpj(cnpj) {
     const digitos = soDigitosCnpj(cnpj)
     if (!digitos) return null
@@ -5459,6 +5546,7 @@ export default function App() {
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'jantas', label:'Jantas', count: jantasTodas.filter(j => j.status === 'pendente').length, cor:'#B45309' }] : []),
           ...(EMAILS_CUSTOS_DESPESAS.includes(usuario?.email) ? [{ id:'despesas', label:'Despesas', count:null, cor:'#B91C1C' }] : []),
           ...(EMAILS_CUSTOS_DESPESAS.includes(usuario?.email) ? [{ id:'financeiro', label:'Financeiro', count:null, cor:'#0F766E' }] : []),
+          ...(podeVerValores ? [{ id:'fornecedores', label:'Fornecedores', count: fornecedores.length, cor:'#0369A1' }] : []),
         ]).map(a => (
           <button key={a.id} onClick={() => setAba(a.id)}
             style={{ flex:1, padding:'12px 8px', border:'none', borderBottom: aba===a.id ? `3px solid ${a.cor||'#2D3A8C'}` : '3px solid transparent',
@@ -6997,6 +7085,64 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* ====== ABA: FORNECEDORES ====== */}
+      {aba === 'fornecedores' && podeVerValores && (() => {
+        const listaFiltrada = fornecedores.filter(f => {
+          if (!buscaFornecedor) return true
+          const termo = normalizarBusca(buscaFornecedor)
+          const campos = normalizarBusca([f.nome_fantasia, f.razao_social, f.pasta_fornecedor, f.cnpj, f.categoria, f.produto_servico].filter(Boolean).join(' '))
+          return campos.includes(termo)
+        })
+        return (
+        <div style={{ padding:12 }}>
+          <div style={{ display:'flex', gap:8, marginBottom:10, alignItems:'center', flexWrap:'wrap' }}>
+            <input value={buscaFornecedor} onChange={e=>setBuscaFornecedor(e.target.value)} placeholder="🔎 Buscar por nome, CNPJ, categoria..."
+              style={{ flex:1, minWidth:220, padding:'9px 12px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340' }} />
+            <button onClick={() => { setNovoFornecedor({}); setFornecedorAberto(null) }}
+              style={{ padding:'9px 16px', background:'#0369A1', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+              + Novo fornecedor
+            </button>
+          </div>
+          <div style={{ fontSize:12, color:'#64748B', marginBottom:10 }}>{listaFiltrada.length} fornecedor(es)</div>
+
+          {novoFornecedor && (
+            <FornecedorForm dados={novoFornecedor} setDados={setNovoFornecedor}
+              salvando={salvandoFornecedor}
+              onCancelar={() => setNovoFornecedor(null)}
+              onSalvar={async () => { const ok = await salvarFornecedor(null, novoFornecedor); if (ok) setNovoFornecedor(null) }} />
+          )}
+
+          {listaFiltrada.map(f => {
+            const aberto = fornecedorAberto === f.id
+            return (
+              <div key={f.id} style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, marginBottom:8, overflow:'hidden' }}>
+                <div onClick={() => setFornecedorAberto(aberto ? null : f.id)} style={{ padding:'12px 14px', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 }}>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:'#1A2340' }}>{f.nome_fantasia || f.pasta_fornecedor || '(sem nome)'}</div>
+                    <div style={{ fontSize:11, color:'#64748B', marginTop:2 }}>{[f.categoria, f.cnpj].filter(Boolean).join(' · ') || '—'}</div>
+                  </div>
+                  <span style={{ fontSize:12, color:'#94A3B8', flexShrink:0 }}>{aberto ? '▲' : '▼'}</span>
+                </div>
+                {aberto && (
+                  <div style={{ padding:'0 14px 14px' }}>
+                    <FornecedorForm dados={f} setDados={upd => setFornecedores(prev => prev.map(x => x.id === f.id ? { ...x, ...(typeof upd === 'function' ? upd(x) : upd) } : x))}
+                      salvando={salvandoFornecedor}
+                      onSalvar={() => salvarFornecedor(f.id, {
+                        nome_fantasia: f.nome_fantasia || null, razao_social: f.razao_social || null, cnpj: f.cnpj || null,
+                        categoria: f.categoria || null, produto_servico: f.produto_servico || null, telefone: f.telefone || null,
+                        email: f.email || null, endereco: f.endereco || null, cep: f.cep || null, observacoes: f.observacoes || null,
+                      })}
+                      onExcluir={() => excluirFornecedor(f.id)} />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {listaFiltrada.length === 0 && <div style={{ textAlign:'center', color:'#888', marginTop:40, fontSize:14 }}>Nenhum fornecedor encontrado.</div>}
+        </div>
+        )
+      })()}
 
       {/* ====== ABA: PIPELINE ====== */}
       {aba === 'pipeline' && <>
