@@ -7915,6 +7915,11 @@ export default function App() {
               </div>
               {modal.tipo !== 'DESATIVAÇÃO ATM' && modal.tipo !== 'SINALIZAÇÃO ATM' && !REDES_SEM_ARS.includes(modal.rede) && (
               <>
+              {/* Layout em 2 colunas quando tem checklist da Tecban (Shirley, 2026-09-11, "SUGESTAO
+                  ARS") - ARS/foto à esquerda, checklist de validação pré-obra à direita, lado a
+                  lado em vez de empilhado, pra preencher os dois sem tanta rolagem. */}
+              <div style={{ display:'grid', gridTemplateColumns: (modal.rede === 'BANCO24HORAS' && modal.tipo === 'INSTALAÇÃO ATM') ? '1fr 1fr' : '1fr', gap:16, alignItems:'start' }}>
+              <div>
               <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:6 }}>Critérios de segurança — o que o ARS indica x o que foi realizado em campo</div>
               <div style={{ marginBottom:12, overflowX:'auto' }}>
                 <div style={{ display:'grid', gridTemplateColumns:'minmax(160px, 260px) 100px 100px', gap:4, alignItems:'center', maxWidth:480 }}>
@@ -7985,9 +7990,10 @@ export default function App() {
                   </div>
                 )}
               </div>
+              </div>
 
               {modal.rede === 'BANCO24HORAS' && modal.tipo === 'INSTALAÇÃO ATM' && (
-              <div style={{ marginBottom:12, background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:10, padding:14 }}>
+              <div style={{ background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:10, padding:14, alignSelf:'start' }}>
                 <div style={{ fontSize:12, color:'#1E3A8A', fontWeight:700, marginBottom:2 }}>📋 Checklist de validação pré-obra (TecBan)</div>
                 <div style={{ fontSize:10, color:'#4A7FC1', marginBottom:10 }}>Pedido pela Fernanda (TecBan) em 03/09/2026 — preencher e validar com o EC até 13h do dia anterior à obra, aqui em vez de mandar por WhatsApp.</div>
 
@@ -8060,6 +8066,7 @@ export default function App() {
                 </div>
               </div>
               )}
+              </div>
 
               {modal.agendamento_enviado_em && (
                 <div style={{ fontSize:11, color:'#64748B', marginBottom:8 }}>
