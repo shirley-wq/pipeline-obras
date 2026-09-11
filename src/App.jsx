@@ -3643,11 +3643,40 @@ export default function App() {
     setNovaObra({ tipo:'', rede:'', numero_pc:'', numero_pa:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0], data_prevista:'' })
   }
 
-  async function excluirObra(id) {
-    if (!window.confirm('Excluir esta obra?')) return
-    await supabase.from('pipeline_obras').delete().eq('id', id)
-    setObras(prev => prev.filter(o => o.id !== id))
+  async function excluirObra(obra) {
+    const avisoSolicitacao = obra.exclusao_solicitada_por
+      ? `\n\nExclusão solicitada por ${obra.exclusao_solicitada_por} - motivo: ${obra.exclusao_solicitada_motivo || '(sem motivo)'}`
+      : ''
+    if (!window.confirm(`Excluir esta obra (${obra.nome})?${avisoSolicitacao}`)) return
+    await supabase.from('pipeline_obras').delete().eq('id', obra.id)
+    setObras(prev => prev.filter(o => o.id !== obra.id))
     setMenuAberto(null)
+  }
+
+  // Só Shirley/Bruna/Aline excluem obra de verdade - todo o resto do time só pode "pedir" a
+  // exclusão (Shirley, 2026-09-11), pra não perder rastro de quem achou que uma obra devia sumir
+  // e por quê, já que excluirObra() é permanente e sem confirmação de uma 2ª pessoa.
+  async function solicitarExclusao(obra) {
+    setMenuAberto(null)
+    const motivo = window.prompt(`Solicitar exclusão da obra "${obra.nome}"?\n\nDescreva o motivo (obrigatório) - alguém do time (Shirley, Bruna ou Aline) vai revisar e confirmar:`)
+    if (motivo === null) return
+    if (!motivo.trim()) { alert('Motivo é obrigatório - solicitação não foi enviada.'); return }
+    const campos = {
+      exclusao_solicitada_em: new Date().toISOString(),
+      exclusao_solicitada_por: usuario?.email || null,
+      exclusao_solicitada_motivo: motivo.trim(),
+    }
+    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
+    if (error) { alert('Erro ao enviar solicitação: ' + error.message); return }
+    setObras(prev => prev.map(o => o.id === obra.id ? { ...o, ...campos } : o))
+    alert('Solicitação de exclusão enviada.')
+  }
+
+  async function cancelarSolicitacaoExclusao(obra) {
+    setMenuAberto(null)
+    const campos = { exclusao_solicitada_em: null, exclusao_solicitada_por: null, exclusao_solicitada_motivo: null }
+    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
+    if (!error) setObras(prev => prev.map(o => o.id === obra.id ? { ...o, ...campos } : o))
   }
 
   // Cancela uma NF já emitida (Shirley/Aline, 2026-09-10 - caso dos pedidos duplicados faturados
@@ -7031,24 +7060,49 @@ export default function App() {
               return (
                 <div key={obra.id} style={{ background: estaSelecionada ? '#EEF2FF' : '#fff', borderRadius:12, marginBottom:10, border: estaSelecionada ? '2px solid #2D3A8C' : alerta ? `2px solid ${alerta.cor}` : '1px solid #E0E8F0', overflow:'hidden' }}>
                   <div style={{ position:'relative' }}>
-                  {['shirley@grupopg.com.br', 'bruna@grupopg.com.br', 'aline.roza@grupopg.com.br'].includes(usuario?.email) && (
-                    <button onClick={e => { e.stopPropagation(); setMenuAberto(menuAberto === obra.id ? null : obra.id) }}
-                      style={{ position:'absolute', top:8, right:8, background:'none', border:'none', fontSize:18, cursor:'pointer', color:'#888', zIndex:2, lineHeight:1 }}>•••</button>
-                  )}
-                  {menuAberto === obra.id && (
-                    <div style={{ position:'absolute', top:32, right:8, background:'#fff', border:'1px solid #E0E8F0', borderRadius:10, boxShadow:'0 4px 12px rgba(0,0,0,.15)', zIndex:10, minWidth:170 }}>
-                      {obra.status === 'NF EMITIDO' && (
+                  <button onClick={e => { e.stopPropagation(); setMenuAberto(menuAberto === obra.id ? null : obra.id) }}
+                    style={{ position:'absolute', top:8, right:8, background:'none', border:'none', fontSize:18, cursor:'pointer', color:'#888', zIndex:2, lineHeight:1 }}>•••</button>
+                  {menuAberto === obra.id && (() => {
+                    const podeExcluir = ['shirley@grupopg.com.br', 'bruna@grupopg.com.br', 'aline.roza@grupopg.com.br'].includes(usuario?.email)
+                    return (
+                    <div style={{ position:'absolute', top:32, right:8, background:'#fff', border:'1px solid #E0E8F0', borderRadius:10, boxShadow:'0 4px 12px rgba(0,0,0,.15)', zIndex:10, minWidth:190 }}>
+                      {obra.status === 'NF EMITIDO' && podeExcluir && (
                         <div onClick={e => { e.stopPropagation(); cancelarNf(obra) }}
                           style={{ padding:'12px 16px', fontSize:13, color:'#B45309', fontWeight:600, cursor:'pointer', borderBottom:'1px solid #F1F5F9' }}>
                           🚫 Cancelar NF
                         </div>
                       )}
-                      <div onClick={e => { e.stopPropagation(); excluirObra(obra.id) }}
-                        style={{ padding:'12px 16px', fontSize:13, color:'#E24B4A', fontWeight:600, cursor:'pointer' }}>
-                        🗑 Excluir obra
-                      </div>
+                      {podeExcluir ? (
+                        <>
+                          <div onClick={e => { e.stopPropagation(); excluirObra(obra) }}
+                            style={{ padding:'12px 16px', fontSize:13, color:'#E24B4A', fontWeight:600, cursor:'pointer' }}>
+                            🗑 Excluir obra
+                          </div>
+                          {obra.exclusao_solicitada_por && (
+                            <div onClick={e => { e.stopPropagation(); cancelarSolicitacaoExclusao(obra) }}
+                              style={{ padding:'12px 16px', fontSize:13, color:'#64748B', fontWeight:600, cursor:'pointer', borderTop:'1px solid #F1F5F9' }}>
+                              ❌ Recusar solicitação de exclusão
+                            </div>
+                          )}
+                        </>
+                      ) : obra.exclusao_solicitada_por === usuario?.email ? (
+                        <div onClick={e => { e.stopPropagation(); cancelarSolicitacaoExclusao(obra) }}
+                          style={{ padding:'12px 16px', fontSize:13, color:'#64748B', fontWeight:600, cursor:'pointer' }}>
+                          ✕ Cancelar minha solicitação
+                        </div>
+                      ) : obra.exclusao_solicitada_por ? (
+                        <div style={{ padding:'12px 16px', fontSize:12, color:'#92400E' }}>
+                          🕓 Exclusão já solicitada por {obra.exclusao_solicitada_por}
+                        </div>
+                      ) : (
+                        <div onClick={e => { e.stopPropagation(); solicitarExclusao(obra) }}
+                          style={{ padding:'12px 16px', fontSize:13, color:'#B45309', fontWeight:600, cursor:'pointer' }}>
+                          🗑 Solicitar exclusão
+                        </div>
+                      )}
                     </div>
-                  )}
+                    )
+                  })()}
                   <div style={{ padding:'12px 14px', cursor:'pointer' }} onClick={() => { setMenuAberto(null); setAberta(estaAberta ? null : obra.id) }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4, gap:8 }}>
                       <div style={{ display:'flex', alignItems:'flex-start', gap:8, flex:1, minWidth:0 }}>
@@ -7096,6 +7150,12 @@ export default function App() {
                           </span>
                         ) : null
                       })()}
+                      {obra.exclusao_solicitada_por && (
+                        <span title={`Solicitado por ${obra.exclusao_solicitada_por}${obra.exclusao_solicitada_em ? ` em ${isoToBr((obra.exclusao_solicitada_em || '').split('T')[0])}` : ''}\nMotivo: ${obra.exclusao_solicitada_motivo || '—'}`}
+                          style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FEF3C7', color:'#92400E', cursor:'help' }}>
+                          🕓 Exclusão solicitada
+                        </span>
+                      )}
                       {obra.local ? <span style={{ fontSize:11, color:'#888' }}>{obra.local}</span> : null}
                     </div>
                   </div>
