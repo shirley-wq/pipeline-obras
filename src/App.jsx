@@ -2807,15 +2807,41 @@ export default function App() {
   const [despesasAno, setDespesasAno] = useState(new Date().getFullYear())
   const [despesaObraAberta, setDespesaObraAberta] = useState(null)
 
+  const [mostrarDefinirNovaSenha, setMostrarDefinirNovaSenha] = useState(false)
+  const [novaSenhaRecovery, setNovaSenhaRecovery] = useState('')
+  const [confirmaSenhaRecovery, setConfirmaSenhaRecovery] = useState('')
+  const [erroDefinirSenha, setErroDefinirSenha] = useState('')
+  const [salvandoNovaSenha, setSalvandoNovaSenha] = useState(false)
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setUsuario(data.session?.user ?? null)
       setCarregando(false)
     })
-    supabase.auth.onAuthStateChange((_e, session) => {
+    // Antes o link de recuperação de senha só logava a pessoa direto, sem nunca pedir pra
+    // definir a senha nova - ela achava que tinha trocado, mas a senha antiga continuava valendo,
+    // e na próxima vez que a sessão expirasse ela ficava travada sem saber a senha certa (Shirley/
+    // Bruna, 2026-09-11). O evento PASSWORD_RECOVERY do Supabase dispara só nesse fluxo de link de
+    // recuperação, nunca num login normal - por isso dá pra interceptar aqui sem afetar o login.
+    supabase.auth.onAuthStateChange((event, session) => {
       setUsuario(session?.user ?? null)
+      if (event === 'PASSWORD_RECOVERY') setMostrarDefinirNovaSenha(true)
     })
   }, [])
+
+  async function definirNovaSenhaRecovery() {
+    if (!novaSenhaRecovery || novaSenhaRecovery.length < 6) { setErroDefinirSenha('A senha precisa ter pelo menos 6 caracteres.'); return }
+    if (novaSenhaRecovery !== confirmaSenhaRecovery) { setErroDefinirSenha('As senhas não são iguais.'); return }
+    setSalvandoNovaSenha(true)
+    setErroDefinirSenha('')
+    const { error } = await supabase.auth.updateUser({ password: novaSenhaRecovery })
+    setSalvandoNovaSenha(false)
+    if (error) { setErroDefinirSenha('Não foi possível salvar: ' + error.message); return }
+    setMostrarDefinirNovaSenha(false)
+    setNovaSenhaRecovery('')
+    setConfirmaSenhaRecovery('')
+    alert('Senha atualizada com sucesso! Você já está logado.')
+  }
 
   useEffect(() => { if (usuario) carregarObras() }, [usuario])
   useEffect(() => { if (usuario && EMAILS_CUSTOS_DESPESAS.includes(usuario.email)) carregarContasPagar() }, [usuario])
@@ -4607,6 +4633,22 @@ export default function App() {
   if (carregando) return (
     <div style={{ minHeight:'100vh', background:'#2D3A8C', display:'flex', alignItems:'center', justifyContent:'center' }}>
       <div style={{ color:'#87CEEB', fontSize:16 }}>Carregando...</div>
+    </div>
+  )
+
+  if (mostrarDefinirNovaSenha) return (
+    <div style={{ minHeight:'100vh', background:'#2D3A8C', display:'flex', alignItems:'center', justifyContent:'center', padding:16, fontFamily:'system-ui,sans-serif' }}>
+      <div style={{ background:'#E6F1FB', borderRadius:20, padding:'40px 28px', width:'100%', maxWidth:360, boxShadow:'0 8px 32px rgba(0,0,0,.3)' }}>
+        <div style={{ fontSize:24, fontWeight:700, color:'#2D3A8C', textAlign:'center', marginBottom:4 }}>GRUPO PG</div>
+        <div style={{ fontSize:12, color:'#4A7FC1', textAlign:'center', marginBottom:28 }}>Defina sua nova senha</div>
+        <input type="password" value={novaSenhaRecovery} onChange={e=>setNovaSenhaRecovery(e.target.value)} placeholder="Nova senha" style={inp} />
+        <input type="password" value={confirmaSenhaRecovery} onChange={e=>setConfirmaSenhaRecovery(e.target.value)} placeholder="Confirme a nova senha" style={inp} />
+        {erroDefinirSenha && <div style={{ color:'#E24B4A', fontSize:13, marginBottom:12, textAlign:'center' }}>{erroDefinirSenha}</div>}
+        <button onClick={definirNovaSenhaRecovery} disabled={salvandoNovaSenha}
+          style={{ width:'100%', padding:13, background:'#2D3A8C', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:600, cursor:'pointer', borderBottom:'3px solid #1A2340', opacity:salvandoNovaSenha?0.7:1 }}>
+          {salvandoNovaSenha ? 'Salvando...' : 'Salvar nova senha'}
+        </button>
+      </div>
     </div>
   )
 
