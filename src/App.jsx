@@ -1302,6 +1302,11 @@ const ETAPAS_OUTRAS = ['Início','Em andamento','Conclusão','EMITIR NF','Fatura
 const ETAPAS_ATM_B24H = ['OS ABERTA', 'AGENDAMENTO', 'OPERAÇÃO EM CAMPO', 'RELATÓRIO AO CLIENTE', 'BOOK FOTOGRÁFICO', 'ELABORAR RM', 'RM ENVIADA', 'AGUARDANDO PEDIDO DA TECBAN', 'EMITIR NF', 'NF EMITIDO']
 // Mesmo processo do Banco24Horas vale pra Agibank e Crefisa (confirmado pela Shirley em 2026-08-07).
 
+// Banestes, diferente de Banco24Horas/Agibank/Crefisa, TEM fase de vistoria própria antes do
+// agendamento (Shirley, 2026-09-11) - mesma régua do B24H com "VISTORIA" inserido logo após "OS
+// ABERTA", igual ao padrão já usado pra Bradesco.
+const ETAPAS_ATM_BANESTES = ['OS ABERTA', 'VISTORIA', 'AGENDAMENTO', 'OPERAÇÃO EM CAMPO', 'RELATÓRIO AO CLIENTE', 'BOOK FOTOGRÁFICO', 'ELABORAR RM', 'RM ENVIADA', 'AGUARDANDO PEDIDO DA TECBAN', 'EMITIR NF', 'NF EMITIDO']
+
 // Movimentação de BDN (caixa eletrônico) na Bradesco - mesma família de tipos do ATM, mas processo
 // diferente do Banco24Horas: a OS oficial da Bradesco demora e só chega DEPOIS da operação (trava
 // antes de elaborar a RM), e ainda tem uma 2ª espera (o "pedido") depois da RM, antes de faturar.
@@ -1620,8 +1625,9 @@ function ReguaStatus({ status, lembretes, onRemoverLembrete }) {
 function getEtapas(rede, tipo) {
   if (TIPOS_BDN.includes(tipo)) {
     if (rede === 'BRADESCO') return ETAPAS_BDN_BRADESCO
-    return ETAPAS_ATM_B24H // Banco24Horas/Agibank/Crefisa - mesmo processo. Demais bancos (Banestes,
-    // Banconordeste) ainda não alinhados com a Shirley - usa esse como default por ora.
+    if (rede === 'BANESTES') return ETAPAS_ATM_BANESTES
+    return ETAPAS_ATM_B24H // Banco24Horas/Agibank/Crefisa - mesmo processo. Demais bancos
+    // (Banconordeste) ainda não alinhados com a Shirley - usa esse como default por ora.
   }
   return ETAPAS_DESC
 }
@@ -4619,7 +4625,9 @@ export default function App() {
   }
 
   const vistoriaCompleta = (Boolean(dataVistoria) && (colabsVistoria.length > 0 || (terceirizadoVistoria && terceirizadoVistoriaTexto.trim() !== '')))
-    || (modal?.rede && modal?.rede !== 'BRADESCO' && SEM_VISTORIA_BANCO24H.includes(modal?.tipo))
+    // Banestes passou a exigir vistoria própria (Shirley, 2026-09-11) - não entra mais nesse
+    // bypass, mesmo com um tipo que é "sem vistoria" pras demais redes (Banco24Horas/Agibank/Crefisa).
+    || (modal?.rede && modal?.rede !== 'BRADESCO' && modal?.rede !== 'BANESTES' && SEM_VISTORIA_BANCO24H.includes(modal?.tipo))
   const atividadesCobertas = new Set()
   registrosOperacaoCampo.forEach(r => (r.atividades || []).forEach(a => { if (typeof a.feita === 'boolean') atividadesCobertas.add(a.atividade) }))
   // Vistoria que fracassou (visita improdutiva - ex: gerente desistiu da instalação porque o local
@@ -7755,7 +7763,7 @@ export default function App() {
             </div>
 
 
-            {!(modal.rede && modal.rede !== 'BRADESCO' && SEM_VISTORIA_BANCO24H.includes(modal.tipo)) && (
+            {!(modal.rede && modal.rede !== 'BRADESCO' && modal.rede !== 'BANESTES' && SEM_VISTORIA_BANCO24H.includes(modal.tipo)) && (
             <>
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
               <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Data da vistoria</label>
