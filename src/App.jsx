@@ -2715,6 +2715,8 @@ export default function App() {
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [erroLogin, setErroLogin] = useState('')
+  const [mostrarSenhaLogin, setMostrarSenhaLogin] = useState(false)
+  const [mostrarSenhaRecovery, setMostrarSenhaRecovery] = useState(false)
   const [carregandoLogin, setCarregandoLogin] = useState(false)
   const [importando, setImportando] = useState(false)
   const [dataCadastroModal, setDataCadastroModal] = useState('')
@@ -4641,8 +4643,16 @@ export default function App() {
       <div style={{ background:'#E6F1FB', borderRadius:20, padding:'40px 28px', width:'100%', maxWidth:360, boxShadow:'0 8px 32px rgba(0,0,0,.3)' }}>
         <div style={{ fontSize:24, fontWeight:700, color:'#2D3A8C', textAlign:'center', marginBottom:4 }}>GRUPO PG</div>
         <div style={{ fontSize:12, color:'#4A7FC1', textAlign:'center', marginBottom:28 }}>Defina sua nova senha</div>
-        <input type="password" value={novaSenhaRecovery} onChange={e=>setNovaSenhaRecovery(e.target.value)} placeholder="Nova senha" style={inp} />
-        <input type="password" value={confirmaSenhaRecovery} onChange={e=>setConfirmaSenhaRecovery(e.target.value)} placeholder="Confirme a nova senha" style={inp} />
+        <div style={{ position:'relative' }}>
+          <input type={mostrarSenhaRecovery ? 'text' : 'password'} value={novaSenhaRecovery} onChange={e=>setNovaSenhaRecovery(e.target.value)} placeholder="Nova senha" style={{ ...inp, paddingRight:40 }} />
+          <button type="button" onClick={() => setMostrarSenhaRecovery(v => !v)} title={mostrarSenhaRecovery ? 'Ocultar senha' : 'Mostrar senha'}
+            style={{ position:'absolute', right:10, top:11, background:'none', border:'none', cursor:'pointer', fontSize:16, lineHeight:1 }}>
+            {mostrarSenhaRecovery ? '🙈' : '👁'}
+          </button>
+        </div>
+        <div style={{ position:'relative' }}>
+          <input type={mostrarSenhaRecovery ? 'text' : 'password'} value={confirmaSenhaRecovery} onChange={e=>setConfirmaSenhaRecovery(e.target.value)} placeholder="Confirme a nova senha" style={{ ...inp, paddingRight:40 }} />
+        </div>
         {erroDefinirSenha && <div style={{ color:'#E24B4A', fontSize:13, marginBottom:12, textAlign:'center' }}>{erroDefinirSenha}</div>}
         <button onClick={definirNovaSenhaRecovery} disabled={salvandoNovaSenha}
           style={{ width:'100%', padding:13, background:'#2D3A8C', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:600, cursor:'pointer', borderBottom:'3px solid #1A2340', opacity:salvandoNovaSenha?0.7:1 }}>
@@ -4659,7 +4669,13 @@ export default function App() {
         <div style={{ fontSize:12, color:'#4A7FC1', textAlign:'center', marginBottom:28 }}>Pipeline de Obras</div>
         <form onSubmit={handleLogin}>
           <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" style={inp} />
-          <input type="password" value={senha} onChange={e=>setSenha(e.target.value)} placeholder="Senha" style={inp} />
+          <div style={{ position:'relative' }}>
+            <input type={mostrarSenhaLogin ? 'text' : 'password'} value={senha} onChange={e=>setSenha(e.target.value)} placeholder="Senha" style={{ ...inp, paddingRight:40 }} />
+            <button type="button" onClick={() => setMostrarSenhaLogin(v => !v)} title={mostrarSenhaLogin ? 'Ocultar senha' : 'Mostrar senha'}
+              style={{ position:'absolute', right:10, top:11, background:'none', border:'none', cursor:'pointer', fontSize:16, lineHeight:1 }}>
+              {mostrarSenhaLogin ? '🙈' : '👁'}
+            </button>
+          </div>
           {erroLogin && <div style={{ color:'#E24B4A', fontSize:13, marginBottom:12, textAlign:'center' }}>{erroLogin}</div>}
           <button type="submit" disabled={carregandoLogin}
             style={{ width:'100%', padding:13, background:'#2D3A8C', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:600, cursor:'pointer', borderBottom:'3px solid #1A2340', opacity:carregandoLogin?0.7:1 }}>
