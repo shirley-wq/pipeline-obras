@@ -8205,7 +8205,7 @@ export default function App() {
                 </div>
                 <div style={{ fontSize:10, color:'#64748B', marginTop:-2, marginBottom:8 }}>Data preenchida a partir da data de início da obra confirmada — ajuste se essa visita for em outro dia. Hora é opcional.</div>
                 <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, margin:'10px 0 6px' }}>O que foi feito nesta visita</div>
-                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, alignItems:'start' }}>
                   {atividadesOperacaoCampo(modal.rede, modal.tipo).map(atividade => {
                     const marcado = !!novoRegistroAtividades[atividade]
                     const dados = novoRegistroAtividades[atividade] || {}
