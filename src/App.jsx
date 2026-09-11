@@ -117,6 +117,7 @@ const STATUS_COR = {
   'FOTOS DO AMBIENTE':{ bg:'#F0FDF4',text:'#166534' },
   'LAUDOS ASSINADOS':{ bg:'#F0F9FF',text:'#0369A1' },
   'CANCELADO':{ bg:'#F1F5F9',text:'#64748B' },
+  'GEROU PENDÊNCIA':{ bg:'#FEE2E2',text:'#991B1B' },
 }
 
 const TIPOS_ENTREGAVEIS = ['DESC. PAB', 'DESC. PA', 'ENCER. AG', 'TRANSF UN', 'TRANSF EN']
@@ -1299,20 +1300,23 @@ const ETAPAS_EN = ETAPAS_DESC
 const ETAPAS_OUTRAS = ['Início','Em andamento','Conclusão','EMITIR NF','Faturamento']
 // Processo de instalação/manutenção de ATM da rede Banco24Horas (alinhado com a Shirley em 2026-08-07)
 // - bem mais simples que a régua de TRANSF UN/DESC PA (sem orçamento/ART/DCM - é só ir ao ponto e instalar).
-const ETAPAS_ATM_B24H = ['OS ABERTA', 'AGENDAMENTO', 'OPERAÇÃO EM CAMPO', 'RELATÓRIO AO CLIENTE', 'BOOK FOTOGRÁFICO', 'ELABORAR RM', 'RM ENVIADA', 'AGUARDANDO PEDIDO DA TECBAN', 'EMITIR NF', 'NF EMITIDO']
+// "GEROU PENDÊNCIA" (Shirley, 2026-09-11): quando a obra não termina no mesmo dia por um problema
+// de equipamento/infra e não dá pra seguir pra "Elaborar RM" - fica uma etapa própria na régua,
+// registrando o motivo (texto livre), até alguém resolver e mover pra frente manualmente.
+const ETAPAS_ATM_B24H = ['OS ABERTA', 'AGENDAMENTO', 'OPERAÇÃO EM CAMPO', 'GEROU PENDÊNCIA', 'RELATÓRIO AO CLIENTE', 'BOOK FOTOGRÁFICO', 'ELABORAR RM', 'RM ENVIADA', 'AGUARDANDO PEDIDO DA TECBAN', 'EMITIR NF', 'NF EMITIDO']
 // Mesmo processo do Banco24Horas vale pra Agibank e Crefisa (confirmado pela Shirley em 2026-08-07).
 
 // Banestes, diferente de Banco24Horas/Agibank/Crefisa, TEM fase de vistoria própria antes do
 // agendamento (Shirley, 2026-09-11) - mesma régua do B24H com "VISTORIA" inserido logo após "OS
 // ABERTA", igual ao padrão já usado pra Bradesco.
-const ETAPAS_ATM_BANESTES = ['OS ABERTA', 'VISTORIA', 'AGENDAMENTO', 'OPERAÇÃO EM CAMPO', 'RELATÓRIO AO CLIENTE', 'BOOK FOTOGRÁFICO', 'ELABORAR RM', 'RM ENVIADA', 'AGUARDANDO PEDIDO DA TECBAN', 'EMITIR NF', 'NF EMITIDO']
+const ETAPAS_ATM_BANESTES = ['OS ABERTA', 'VISTORIA', 'AGENDAMENTO', 'OPERAÇÃO EM CAMPO', 'GEROU PENDÊNCIA', 'RELATÓRIO AO CLIENTE', 'BOOK FOTOGRÁFICO', 'ELABORAR RM', 'RM ENVIADA', 'AGUARDANDO PEDIDO DA TECBAN', 'EMITIR NF', 'NF EMITIDO']
 
 // Movimentação de BDN (caixa eletrônico) na Bradesco - mesma família de tipos do ATM, mas processo
 // diferente do Banco24Horas: a OS oficial da Bradesco demora e só chega DEPOIS da operação (trava
 // antes de elaborar a RM), e ainda tem uma 2ª espera (o "pedido") depois da RM, antes de faturar.
 // Vistoria e operação em campo cada uma tem seu próprio book de checklist. Vale pra instalação,
 // desativação, substituição e remanejamento de BDN - todos o mesmo processo (alinhado 2026-08-07).
-const ETAPAS_BDN_BRADESCO = ['OS ABERTA', 'VISTORIA', 'AGENDAMENTO', 'OPERAÇÃO EM CAMPO', 'AGUARDANDO OS', 'ELABORAR RM', 'RM ENVIADA', 'AGUARDANDO PEDIDO', 'EMITIR NF', 'NF EMITIDO']
+const ETAPAS_BDN_BRADESCO = ['OS ABERTA', 'VISTORIA', 'AGENDAMENTO', 'OPERAÇÃO EM CAMPO', 'GEROU PENDÊNCIA', 'AGUARDANDO OS', 'ELABORAR RM', 'RM ENVIADA', 'AGUARDANDO PEDIDO', 'EMITIR NF', 'NF EMITIDO']
 // Tipos de obra que são "movimentação de BDN" (não confundir com TRANSF UN/DESC PA, que são a
 // transformação da agência em si - podem coexistir na mesma agência, com OS/contrato separados).
 const TIPOS_BDN = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM', 'REMANEJAMENTO ATM', 'SINALIZAÇÃO ATM', 'MANUTENÇÃO ATM', 'PINTURA ATM']
@@ -2506,7 +2510,7 @@ function getGrupoObra(o) {
   // pra um grupo próprio, bem visível, pra Shirley achar fácil o que precisa corrigir na mão
   // (2026-09-04). Não se aplica depois de NF emitida/cancelada - já era.
   if (status !== 'NF EMITIDO' && status !== 'CANCELADO' && conferePedidoObra(o).precisaCorrecao) return 'erro_pedido'
-  if (status === 'AGUARDANDO PEDIDO DA TECBAN') return 'pendencias'
+  if (status === 'AGUARDANDO PEDIDO DA TECBAN' || status === 'GEROU PENDÊNCIA') return 'pendencias'
   if (status === 'NF EMITIDO') return 'concluido'
   if (status === 'CANCELADO') return 'outros'
   if (['ELABORAR RM','ENVIAR RM'].includes(status)) return 'rm'
@@ -2629,6 +2633,7 @@ export default function App() {
   const [biomboFila, setBiomboFila] = useState('')
   const [portaGiratoria, setPortaGiratoria] = useState('')
   const [dataVistoria, setDataVistoria] = useState('')
+  const [motivoPendencia, setMotivoPendencia] = useState('')
   const [colabsVistoria, setColabsVistoria] = useState([])
   const [terceirizadoVistoria, setTerceirizadoVistoria] = useState(false)
   const [terceirizadoVistoriaTexto, setTerceirizadoVistoriaTexto] = useState('')
@@ -4304,6 +4309,10 @@ export default function App() {
 
   async function salvarStatus() {
     if (!novoStatus) return
+    if (novoStatus === 'GEROU PENDÊNCIA' && !motivoPendencia.trim()) {
+      alert('Descreva o motivo da pendência (equipamento, infra, etc.) antes de salvar.')
+      return
+    }
     if (editDados.pedido && !confirmaSemPedidoDuplicado({
       id: modal.id,
       os_tecban: editDados.os_tecban || modal.os_tecban,
@@ -4413,6 +4422,7 @@ export default function App() {
     }
     campos.entregaveis_vistoria = entregaveisVistoria.length > 0 ? entregaveisVistoria : null
     campos.data_vistoria = dataVistoria || null
+    campos.motivo_pendencia = statusFinal === 'GEROU PENDÊNCIA' ? (motivoPendencia || null) : null
     campos.colaboradores_vistoria = listaVistoria.length > 0 ? listaVistoria : null
     if (temTelaOperacaoCampo(modal.rede, modal.tipo)) {
       campos.ars_verificado = arsVerificado
@@ -4496,6 +4506,7 @@ export default function App() {
     setEditDados({ tipo:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', numero_pc:'', pedido:'', nf:'', os_tecban:'', numero_operacao:'', pedido_valor:'', pedido_os:'', pedido_cnpj:'', pedido_tecban_cnpj:'', pedido_tecban_nome:'', pedido_tecban_endereco:'' })
     setDataCadastroModal('')
     setDataVistoria('')
+    setMotivoPendencia('')
     setColabsVistoria([])
     setTerceirizadoVistoria(false)
     setTerceirizadoVistoriaTexto('')
@@ -7069,8 +7080,9 @@ export default function App() {
                       )}
                       {obra.rede && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#EEF2FF', color:'#3730A3' }}>{obra.rede}</span>}
                       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:tc.bg, color:tc.text }}>{obra.tipo}</span>
-                      <span title={obra.cancelamento_motivo ? `Cancelada em ${isoToBr((obra.cancelamento_em || '').split('T')[0])} por ${obra.cancelamento_por || '—'}\nMotivo: ${obra.cancelamento_motivo}` : undefined}
-                        style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text, cursor: obra.cancelamento_motivo ? 'help' : 'default' }}>{obra.status}{obra.cancelamento_motivo ? ' ℹ' : ''}</span>
+                      <span title={obra.cancelamento_motivo ? `Cancelada em ${isoToBr((obra.cancelamento_em || '').split('T')[0])} por ${obra.cancelamento_por || '—'}\nMotivo: ${obra.cancelamento_motivo}`
+                          : obra.status === 'GEROU PENDÊNCIA' && obra.motivo_pendencia ? `Motivo: ${obra.motivo_pendencia}` : undefined}
+                        style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc.bg, color:sc.text, cursor: (obra.cancelamento_motivo || obra.motivo_pendencia) ? 'help' : 'default' }}>{obra.status}{(obra.cancelamento_motivo || (obra.status === 'GEROU PENDÊNCIA' && obra.motivo_pendencia)) ? ' ℹ' : ''}</span>
                       {obra.em_negociacao && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FEF3C7', color:'#92400E' }}>Em negociação</span>}
                       {alerta && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:alerta.bg, color:alerta.cor }}>⚠ {alerta.label}</span>}
                       {obra.tipo === 'INSTALAÇÃO ATM' && !obra.pedido && <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:'#FFF7ED', color:'#9A3412' }}>⚠ Sem pedido</span>}
@@ -7279,6 +7291,7 @@ export default function App() {
                         setEditDados({ tipo: obra.tipo||'', nome: obra.nome||'', endereco: obra.endereco||'', cidade: obra.cidade||'', uf: obra.uf||'', valor: obra.valor!=null ? String(obra.valor) : '', sige: obra.sige||'', numero_pc: obra.numero_pc||'', pedido: obra.pedido||'', nf: obra.nf||'', os_tecban: obra.os_tecban||'', numero_operacao: obra.numero_operacao || sugereOperacao(obra.rede, obra.tipo), pedido_valor: obra.pedido_valor!=null ? String(obra.pedido_valor) : '', pedido_os: obra.pedido_os||'', pedido_cnpj: obra.pedido_cnpj||'', pedido_tecban_cnpj: obra.pedido_tecban_cnpj||'', pedido_tecban_nome: obra.pedido_tecban_nome||'', pedido_tecban_endereco: obra.pedido_tecban_endereco||'' })
                         setDataCadastroModal(obra.data_cadastro || '')
                         setDataVistoria(obra.data_vistoria || '')
+                        setMotivoPendencia(obra.motivo_pendencia || '')
                         const listaVistoria = Array.isArray(obra.colaboradores_vistoria) ? obra.colaboradores_vistoria : []
                         const terceiroVistoria = listaVistoria.find(c => c.startsWith(TERCEIRIZADO_PREFIXO))
                         setColabsVistoria(listaVistoria.filter(c => !c.startsWith(TERCEIRIZADO_PREFIXO)))
@@ -8856,6 +8869,14 @@ export default function App() {
             {getEtapas(modal.rede, modal.tipo).includes('RM ENVIADA') && !editDados.os_tecban.trim() && (
               <div style={{ fontSize:11, color:'#92400E', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'6px 10px', marginBottom:8 }}>
                 🔒 "RM Enviada" fica bloqueada até preencher a <b>OS Tecban</b> em Dados da obra.
+              </div>
+            )}
+            {novoStatus === 'GEROU PENDÊNCIA' && (
+              <div style={{ marginBottom:12 }}>
+                <label style={{ fontSize:11, color:'#991B1B', fontWeight:600, display:'block', marginBottom:3 }}>Motivo da pendência (equipamento, infra, etc.) *</label>
+                <textarea value={motivoPendencia} onChange={e => setMotivoPendencia(e.target.value)} rows={2}
+                  placeholder="Ex: máquina chegou com defeito, aguardando reposição"
+                  style={{ width:'100%', padding:'10px', border:'1px solid #FCA5A5', borderRadius:10, fontSize:13, resize:'none', boxSizing:'border-box', color:'#1A2340' }} />
               </div>
             )}
             <div style={{ fontSize:12, color:'#4A7FC1', fontWeight:600, margin:'12px 0 6px' }}>Observação:</div>
