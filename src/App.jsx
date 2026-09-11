@@ -1436,7 +1436,16 @@ function proximaAtividadeObra(o) {
     const registros = Array.isArray(o.registros_operacao_campo) ? o.registros_operacao_campo : []
     registros.forEach(r => {
       if (!r.data) return
-      ;(r.atividades || []).forEach(a => candidatos.push({ data: r.data, hora: null, label: `Visita: ${a.atividade}` }))
+      // Uma visita recém-programada (só data + equipe, ainda sem nenhuma atividade marcada) não
+      // gerava candidato nenhum aqui - a "próxima atividade" ficava presa na data confirmada
+      // antiga, mesmo com uma nova visita já agendada pra mais pra frente (Glauce/Shirley,
+      // 2026-09-11 - caso da OS 8330). Sem atividade marcada ainda, entra pelo menos um
+      // candidato genérico "Visita" pra data continuar refletindo o que foi programado.
+      if ((r.atividades || []).length > 0) {
+        r.atividades.forEach(a => candidatos.push({ data: r.data, hora: r.hora || null, label: `Visita: ${a.atividade}` }))
+      } else {
+        candidatos.push({ data: r.data, hora: r.hora || null, label: 'Visita' })
+      }
     })
   }
   if (!candidatos.length) return null
