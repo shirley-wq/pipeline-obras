@@ -1511,6 +1511,10 @@ const MOTIVOS_IMPEDIMENTO_BRADESCO = ['Sem senha do cofre (Taurus/robô)', 'Atra
 // usar pro relatório individual por obra, mesmo endereço que o Fabio já usa pro report diário).
 const EMAIL_RM_TECBAN = 'Implantacao.B24horas@tecban.com.br'
 const EMAIL_CC_OPERACAO_GRUPOPG = 'operacao@grupopg.com.br'
+// Cc específico do e-mail de confirmação de agendamento (Shirley, 2026-09-14) - pedido pra incluir
+// o time da Tecban que cuida da validação de autorização de acesso (Ketson/Suelen/Fernanda),
+// além do Cc padrão pro nosso próprio time.
+const EMAIL_CC_AGENDAMENTO_TECBAN = `${EMAIL_CC_OPERACAO_GRUPOPG},Ketson.Bessa@servicosintegradostecban.com.br,Suelen.Ferreira@servicosintegradostecban.com.br,Fernanda.Pereira@servicosintegradostecban.com.br`
 // E-mail de solicitação de correção de pedido divergente (Shirley, 2026-08-20) - endereço diferente
 // do relatório ao cliente acima, é o time de pagamentos/gestão de pedidos da Tecban.
 const EMAIL_CORRECAO_PEDIDO_TECBAN = 'gestaopagamentos2026@tecban.com.br'
@@ -4354,7 +4358,7 @@ export default function App() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session?.access_token || ''}`,
         },
-        body: JSON.stringify({ to: EMAIL_RM_TECBAN, cc: EMAIL_CC_OPERACAO_GRUPOPG, subject: assunto, body: corpo, fotos }),
+        body: JSON.stringify({ to: EMAIL_RM_TECBAN, cc: EMAIL_CC_AGENDAMENTO_TECBAN, subject: assunto, body: corpo, fotos }),
       })
       const resultado = await resp.json()
       if (!resultado.ok) throw new Error(resultado.error || 'Falha no envio')
@@ -8352,7 +8356,7 @@ export default function App() {
                 <div style={{ marginBottom:12, background:'#fff', border:'1px solid #CDD8E3', borderRadius:8, padding:12 }}>
                   <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:8 }}>Revisar antes de enviar</div>
                   <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Para:</strong> {EMAIL_RM_TECBAN}</div>
-                  <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Cc:</strong> {EMAIL_CC_OPERACAO_GRUPOPG}</div>
+                  <div style={{ fontSize:12, color:'#374151', marginBottom:4 }}><strong>Cc:</strong> {EMAIL_CC_AGENDAMENTO_TECBAN}</div>
                   <div style={{ fontSize:12, color:'#374151', marginBottom:8 }}><strong>Assunto:</strong> {montaAssuntoAgendamentoTecban()}</div>
                   <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>Texto do e-mail</div>
                   <div style={{ fontSize:12, color:'#374151', whiteSpace:'pre-wrap', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, padding:10, marginBottom:10 }}>{montaCorpoAgendamentoTecban()}</div>
