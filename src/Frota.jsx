@@ -61,6 +61,7 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
 
   const [painelViagens, setPainelViagens] = useState([])
   const [carregandoPainel, setCarregandoPainel] = useState(false)
+  const [veiculosEmUso, setVeiculosEmUso] = useState({}) // placa -> registro aberto (de qualquer pessoa)
 
   const nomeCompleto = meuRH ? `${meuRH.nome} ${meuRH.sobrenome || ''}`.trim() : (usuario?.email || '')
 
@@ -75,12 +76,19 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
     // por qualquer motivo existir mais de uma viagem aberta ao mesmo tempo pro mesmo colaborador,
     // e a trava "não deixa abrir outra sem fechar a anterior" para de funcionar em silêncio
     // (achado real testando, Shirley, 2026-09-14). Assim sempre pega a mais recente das abertas.
-    const [{ data: vs }, { data: abertas }] = await Promise.all([
+    const [{ data: vs }, { data: abertas }, { data: todasAbertas }] = await Promise.all([
       supabase.from('frota_veiculos').select('*').order('placa'),
       supabase.from('frota_registros').select('*').eq('collab', nomeCompleto).eq('type', 'bordo').eq('closed', false).order('criado_em', { ascending: false }).limit(1),
+      supabase.from('frota_registros').select('*').eq('type', 'bordo').eq('closed', false),
     ])
     setVeiculos(vs || [])
     setViagemAberta((abertas && abertas[0]) || null)
+    // Mapa placa -> quem está com ela agora (de todo mundo, não só eu) - pra avisar antes de
+    // deixar escolher um carro que já está em uso por outra pessoa (Shirley, 2026-09-14: viu o
+    // mesmo veículo aberto em 2 contas ao mesmo tempo).
+    const mapaUso = {}
+    ;(todasAbertas || []).forEach(r => { mapaUso[r.plate] = r })
+    setVeiculosEmUso(mapaUso)
     setFavoritos(Array.isArray(meuRH?.veiculos_favoritos) ? meuRH.veiculos_favoritos : [])
     setCarregando(false)
   }
@@ -114,15 +122,25 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
     const { data, error } = await supabase.from('frota_registros').insert(registro).select().single()
     setSalvandoAbertura(false)
     if (error) {
-      // 23505 = trava do banco (frota_registros_uma_aberta_por_colab) barrou por já existir uma
-      // viagem aberta - a tela ficava "travada" sem explicar por quê (Shirley, 2026-09-14).
-      // Busca a viagem real e já troca de tela sozinho, em vez de só mostrar erro técnico.
-      if (error.code === '23505') {
+      // 23505 = alguma das duas travas do banco barrou (Shirley, 2026-09-14): ou eu mesmo já
+      // tenho uma viagem aberta (frota_registros_uma_aberta_por_colab), ou esse veículo acabou de
+      // ser pego por outra pessoa entre eu carregar a tela e clicar em Iniciar (raro, mas a UI já
+      // desabilita veículo em uso - isso é só a rede de segurança final). Em vez de mostrar o erro
+      // técnico cru, busca o que realmente aconteceu e explica.
+      if (error.code === '23505' && error.message.includes('frota_registros_uma_aberta_por_colab')) {
         const { data: aberta } = await supabase.from('frota_registros').select('*')
           .eq('collab', nomeCompleto).eq('type', 'bordo').eq('closed', false)
           .order('criado_em', { ascending: false }).limit(1)
         setViagemAberta((aberta && aberta[0]) || null)
         setErroAbertura('')
+      } else if (error.code === '23505' && error.message.includes('frota_registros_veiculo_em_uso')) {
+        const { data: usoAtual } = await supabase.from('frota_registros').select('*')
+          .eq('plate', veiculoEscolhido.placa).eq('type', 'bordo').eq('closed', false)
+          .order('criado_em', { ascending: false }).limit(1)
+        const u = usoAtual && usoAtual[0]
+        setErroAbertura(u ? `Esse veículo acabou de ser pego por ${u.collab} (${u.time}). Escolha outro.` : 'Esse veículo já está em uso por outra pessoa. Escolha outro.')
+        setVeiculoEscolhido(null)
+        carregarTudo()
       } else {
         setErroAbertura('Erro ao salvar: ' + error.message)
       }
@@ -236,15 +254,20 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
                 {veiculosFiltrados.map(v => {
                   const selecionado = veiculoEscolhido?.placa === v.placa
                   const favorito = favoritos.includes(v.placa)
+                  const emUso = veiculosEmUso[v.placa]
                   return (
-                    <div key={v.placa} onClick={() => setVeiculoEscolhido(v)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', border: selecionado ? '2px solid #7C2D12' : '1px solid #E0E8F0', borderRadius: 8, cursor: 'pointer', background: selecionado ? '#FFF7ED' : '#fff' }}>
-                      <span style={{ fontSize: 18 }}>{TIPOS_ICONE[v.tipo] || '🚗'}</span>
+                    <div key={v.placa} onClick={() => { if (!emUso) setVeiculoEscolhido(v) }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', border: selecionado ? '2px solid #7C2D12' : '1px solid #E0E8F0', borderRadius: 8, cursor: emUso ? 'not-allowed' : 'pointer', background: emUso ? '#F1F5F9' : selecionado ? '#FFF7ED' : '#fff', opacity: emUso ? 0.7 : 1 }}>
+                      <span style={{ fontSize: 18 }}>{emUso ? '🔒' : (TIPOS_ICONE[v.tipo] || '🚗')}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#1A2340' }}>{v.placa}</div>
-                        <div style={{ fontSize: 11, color: '#64748B' }}>{v.modelo}{v.cor ? ` · ${v.cor}` : ''}</div>
+                        <div style={{ fontSize: 11, color: emUso ? '#9A3412' : '#64748B' }}>
+                          {emUso ? `Em uso por ${emUso.collab} desde ${emUso.time}` : `${v.modelo}${v.cor ? ` · ${v.cor}` : ''}`}
+                        </div>
                       </div>
-                      <span onClick={e => { e.stopPropagation(); toggleFavorito(v.placa) }} style={{ fontSize: 18, cursor: 'pointer', color: favorito ? '#F59E0B' : '#CBD5E1' }}>★</span>
+                      {!emUso && (
+                        <span onClick={e => { e.stopPropagation(); toggleFavorito(v.placa) }} style={{ fontSize: 18, cursor: 'pointer', color: favorito ? '#F59E0B' : '#CBD5E1' }}>★</span>
+                      )}
                     </div>
                   )
                 })}
