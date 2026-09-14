@@ -26,6 +26,9 @@ function isoToBr(iso) {
   const [y, m, d] = iso.split('-')
   return `${d}/${m}/${y}`
 }
+function normalizarBusca(s) {
+  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+}
 function fmtDuracao(inicioIso, fimIso) {
   if (!inicioIso || !fimIso) return null
   const min = Math.round((new Date(fimIso) - new Date(inicioIso)) / 60000)
@@ -46,6 +49,7 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
   const [veiculoEscolhido, setVeiculoEscolhido] = useState(null)
   const [temObra, setTemObra] = useState(true)
   const [obraId, setObraId] = useState('')
+  const [buscaObra, setBuscaObra] = useState('')
   const [motivoSemObra, setMotivoSemObra] = useState('')
   const [kmInicio, setKmInicio] = useState('')
   const [salvandoAbertura, setSalvandoAbertura] = useState(false)
@@ -109,6 +113,7 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
     setViagemAberta(data)
     setVeiculoEscolhido(null)
     setObraId('')
+    setBuscaObra('')
     setMotivoSemObra('')
     setKmInicio('')
   }
@@ -157,6 +162,13 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
     })
 
   const obrasParaEscolher = (obras || []).filter(o => o.status !== 'NF EMITIDO' && o.status !== 'CANCELADO')
+  const obrasFiltradas = obraId ? [] : obrasParaEscolher.filter(o => {
+    if (!buscaObra) return true
+    const termo = normalizarBusca(buscaObra)
+    const campos = normalizarBusca([o.nome, o.numero_pc, o.cidade, o.sige].filter(Boolean).join(' '))
+    return termo.trim().split(/\s+/).filter(Boolean).every(p => campos.includes(p))
+  }).slice(0, 30)
+  const obraEscolhida = obraId ? (obras || []).find(o => o.id === obraId) : null
 
   const inp = { width: '100%', padding: '9px 10px', border: '1px solid #CDD8E3', borderRadius: 8, fontSize: 13, color: '#1A2340', boxSizing: 'border-box' }
 
@@ -226,10 +238,29 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
                     <span onClick={() => setTemObra(false)} style={{ flex: 1, textAlign: 'center', padding: 8, borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, background: !temObra ? '#7C2D12' : '#F1F5F9', color: !temObra ? '#fff' : '#1A2340' }}>Sem obra</span>
                   </div>
                   {temObra ? (
-                    <select value={obraId} onChange={e => setObraId(e.target.value)} style={{ ...inp, marginBottom: 10, background: '#fff' }}>
-                      <option value="">Selecione a obra...</option>
-                      {obrasParaEscolher.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
-                    </select>
+                    obraEscolhida ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', border: '1px solid #CDD8E3', borderRadius: 8, marginBottom: 10, background: '#fff' }}>
+                        <div style={{ flex: 1, fontSize: 13, color: '#1A2340' }}>
+                          <b>{obraEscolhida.nome}</b>{obraEscolhida.numero_pc ? ` · PC ${obraEscolhida.numero_pc}` : ''}{obraEscolhida.cidade ? ` · ${obraEscolhida.cidade}` : ''}
+                        </div>
+                        <span onClick={() => { setObraId(''); setBuscaObra('') }} style={{ fontSize: 12, color: '#DC2626', fontWeight: 700, cursor: 'pointer' }}>trocar</span>
+                      </div>
+                    ) : (
+                      <div style={{ marginBottom: 10 }}>
+                        <input value={buscaObra} onChange={e => setBuscaObra(e.target.value)} placeholder="🔎 Buscar obra por nome, PC ou cidade..." style={inp} />
+                        <div style={{ maxHeight: 180, overflowY: 'auto', border: buscaObra ? '1px solid #E0E8F0' : 'none', borderRadius: 8, marginTop: buscaObra ? 4 : 0 }}>
+                          {buscaObra && obrasFiltradas.map(o => (
+                            <div key={o.id} onClick={() => { setObraId(o.id); setBuscaObra('') }}
+                              style={{ padding: '8px 10px', cursor: 'pointer', borderBottom: '1px solid #F1F5F9', fontSize: 12, color: '#1A2340' }}>
+                              <b>{o.nome}</b>{o.numero_pc ? ` · PC ${o.numero_pc}` : ''}{o.cidade ? ` · ${o.cidade}` : ''}
+                            </div>
+                          ))}
+                          {buscaObra && obrasFiltradas.length === 0 && (
+                            <div style={{ padding: '8px 10px', fontSize: 12, color: '#888' }}>Nenhuma obra encontrada.</div>
+                          )}
+                        </div>
+                      </div>
+                    )
                   ) : (
                     <input value={motivoSemObra} onChange={e => setMotivoSemObra(e.target.value)} placeholder="Motivo (compra de material, treino, etc.)"
                       style={{ ...inp, marginBottom: 10 }} />
