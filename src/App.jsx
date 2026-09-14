@@ -6,6 +6,7 @@ import autoTable from 'jspdf-autotable'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import pdfjsWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 import { supabase } from './supabase'
+import Frota from './Frota'
 
 GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl
 
@@ -5535,6 +5536,7 @@ export default function App() {
           // (Shirley, 2026-09-04: "eles e os técnicos não podem de jeito nenhum ter acesso a
           // valores, isso tem que blindar 100%").
           { id:'atividades_lider', label:'Atividades Programadas', count:null, cor:'#0F766E' },
+          { id:'frota', label:'Frota', count:null, cor:'#7C2D12' },
           { id:'meusdados', label:'Meus Documentos', count:null, cor:'#7C3AED' },
         ] : [
           { id:'pipeline', label:'Pipeline', count: obrasFiltradas.length },
@@ -5542,6 +5544,7 @@ export default function App() {
           ...(podeVerValores ? [{ id:'indisponivel', label:'Indisponível para Faturar', count: obrasIndisponiveis.length, cor:'#EA580C' }] : []),
           ...(podeVerValores ? [{ id:'historico', label:'Histórico', count: obras.filter(o=>o.status==='NF EMITIDO').length }] : []),
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'rh', label:'RH', count: rhColaboradores.length, cor:'#7C3AED' }] : []),
+          ...(papel ? [{ id:'frota', label:'Frota', count:null, cor:'#7C2D12' }] : []),
           ...(papel ? [{ id:'meusdados', label:'Meus Documentos', count:null, cor:'#7C3AED' }] : []),
           ...((papel === 'admin' || papel === 'rh' || papel === 'financeiro') ? [{ id:'jantas', label:'Jantas', count: jantasTodas.filter(j => j.status === 'pendente').length, cor:'#B45309' }] : []),
           ...(EMAILS_CUSTOS_DESPESAS.includes(usuario?.email) ? [{ id:'despesas', label:'Despesas', count:null, cor:'#B91C1C' }] : []),
@@ -6040,6 +6043,10 @@ export default function App() {
       })()}
 
       {/* ====== ABA: MEUS DOCUMENTOS (operacional) ====== */}
+      {aba === 'frota' && papel && (
+        <Frota usuario={usuario} meuRH={meuRH} obras={obras} podeVerPainelGeral={EMAILS_CUSTOS_DESPESAS.includes(usuario?.email)} />
+      )}
+
       {aba === 'meusdados' && papel && (
         <div style={{ padding:12 }}>
           {carregandoMeuRH ? (
