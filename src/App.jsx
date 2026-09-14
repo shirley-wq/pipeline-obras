@@ -4341,6 +4341,87 @@ export default function App() {
     return m ? { filename, mimeType: m[1], base64: m[2] } : null
   }
 
+  // Gera o Excel de "Validação Pré-Obra" no formato exato do modelo que a TI da Tecban usa
+  // (Modelo_Preenchimento_FORMS.xlsx, recebido em 14/09/2026), pra anexar no e-mail de agendamento
+  // em vez de alguém preencher manualmente o Forms deles (Shirley, 2026-09-14). A ordem das colunas
+  // abaixo precisa bater exatamente com a ordem do modelo deles - não reordenar sem conferir de novo
+  // com um arquivo novo deles. Hoje o checklist não cobre todas as ~50 perguntas do Forms; as que
+  // não temos ficam em branco.
+  function gerarExcelValidacaoTecban() {
+    const colunas = [
+      'Id', 'Hora de início', 'Hora de conclusão', 'Email', 'Nome',
+      'Nome completo do responsável pelo preenchimento', 'Noma da Empreiteira:',
+      'Função ou cargo do responsável pelo preenchimento:', 'Telefone para contato, com DDD:',
+      'Data do preenchimento:', 'Horário do preenchimento:', 'UO:', 'PC', 'Nome do ponto',
+      'Endereço completo do ponto, incluindo cidade e UF', 'Tipo de obra ou serviço previsto',
+      'Data da obra solicitada pela TecBan', 'Horário da obra solicitado pela TecBan',
+      'Nome do responsável do Estabelecimento Comercial (EC) consultado',
+      'Cargo ou função do responsável do EC consultado', 'Canal utilizado para a validação com o EC',
+      'O responsável do EC autorizou a obra?', 'O acesso para a execução da obra está autorizado?',
+      'Se o acesso não estiver autorizado, informe o motivo Responder somente se a resposta da pergunta anterior for "Não". Resposta:',
+      'O local estará aberto e em funcionamento no horário previsto para a obra?',
+      'Se o local não estiver aberto ou em funcionamento, informe o motivo e o período disponível para acesso Responder somente se a resposta da pergunta anterior for "Não". Resposta:',
+      'O local está passando por outra obra ou intervenção?',
+      'Se o local estiver em obra, informe a previsão de término Responder somente se a resposta da pergunta anterior for "Sim". Resposta:',
+      'O local já foi inaugurado?',
+      'Se o local ainda não tiver sido inaugurado, informe a previsão de inauguração Responder somente se a resposta da pergunta anterior for "Não". Resposta:',
+      'A área onde o ATM será instalado está liberada e em condições para a execução da obra?',
+      'Se a área não estiver liberada, informe o motivo e a providência necessária Responder somente se a resposta da pergunta anterior for "Não". Resposta:',
+      'O EC autoriza atividades que gerem ruído durante a execução da obra?',
+      'Se houver autorização para atividades com ruído, informe o horário ou período permitido Responder somente se a resposta da pergunta anterior for "Sim". Resposta:',
+      'Há alguma restrição de acesso, circulação, carga e descarga, uso de elevador, estacionamento ou entrada de materiais?',
+      'Se houver restrições, descreva todas as condições e orientações informadas pelo EC Responder somente se a resposta da pergunta anterior for "Sim". Resposta:',
+      'É necessário apresentar documentação, lista de profissionais, identificação, autorização de acesso ou integração de segurança?',
+      'Se houver exigências documentais ou de segurança, descreva-as e informe o prazo para envio Responder somente se a resposta da pergunta anterior for "Sim". Resposta:',
+      'O EC solicitou alteração da data ou do horário da obra?',
+      'Nova data autorizada pelo EC Responder somente se a resposta da pergunta anterior for "Sim". Resposta:',
+      'Novo horário autorizado pelo EC Responder somente se a resposta da pergunta 34 for "Sim". Resposta:',
+      'Motivo da alteração solicitada pelo EC. Responder somente se a resposta da pergunta 37 for "Sim". Resposta:',
+      'Será necessário reprogramar a transportadora?',
+      'Se houver necessidade de reprogramação, descreva a ação necessária e o responsável pelo acionamento Responder somente se a resposta da pergunta anterior for "Sim". Resposta:',
+      'A comprovação formal da autorização do EC está disponível?', 'Tipo de comprovação apresentada',
+      'Envie o anexo de comprovação da autorização do EC via wpp ou email com identificação do PC e Nome do ponto',
+      'Se a comprovação ainda não estiver disponível, informe o motivo e a previsão de envio Responder somente se a pergunta 41 for "Não disponível". Resposta:',
+      'Observações e pontos de atenção:',
+      'Declaro que as informações registradas foram validadas com o EC e refletem as condições informadas para a execução da obra.',
+    ]
+    const simNao = v => (v === 'SIM' ? 'Sim' : v === 'NAO' ? 'Não' : '')
+    const agora = new Date()
+    const enderecoCompleto = [editDados.endereco, [editDados.cidade, editDados.uf].filter(Boolean).join('/')].filter(Boolean).join(', ')
+    const linha = [
+      '', '', '', usuario?.email || '', '', usuario?.email || '', 'GRUPO PG', '', '',
+      agora.toLocaleDateString('pt-BR'), agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), '',
+      editDados.numero_pc || modal?.numero_pc || '', modal?.nome || '', enderecoCompleto, modal?.tipo || '',
+      isoToBr(paraIsoDataObraTexto(dataInicioObraTexto)) || '', horaInicioObraTexto || '',
+      ecNome || '', checklistEcCargo || '', checklistCanalValidacao || '',
+      simNao(checklistAcessoAutorizado), simNao(checklistAcessoAutorizado),
+      checklistAcessoAutorizado === 'NAO' ? (checklistAcessoMotivo || '') : '',
+      simNao(checklistLocalAberto), '',
+      simNao(checklistLocalEmObra), checklistLocalEmObra === 'SIM' ? (checklistTerminoPrevisao || '') : '',
+      simNao(checklistLocalInaugurado), checklistLocalInaugurado === 'NAO' ? (checklistInauguracaoPrevisao || '') : '',
+      simNao(checklistLocalLiberado), checklistLocalLiberado === 'NAO' ? (checklistLocalLiberadoMotivo || '') : '',
+      simNao(checklistBarulhoAutorizado), checklistBarulhoAutorizado === 'SIM' ? (checklistBarulhoHorario || '') : '',
+      simNao(checklistRestricao), checklistRestricao === 'SIM' ? (checklistRestricaoDescricao || '') : '',
+      simNao(checklistExigenciaDoc), checklistExigenciaDoc === 'SIM' ? (checklistExigenciaDocDescricao || '') : '',
+      simNao(checklistAlteracaoSolicitada),
+      checklistAlteracaoSolicitada === 'SIM' ? (isoToBr(checklistNovaData) || '') : '',
+      checklistAlteracaoSolicitada === 'SIM' ? (checklistNovoHorario || '') : '',
+      checklistAlteracaoSolicitada === 'SIM' ? (checklistAlteracaoMotivo || '') : '',
+      simNao(checklistReprogramarTransportadora),
+      checklistReprogramarTransportadora === 'SIM' ? (checklistReprogramarAcao || '') : '',
+      simNao(checklistComprovacaoDisponivel), checklistComprovacaoDisponivel === 'SIM' ? (checklistTipoComprovacao || '') : '',
+      checklistComprovacaoImagem ? 'Enviado em anexo neste e-mail' : '',
+      checklistComprovacaoDisponivel === 'NAO' ? (checklistComprovacaoIndisponivelMotivo || '') : '',
+      checklistObservacoes || '', 'Sim, declaro e confirmo',
+    ]
+    const ws = XLSX.utils.aoa_to_sheet([colunas, linha])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Planilha1')
+    const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' })
+    const pcTexto = (editDados.numero_pc || modal?.numero_pc || '').toString().trim()
+    return { filename: `Validacao_Pre_Obra${pcTexto ? '_PC' + pcTexto : ''}.xlsx`, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 }
+  }
+
   async function enviarAgendamentoTecban() {
     setEnviandoAgendamento(true)
     setErroEnvioAgendamento('')
@@ -4350,6 +4431,7 @@ export default function App() {
       const fotos = [
         dataUrlParaFoto(fotoLocalInstalacao, 'local_fixacao.jpg'),
         dataUrlParaFoto(checklistComprovacaoImagem, 'print_comprovacao.jpg'),
+        (modal?.rede === 'BANCO24HORAS' && modal?.tipo === 'INSTALAÇÃO ATM') ? gerarExcelValidacaoTecban() : null,
       ].filter(Boolean)
       const { data: { session } } = await supabase.auth.getSession()
       const resp = await fetch(EDGE_FUNCTION_TECBAN_URL, {
