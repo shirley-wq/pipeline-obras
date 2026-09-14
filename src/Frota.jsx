@@ -71,12 +71,16 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
   async function carregarTudo() {
     if (!nomeCompleto) return
     setCarregando(true)
-    const [{ data: vs }, { data: aberta }] = await Promise.all([
+    // Usa order + limit(1) em vez de maybeSingle() - maybeSingle() falha (e engole o erro) se
+    // por qualquer motivo existir mais de uma viagem aberta ao mesmo tempo pro mesmo colaborador,
+    // e a trava "não deixa abrir outra sem fechar a anterior" para de funcionar em silêncio
+    // (achado real testando, Shirley, 2026-09-14). Assim sempre pega a mais recente das abertas.
+    const [{ data: vs }, { data: abertas }] = await Promise.all([
       supabase.from('frota_veiculos').select('*').order('placa'),
-      supabase.from('frota_registros').select('*').eq('collab', nomeCompleto).eq('type', 'bordo').eq('closed', false).maybeSingle(),
+      supabase.from('frota_registros').select('*').eq('collab', nomeCompleto).eq('type', 'bordo').eq('closed', false).order('criado_em', { ascending: false }).limit(1),
     ])
     setVeiculos(vs || [])
-    setViagemAberta(aberta || null)
+    setViagemAberta((abertas && abertas[0]) || null)
     setFavoritos(Array.isArray(meuRH?.veiculos_favoritos) ? meuRH.veiculos_favoritos : [])
     setCarregando(false)
   }
