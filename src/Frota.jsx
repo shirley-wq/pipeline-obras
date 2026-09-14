@@ -21,6 +21,7 @@ const ITENS_MANUTENCAO = [
   { id: 'pneu', label: 'Pneus', icone: '🛞', kmSugerido: 40000, diasSugerido: null },
   { id: 'pastilha_freio', label: 'Pastilhas de freio', icone: '🛑', kmSugerido: 20000, diasSugerido: null },
   { id: 'oleo_motor', label: 'Óleo do motor', icone: '🛢️', kmSugerido: 10000, diasSugerido: 180 },
+  { id: 'filtro_oleo', label: 'Filtro de óleo', icone: '🧯', kmSugerido: 10000, diasSugerido: 180 },
   { id: 'oleo_outros', label: 'Outros óleos (câmbio/direção)', icone: '🛢️', kmSugerido: 40000, diasSugerido: 365 },
   { id: 'bateria', label: 'Bateria', icone: '🔋', kmSugerido: null, diasSugerido: 730 },
   { id: 'reparo', label: 'Reparo de batida/dano', icone: '🛠️', kmSugerido: null, diasSugerido: null },
@@ -110,7 +111,7 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
   const [manutencoes, setManutencoes] = useState([])
   const [veiculoManutencaoAberto, setVeiculoManutencaoAberto] = useState(null)
   const [novoItemManutencao, setNovoItemManutencao] = useState(null) // { placa, item }
-  const [formManutencao, setFormManutencao] = useState({ data: hojeIso(), km: '', intervaloKm: '', intervaloDias: '', observacoes: '' })
+  const [formManutencao, setFormManutencao] = useState({ data: hojeIso(), km: '', intervaloKm: '', intervaloDias: '', observacoes: '', valor: '' })
   const [salvandoManutencao, setSalvandoManutencao] = useState(false)
 
   const nomeCompleto = meuRH ? `${meuRH.nome} ${meuRH.sobrenome || ''}`.trim() : (usuario?.email || '')
@@ -264,6 +265,7 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
       intervaloKm: def?.kmSugerido != null ? String(def.kmSugerido) : '',
       intervaloDias: def?.diasSugerido != null ? String(def.diasSugerido) : '',
       observacoes: '',
+      valor: '',
     })
   }
 
@@ -278,6 +280,7 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
       intervalo_km: formManutencao.intervaloKm ? Number(formManutencao.intervaloKm) : null,
       intervalo_dias: formManutencao.intervaloDias ? Number(formManutencao.intervaloDias) : null,
       observacoes: formManutencao.observacoes.trim() || null,
+      valor: formManutencao.valor ? Number(String(formManutencao.valor).replace(',', '.')) : null,
       registrado_por: usuario?.email || null,
     }
     const { error } = await supabase.from('frota_manutencoes').insert(registro)
@@ -466,12 +469,20 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
 
       {subaba === 'manutencao' && (
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#1A2340', marginBottom: 10 }}>Manutenção preventiva por veículo</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1A2340' }}>Manutenção preventiva por veículo</div>
+            {podeVerPainelGeral && (
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#1A6B4A', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 8, padding: '4px 10px' }}>
+                Total gasto em manutenção: R$ {manutencoes.reduce((s, m) => s + (Number(m.valor) || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </div>
+            )}
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {veiculos.map(v => {
               const pior = piorStatusVeiculo(v.placa)
               const corResumo = pior ? COR_STATUS_MANUTENCAO[pior.status] : null
               const aberto = veiculoManutencaoAberto === v.placa
+              const totalVeiculo = manutencoes.filter(m => m.placa === v.placa).reduce((s, m) => s + (Number(m.valor) || 0), 0)
               return (
                 <div key={v.placa} style={{ background: '#fff', border: `1px solid ${pior ? corResumo.border : '#E0E8F0'}`, borderRadius: 10, overflow: 'hidden' }}>
                   <div onClick={() => setVeiculoManutencaoAberto(aberto ? null : v.placa)}
@@ -479,7 +490,10 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
                     <span style={{ fontSize: 18 }}>{TIPOS_ICONE[v.tipo] || '🚗'}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: '#1A2340' }}>{v.placa} <span style={{ fontWeight: 400, color: '#64748B' }}>· {v.modelo}</span></div>
-                      {v.km_atual != null && <div style={{ fontSize: 11, color: '#64748B' }}>KM atual: {v.km_atual}</div>}
+                      <div style={{ fontSize: 11, color: '#64748B' }}>
+                        {v.km_atual != null && <>KM atual: {v.km_atual}</>}
+                        {podeVerPainelGeral && totalVeiculo > 0 && <>{v.km_atual != null ? ' · ' : ''}Gasto: R$ {totalVeiculo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</>}
+                      </div>
                     </div>
                     {pior && (
                       <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 6, background: corResumo.border, color: '#fff', whiteSpace: 'nowrap' }}>
@@ -545,6 +559,8 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
                     <input type="number" value={formManutencao.intervaloDias} onChange={e => setFormManutencao(f => ({ ...f, intervaloDias: e.target.value }))} style={inp} />
                   </div>
                 </div>
+                <label style={{ fontSize: 11, color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 3 }}>Valor gasto (R$, opcional)</label>
+                <input type="number" step="0.01" value={formManutencao.valor} onChange={e => setFormManutencao(f => ({ ...f, valor: e.target.value }))} placeholder="Ex: 350.00" style={{ ...inp, marginBottom: 8 }} />
                 <label style={{ fontSize: 11, color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 3 }}>Observações</label>
                 <textarea value={formManutencao.observacoes} onChange={e => setFormManutencao(f => ({ ...f, observacoes: e.target.value }))} rows={2} style={{ ...inp, marginBottom: 12, resize: 'vertical' }} />
                 <div style={{ display: 'flex', gap: 8 }}>
