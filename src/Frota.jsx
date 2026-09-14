@@ -209,15 +209,15 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
         <>
           {viagemAberta ? (
             <div style={{ background: '#FFF7ED', border: '2px solid #FDBA74', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#9A3412', marginBottom: 4 }}>
-                {TIPOS_ICONE[veiculos.find(v => v.placa === viagemAberta.plate)?.tipo] || '🚗'} Você está com o veículo <b>{viagemAberta.plate}</b>
-              </div>
-              <div style={{ fontSize: 12, color: '#9A3412', marginBottom: 8 }}>
-                Saída às {viagemAberta.time} ({isoToBr(viagemAberta.date)}) · KM {viagemAberta.km_inicio}
-                {viagemAberta.obra_id ? (() => { const o = (obras || []).find(x => x.id === viagemAberta.obra_id); return o ? ` · ${o.nome}` : '' })() : viagemAberta.obs ? ` · ${viagemAberta.obs}` : ''}
-              </div>
-              <div style={{ background: '#FED7AA', borderRadius: 6, padding: '6px 10px', marginBottom: 12, fontSize: 12, fontWeight: 700, color: '#7C2D12' }}>
-                🔒 Encerre essa viagem antes de poder escolher outro veículo.
+              <div style={{ background: '#7C2D12', borderRadius: 8, padding: '14px 16px', marginBottom: 14 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>
+                  🔒 {TIPOS_ICONE[veiculos.find(v => v.placa === viagemAberta.plate)?.tipo] || '🚗'} Esse veículo ({viagemAberta.plate}) já está em uso com você
+                </div>
+                <div style={{ fontSize: 13, color: '#FED7AA', lineHeight: 1.5 }}>
+                  Você deu início nessa viagem às <b>{viagemAberta.time}</b> ({isoToBr(viagemAberta.date)}), com <b>KM {viagemAberta.km_inicio}</b> de saída
+                  {viagemAberta.obra_id ? (() => { const o = (obras || []).find(x => x.id === viagemAberta.obra_id); return o ? <> — obra <b>{o.nome}</b></> : '' })() : viagemAberta.obs ? <> — <b>{viagemAberta.obs}</b></> : ''}.
+                  <br />Encerre essa viagem antes de poder escolher outro veículo.
+                </div>
               </div>
               <label style={{ fontSize: 11, color: '#9A3412', fontWeight: 600, display: 'block', marginBottom: 3 }}>KM de chegada</label>
               <input type="number" value={kmFim} onChange={e => setKmFim(e.target.value)} placeholder={`Ex: ${Number(viagemAberta.km_inicio) + 10}`} style={{ ...inp, marginBottom: 8 }} />
