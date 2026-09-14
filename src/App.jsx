@@ -5747,7 +5747,10 @@ export default function App() {
                               )
                             })()}
                           </div>
-                          <button onClick={() => marcarFaturadoGrupo(g.chave, g.obras.map(o => o.id))}
+                          <button onClick={() => {
+                              if (!window.confirm(`Confirma marcar essas ${g.obras.length} obra(s) como faturadas com a NF ${gd.nf}?\n\n${g.obras.map(o => `- ${o.nome}`).join('\n')}\n\nEssa ação não tem desfazer fácil.`)) return
+                              marcarFaturadoGrupo(g.chave, g.obras.map(o => o.id))
+                            }}
                             disabled={!gd.nf}
                             style={{ width:'100%', padding:'10px', background: gd.nf ? '#1A6B4A' : '#ccc', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor: gd.nf ? 'pointer' : 'default' }}>
                             ✓ Marcar grupo inteiro como Faturado ({g.obras.length})
