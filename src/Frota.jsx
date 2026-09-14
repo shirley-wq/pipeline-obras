@@ -257,13 +257,15 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
                   const emUso = veiculosEmUso[v.placa]
                   return (
                     <div key={v.placa} onClick={() => { if (!emUso) setVeiculoEscolhido(v) }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', border: selecionado ? '2px solid #7C2D12' : '1px solid #E0E8F0', borderRadius: 8, cursor: emUso ? 'not-allowed' : 'pointer', background: emUso ? '#F1F5F9' : selecionado ? '#FFF7ED' : '#fff', opacity: emUso ? 0.7 : 1 }}>
-                      <span style={{ fontSize: 18 }}>{emUso ? '🔒' : (TIPOS_ICONE[v.tipo] || '🚗')}</span>
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: emUso ? '12px' : '9px 12px', border: emUso ? '2px solid #F59E0B' : selecionado ? '2px solid #7C2D12' : '1px solid #E0E8F0', borderRadius: 8, cursor: emUso ? 'not-allowed' : 'pointer', background: emUso ? '#FFFBEB' : selecionado ? '#FFF7ED' : '#fff' }}>
+                      <span style={{ fontSize: emUso ? 22 : 18 }}>{emUso ? '🔒' : (TIPOS_ICONE[v.tipo] || '🚗')}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1A2340' }}>{v.placa}</div>
-                        <div style={{ fontSize: 11, color: emUso ? '#9A3412' : '#64748B' }}>
-                          {emUso ? `Em uso por ${emUso.collab} desde ${emUso.time}` : `${v.modelo}${v.cor ? ` · ${v.cor}` : ''}`}
-                        </div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#1A2340' }}>{v.placa}</div>
+                        {emUso ? (
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#9A3412' }}>Em uso por {emUso.collab} desde {emUso.time}</div>
+                        ) : (
+                          <div style={{ fontSize: 11, color: '#64748B' }}>{v.modelo}{v.cor ? ` · ${v.cor}` : ''}</div>
+                        )}
                       </div>
                       {!emUso && (
                         <span onClick={e => { e.stopPropagation(); toggleFavorito(v.placa) }} style={{ fontSize: 18, cursor: 'pointer', color: favorito ? '#F59E0B' : '#CBD5E1' }}>★</span>
