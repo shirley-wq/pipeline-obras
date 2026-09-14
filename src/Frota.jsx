@@ -113,7 +113,21 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
     }
     const { data, error } = await supabase.from('frota_registros').insert(registro).select().single()
     setSalvandoAbertura(false)
-    if (error) { setErroAbertura('Erro ao salvar: ' + error.message); return }
+    if (error) {
+      // 23505 = trava do banco (frota_registros_uma_aberta_por_colab) barrou por já existir uma
+      // viagem aberta - a tela ficava "travada" sem explicar por quê (Shirley, 2026-09-14).
+      // Busca a viagem real e já troca de tela sozinho, em vez de só mostrar erro técnico.
+      if (error.code === '23505') {
+        const { data: aberta } = await supabase.from('frota_registros').select('*')
+          .eq('collab', nomeCompleto).eq('type', 'bordo').eq('closed', false)
+          .order('criado_em', { ascending: false }).limit(1)
+        setViagemAberta((aberta && aberta[0]) || null)
+        setErroAbertura('')
+      } else {
+        setErroAbertura('Erro ao salvar: ' + error.message)
+      }
+      return
+    }
     setViagemAberta(data)
     setVeiculoEscolhido(null)
     setObraId('')
@@ -195,12 +209,15 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
         <>
           {viagemAberta ? (
             <div style={{ background: '#FFF7ED', border: '2px solid #FDBA74', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#9A3412', marginBottom: 4 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#9A3412', marginBottom: 4 }}>
                 {TIPOS_ICONE[veiculos.find(v => v.placa === viagemAberta.plate)?.tipo] || '🚗'} Você está com o veículo <b>{viagemAberta.plate}</b>
               </div>
-              <div style={{ fontSize: 12, color: '#9A3412', marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: '#9A3412', marginBottom: 8 }}>
                 Saída às {viagemAberta.time} ({isoToBr(viagemAberta.date)}) · KM {viagemAberta.km_inicio}
                 {viagemAberta.obra_id ? (() => { const o = (obras || []).find(x => x.id === viagemAberta.obra_id); return o ? ` · ${o.nome}` : '' })() : viagemAberta.obs ? ` · ${viagemAberta.obs}` : ''}
+              </div>
+              <div style={{ background: '#FED7AA', borderRadius: 6, padding: '6px 10px', marginBottom: 12, fontSize: 12, fontWeight: 700, color: '#7C2D12' }}>
+                🔒 Encerre essa viagem antes de poder escolher outro veículo.
               </div>
               <label style={{ fontSize: 11, color: '#9A3412', fontWeight: 600, display: 'block', marginBottom: 3 }}>KM de chegada</label>
               <input type="number" value={kmFim} onChange={e => setKmFim(e.target.value)} placeholder={`Ex: ${Number(viagemAberta.km_inicio) + 10}`} style={{ ...inp, marginBottom: 8 }} />
@@ -271,7 +288,11 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
                   )}
                   <label style={{ fontSize: 11, color: '#4A7FC1', fontWeight: 600, display: 'block', marginBottom: 3 }}>KM de saída</label>
                   <input type="number" value={kmInicio} onChange={e => setKmInicio(e.target.value)} placeholder="Ex: 45200" style={{ ...inp, marginBottom: 10 }} />
-                  {erroAbertura && <div style={{ color: '#DC2626', fontSize: 12, marginBottom: 8 }}>{erroAbertura}</div>}
+                  {erroAbertura && (
+                    <div style={{ background: '#FEF2F2', border: '2px solid #DC2626', borderRadius: 8, padding: '10px 12px', marginBottom: 10, color: '#991B1B', fontSize: 13, fontWeight: 700 }}>
+                      ⚠️ {erroAbertura}
+                    </div>
+                  )}
                   <button onClick={abrirViagem} disabled={salvandoAbertura}
                     style={{ width: '100%', padding: 12, background: salvandoAbertura ? '#94A3B8' : '#1A6B4A', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: salvandoAbertura ? 'default' : 'pointer' }}>
                     {salvandoAbertura ? 'Salvando...' : '🚀 Iniciar viagem'}
