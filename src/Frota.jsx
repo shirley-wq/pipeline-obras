@@ -213,10 +213,10 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
                 style={{ ...inp, marginBottom: 10 }} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16, maxHeight: 260, overflowY: 'auto' }}>
                 {veiculosFiltrados.map(v => {
-                  const selecionado = veiculoEscolhido?.id === v.id
+                  const selecionado = veiculoEscolhido?.placa === v.placa
                   const favorito = favoritos.includes(v.placa)
                   return (
-                    <div key={v.id} onClick={() => setVeiculoEscolhido(v)}
+                    <div key={v.placa} onClick={() => setVeiculoEscolhido(v)}
                       style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', border: selecionado ? '2px solid #7C2D12' : '1px solid #E0E8F0', borderRadius: 8, cursor: 'pointer', background: selecionado ? '#FFF7ED' : '#fff' }}>
                       <span style={{ fontSize: 18 }}>{TIPOS_ICONE[v.tipo] || '🚗'}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
