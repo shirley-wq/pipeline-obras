@@ -2731,6 +2731,21 @@ export default function App() {
   const [checklistNovaData, setChecklistNovaData] = useState('')
   const [checklistNovoHorario, setChecklistNovoHorario] = useState('')
   const [checklistReprogramarTransportadora, setChecklistReprogramarTransportadora] = useState('')
+  // Perguntas adicionadas pra bater 1:1 com o modelo de Excel que a TI da Tecban usa (Shirley,
+  // 2026-09-14, pra permitir gerar e mandar esse Excel automaticamente no lugar de preencher o
+  // Forms manualmente) - ver [[project-pipeline-obras]].
+  const [checklistEcCargo, setChecklistEcCargo] = useState('')
+  const [checklistCanalValidacao, setChecklistCanalValidacao] = useState('')
+  const [checklistRestricao, setChecklistRestricao] = useState('')
+  const [checklistRestricaoDescricao, setChecklistRestricaoDescricao] = useState('')
+  const [checklistExigenciaDoc, setChecklistExigenciaDoc] = useState('')
+  const [checklistExigenciaDocDescricao, setChecklistExigenciaDocDescricao] = useState('')
+  const [checklistAlteracaoMotivo, setChecklistAlteracaoMotivo] = useState('')
+  const [checklistReprogramarAcao, setChecklistReprogramarAcao] = useState('')
+  const [checklistComprovacaoDisponivel, setChecklistComprovacaoDisponivel] = useState('')
+  const [checklistTipoComprovacao, setChecklistTipoComprovacao] = useState('')
+  const [checklistComprovacaoIndisponivelMotivo, setChecklistComprovacaoIndisponivelMotivo] = useState('')
+  const [checklistObservacoes, setChecklistObservacoes] = useState('')
   const [checklistComprovacaoImagem, setChecklistComprovacaoImagem] = useState('')
   const [checklistComprovacaoImagemProporcao, setChecklistComprovacaoImagemProporcao] = useState(0)
   // Foto indicando onde o ATM será fixado, pro ADM anexar depois de conversar com o líder/EC
@@ -4578,6 +4593,18 @@ export default function App() {
       campos.checklist_pre_obra_nova_data = checklistAlteracaoSolicitada === 'SIM' ? (checklistNovaData || null) : null
       campos.checklist_pre_obra_novo_horario = checklistAlteracaoSolicitada === 'SIM' ? (checklistNovoHorario || null) : null
       campos.checklist_pre_obra_reprogramar_transportadora = checklistAlteracaoSolicitada === 'SIM' ? (checklistReprogramarTransportadora || null) : null
+      campos.checklist_pre_obra_ec_cargo = checklistEcCargo || null
+      campos.checklist_pre_obra_canal_validacao = checklistCanalValidacao || null
+      campos.checklist_pre_obra_restricao = checklistRestricao || null
+      campos.checklist_pre_obra_restricao_descricao = checklistRestricao === 'SIM' ? (checklistRestricaoDescricao || null) : null
+      campos.checklist_pre_obra_exigencia_doc = checklistExigenciaDoc || null
+      campos.checklist_pre_obra_exigencia_doc_descricao = checklistExigenciaDoc === 'SIM' ? (checklistExigenciaDocDescricao || null) : null
+      campos.checklist_pre_obra_alteracao_motivo = checklistAlteracaoSolicitada === 'SIM' ? (checklistAlteracaoMotivo || null) : null
+      campos.checklist_pre_obra_reprogramar_acao = checklistReprogramarTransportadora === 'SIM' ? (checklistReprogramarAcao || null) : null
+      campos.checklist_pre_obra_comprovacao_disponivel = checklistComprovacaoDisponivel || null
+      campos.checklist_pre_obra_tipo_comprovacao = checklistComprovacaoDisponivel === 'SIM' ? (checklistTipoComprovacao || null) : null
+      campos.checklist_pre_obra_comprovacao_indisponivel_motivo = checklistComprovacaoDisponivel === 'NAO' ? (checklistComprovacaoIndisponivelMotivo || null) : null
+      campos.checklist_pre_obra_observacoes = checklistObservacoes || null
       campos.checklist_pre_obra_comprovacao_imagem = checklistComprovacaoImagem || null
       campos.checklist_pre_obra_comprovacao_imagem_proporcao = checklistComprovacaoImagem ? checklistComprovacaoImagemProporcao : null
       campos.foto_local_instalacao = fotoLocalInstalacao || null
@@ -4663,6 +4690,18 @@ export default function App() {
     setChecklistNovaData('')
     setChecklistNovoHorario('')
     setChecklistReprogramarTransportadora('')
+    setChecklistEcCargo('')
+    setChecklistCanalValidacao('')
+    setChecklistRestricao('')
+    setChecklistRestricaoDescricao('')
+    setChecklistExigenciaDoc('')
+    setChecklistExigenciaDocDescricao('')
+    setChecklistAlteracaoMotivo('')
+    setChecklistReprogramarAcao('')
+    setChecklistComprovacaoDisponivel('')
+    setChecklistTipoComprovacao('')
+    setChecklistComprovacaoIndisponivelMotivo('')
+    setChecklistObservacoes('')
     setChecklistComprovacaoImagem('')
     setChecklistComprovacaoImagemProporcao(0)
     setFotoLocalInstalacao('')
@@ -7549,6 +7588,18 @@ export default function App() {
                         setChecklistNovaData(obra.checklist_pre_obra_nova_data || '')
                         setChecklistNovoHorario(obra.checklist_pre_obra_novo_horario || '')
                         setChecklistReprogramarTransportadora(obra.checklist_pre_obra_reprogramar_transportadora || '')
+                        setChecklistEcCargo(obra.checklist_pre_obra_ec_cargo || '')
+                        setChecklistCanalValidacao(obra.checklist_pre_obra_canal_validacao || '')
+                        setChecklistRestricao(obra.checklist_pre_obra_restricao || '')
+                        setChecklistRestricaoDescricao(obra.checklist_pre_obra_restricao_descricao || '')
+                        setChecklistExigenciaDoc(obra.checklist_pre_obra_exigencia_doc || '')
+                        setChecklistExigenciaDocDescricao(obra.checklist_pre_obra_exigencia_doc_descricao || '')
+                        setChecklistAlteracaoMotivo(obra.checklist_pre_obra_alteracao_motivo || '')
+                        setChecklistReprogramarAcao(obra.checklist_pre_obra_reprogramar_acao || '')
+                        setChecklistComprovacaoDisponivel(obra.checklist_pre_obra_comprovacao_disponivel || '')
+                        setChecklistTipoComprovacao(obra.checklist_pre_obra_tipo_comprovacao || '')
+                        setChecklistComprovacaoIndisponivelMotivo(obra.checklist_pre_obra_comprovacao_indisponivel_motivo || '')
+                        setChecklistObservacoes(obra.checklist_pre_obra_observacoes || '')
                         setChecklistComprovacaoImagem(obra.checklist_pre_obra_comprovacao_imagem || '')
                         setChecklistComprovacaoImagemProporcao(obra.checklist_pre_obra_comprovacao_imagem_proporcao || 0)
                         setFotoLocalInstalacao(obra.foto_local_instalacao || '')
@@ -8153,6 +8204,26 @@ export default function App() {
                 <div style={{ fontSize:12, color:'#1E3A8A', fontWeight:700, marginBottom:2 }}>📋 Checklist de validação pré-obra (TecBan)</div>
                 <div style={{ fontSize:10, color:'#4A7FC1', marginBottom:10 }}>Pedido pela Fernanda (TecBan) em 03/09/2026 — preencher e validar com o EC até 13h do dia anterior à obra, aqui em vez de mandar por WhatsApp.</div>
 
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
+                  <div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Cargo/função do responsável do EC consultado</label>
+                    <input value={checklistEcCargo} onChange={e => setChecklistEcCargo(up(e.target.value))}
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Canal utilizado para a validação com o EC</label>
+                    <select value={checklistCanalValidacao} onChange={e => setChecklistCanalValidacao(e.target.value)}
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', background:'#fff' }}>
+                      <option value="">Selecione...</option>
+                      <option value="WhatsApp">WhatsApp</option>
+                      <option value="Ligação telefônica">Ligação telefônica</option>
+                      <option value="Presencial">Presencial</option>
+                      <option value="E-mail">E-mail</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </div>
+                </div>
+
                 <PerguntaSimNao numero={1} pergunta="O acesso à obra está autorizado?"
                   valor={checklistAcessoAutorizado} onChange={setChecklistAcessoAutorizado}
                   seguirQuando="NAO" detalheLabel="Motivo" detalheValor={checklistAcessoMotivo} onChangeDetalhe={setChecklistAcessoMotivo} />
@@ -8193,8 +8264,11 @@ export default function App() {
                           style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                       </div>
                     </div>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Motivo da alteração solicitada pelo EC</label>
+                    <input value={checklistAlteracaoMotivo} onChange={e => setChecklistAlteracaoMotivo(up(e.target.value))}
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8 }} />
                     <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>🚨 Necessário reprogramar com a transportadora?</label>
-                    <div style={{ display:'flex', gap:14 }}>
+                    <div style={{ display:'flex', gap:14, marginBottom:8 }}>
                       <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:13, color:'#1A2340' }}>
                         <input type="radio" name="checklistReprogramarTransportadora" checked={checklistReprogramarTransportadora === 'SIM'}
                           onChange={() => setChecklistReprogramarTransportadora('SIM')} />
@@ -8206,6 +8280,37 @@ export default function App() {
                         Não
                       </label>
                     </div>
+                    {checklistReprogramarTransportadora === 'SIM' && (
+                      <input value={checklistReprogramarAcao} onChange={e => setChecklistReprogramarAcao(up(e.target.value))}
+                        placeholder="Ação necessária e responsável pelo acionamento"
+                        style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                    )}
+                  </div>
+                )}
+
+                <PerguntaSimNao numero={8} pergunta="Há restrição de acesso, circulação, carga e descarga, uso de elevador, estacionamento ou entrada de materiais?"
+                  valor={checklistRestricao} onChange={setChecklistRestricao}
+                  seguirQuando="SIM" detalheLabel="Descreva todas as condições e orientações informadas pelo EC" detalheValor={checklistRestricaoDescricao} onChangeDetalhe={setChecklistRestricaoDescricao} />
+
+                <PerguntaSimNao numero={9} pergunta="É necessário apresentar documentação, lista de profissionais, identificação, autorização de acesso ou integração de segurança?"
+                  valor={checklistExigenciaDoc} onChange={setChecklistExigenciaDoc}
+                  seguirQuando="SIM" detalheLabel="Descreva a exigência e o prazo para envio" detalheValor={checklistExigenciaDocDescricao} onChangeDetalhe={setChecklistExigenciaDocDescricao} />
+
+                <PerguntaSimNao numero={10} pergunta="A comprovação formal da autorização do EC está disponível?"
+                  valor={checklistComprovacaoDisponivel} onChange={setChecklistComprovacaoDisponivel} />
+                {checklistComprovacaoDisponivel === 'SIM' && (
+                  <div style={{ marginTop:-4, marginBottom:10, paddingLeft:4 }}>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Tipo de comprovação apresentada</label>
+                    <input value={checklistTipoComprovacao} onChange={e => setChecklistTipoComprovacao(up(e.target.value))}
+                      placeholder="Ex: print de WhatsApp, e-mail..."
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                  </div>
+                )}
+                {checklistComprovacaoDisponivel === 'NAO' && (
+                  <div style={{ marginTop:-4, marginBottom:10, paddingLeft:4 }}>
+                    <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Motivo e previsão de envio da comprovação</label>
+                    <input value={checklistComprovacaoIndisponivelMotivo} onChange={e => setChecklistComprovacaoIndisponivelMotivo(up(e.target.value))}
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                   </div>
                 )}
 
@@ -8219,6 +8324,12 @@ export default function App() {
                         style={{ color:'#EF4444', cursor:'pointer', fontSize:12, fontWeight:700 }}>✕ remover</span>
                     </div>
                   )}
+                </div>
+
+                <div style={{ marginTop:12 }}>
+                  <label style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, display:'block', marginBottom:3 }}>Observações e pontos de atenção</label>
+                  <textarea value={checklistObservacoes} onChange={e => setChecklistObservacoes(up(e.target.value))} rows={2}
+                    style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', resize:'none' }} />
                 </div>
               </div>
               )}
