@@ -114,6 +114,11 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
   const [formManutencao, setFormManutencao] = useState({ data: hojeIso(), km: '', intervaloKm: '', intervaloDias: '', observacoes: '', valor: '' })
   const [salvandoManutencao, setSalvandoManutencao] = useState(false)
 
+  const [pedagios, setPedagios] = useState([])
+  const [carregandoPedagios, setCarregandoPedagios] = useState(false)
+  const [mesFiltroPedagio, setMesFiltroPedagio] = useState(hojeIso().slice(0, 7))
+  const [veiculoPedagioAberto, setVeiculoPedagioAberto] = useState(null)
+
   const nomeCompleto = meuRH ? `${meuRH.nome} ${meuRH.sobrenome || ''}`.trim() : (usuario?.email || '')
 
   useEffect(() => {
@@ -302,6 +307,24 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
     if (subaba === 'painel' && podeVerPainelGeral) carregarPainel()
   }, [subaba])
 
+  // Pedágio/estacionamento (Sem Parar) - carregado por mês pra não puxar o histórico inteiro toda
+  // vez (a fatura de um mês sozinha já tem quase mil lançamentos). Shirley, 2026-09-15.
+  async function carregarPedagios() {
+    setCarregandoPedagios(true)
+    const inicio = `${mesFiltroPedagio}-01`
+    const [ano, mes] = mesFiltroPedagio.split('-').map(Number)
+    const fimData = new Date(ano, mes, 0) // dia 0 do mes seguinte = ultimo dia do mes atual
+    const fim = `${fimData.getFullYear()}-${String(fimData.getMonth() + 1).padStart(2, '0')}-${String(fimData.getDate()).padStart(2, '0')}`
+    const { data } = await supabase.from('frota_pedagios_estacionamentos').select('*')
+      .gte('data', inicio).lte('data', fim).order('placa').order('data').order('hora')
+    setPedagios(data || [])
+    setCarregandoPedagios(false)
+  }
+
+  useEffect(() => {
+    if (subaba === 'pedagio' && podeVerPainelGeral) carregarPedagios()
+  }, [subaba, mesFiltroPedagio])
+
   if (carregando) return <div style={{ padding: 40, textAlign: 'center', color: '#888', fontSize: 14 }}>Carregando...</div>
 
   const veiculosFiltrados = veiculos
@@ -334,6 +357,12 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
           style={{ padding: '8px 16px', border: 'none', borderRadius: 8, background: subaba === 'manutencao' ? '#7C2D12' : '#F1F5F9', color: subaba === 'manutencao' ? '#fff' : '#1A2340', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
           🔧 Manutenção
         </button>
+        {podeVerPainelGeral && (
+          <button onClick={() => setSubaba('pedagio')}
+            style={{ padding: '8px 16px', border: 'none', borderRadius: 8, background: subaba === 'pedagio' ? '#7C2D12' : '#F1F5F9', color: subaba === 'pedagio' ? '#fff' : '#1A2340', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            🛣️ Pedágio/Estacionamento
+          </button>
+        )}
         {podeVerPainelGeral && (
           <button onClick={() => setSubaba('painel')}
             style={{ padding: '8px 16px', border: 'none', borderRadius: 8, background: subaba === 'painel' ? '#7C2D12' : '#F1F5F9', color: subaba === 'painel' ? '#fff' : '#1A2340', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
@@ -576,6 +605,76 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {subaba === 'pedagio' && podeVerPainelGeral && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1A2340' }}>Pedágio e estacionamento (Sem Parar)</div>
+            <input type="month" value={mesFiltroPedagio} onChange={e => setMesFiltroPedagio(e.target.value)}
+              style={{ padding: '7px 10px', border: '1px solid #CDD8E3', borderRadius: 8, fontSize: 13, color: '#1A2340' }} />
+          </div>
+          {carregandoPedagios ? (
+            <div style={{ textAlign: 'center', color: '#888', padding: 20 }}>Carregando...</div>
+          ) : (() => {
+            const porPlaca = {}
+            pedagios.forEach(p => {
+              porPlaca[p.placa] = porPlaca[p.placa] || { pedagio: 0, estacionamento: 0, qtdPedagio: 0, qtdEstac: 0, itens: [] }
+              porPlaca[p.placa][p.tipo] += Number(p.valor)
+              porPlaca[p.placa][p.tipo === 'pedagio' ? 'qtdPedagio' : 'qtdEstac']++
+              porPlaca[p.placa].itens.push(p)
+            })
+            const totalGeral = pedagios.reduce((s, p) => s + Number(p.valor), 0)
+            const placas = Object.keys(porPlaca).sort()
+            return (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1A6B4A', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 8, padding: '8px 12px', marginBottom: 12, display: 'inline-block' }}>
+                  Total do mês: R$ {totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {placas.map(placa => {
+                    const v = porPlaca[placa]
+                    const veic = veiculos.find(x => x.placa === placa)
+                    const aberto = veiculoPedagioAberto === placa
+                    const total = v.pedagio + v.estacionamento
+                    return (
+                      <div key={placa} style={{ background: '#fff', border: '1px solid #E0E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                        <div onClick={() => setVeiculoPedagioAberto(aberto ? null : placa)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer' }}>
+                          <span style={{ fontSize: 18 }}>{TIPOS_ICONE[veic?.tipo] || '🚗'}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#1A2340' }}>{placa} {veic?.modelo ? <span style={{ fontWeight: 400, color: '#64748B' }}>· {veic.modelo}</span> : ''}</div>
+                            <div style={{ fontSize: 11, color: '#64748B' }}>
+                              {v.qtdPedagio > 0 && <>{v.qtdPedagio} pedágio{v.qtdPedagio > 1 ? 's' : ''}: R$ {v.pedagio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</>}
+                              {v.qtdEstac > 0 && <>{v.qtdPedagio > 0 ? ' · ' : ''}{v.qtdEstac} estacionamento{v.qtdEstac > 1 ? 's' : ''}: R$ {v.estacionamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</>}
+                            </div>
+                          </div>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: '#1A2340' }}>R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                          <span style={{ fontSize: 12, color: '#94A3B8' }}>{aberto ? '▲' : '▼'}</span>
+                        </div>
+                        {aberto && (
+                          <div style={{ padding: '4px 14px 10px', maxHeight: 300, overflowY: 'auto' }}>
+                            {v.itens.sort((a, b) => (a.data + (a.hora || '')).localeCompare(b.data + (b.hora || ''))).map(item => (
+                              <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: '1px solid #F1F5F9', fontSize: 11 }}>
+                                <span>{item.tipo === 'pedagio' ? '🛣️' : '🅿️'}</span>
+                                <div style={{ flex: 1, minWidth: 0, color: '#374151' }}>
+                                  <b>{isoToBr(item.data)}{item.hora ? ` ${item.hora}` : ''}</b> — {item.local}
+                                  {item.tipo === 'estacionamento' && item.data_saida && <> (saída {isoToBr(item.data_saida)} {item.hora_saida})</>}
+                                </div>
+                                <div style={{ fontWeight: 700, color: '#1A2340', whiteSpace: 'nowrap' }}>R$ {Number(item.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {placas.length === 0 && <div style={{ textAlign: 'center', color: '#888', fontSize: 12, padding: 12 }}>Nenhum lançamento nesse mês.</div>}
+                </div>
+              </>
+            )
+          })()}
         </div>
       )}
 
