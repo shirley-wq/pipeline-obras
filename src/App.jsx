@@ -1886,6 +1886,41 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
   const registrosAnteriores = registros.slice(0, -1)
   const [salvando, setSalvando] = useState(false)
   const [salvo, setSalvo] = useState(false)
+  // Despesa vinculada à obra (Shirley, 2026-09-16) - caso real: líder chama um terceiro (ex:
+  // empresa ETC pra recomposição), e precisa poder já lançar o pedido de pagamento aqui, sem
+  // depender de avisar por e-mail pro financeiro cadastrar depois. Vira uma linha de verdade em
+  // contas_pagar (status "pendente"), não só uma anotação informativa dentro da obra.
+  const [mostrarDespesa, setMostrarDespesa] = useState(false)
+  const [despesaFornecedor, setDespesaFornecedor] = useState('')
+  const [despesaValor, setDespesaValor] = useState('')
+  const [despesaVencimento, setDespesaVencimento] = useState(hojeIso())
+  const [despesaObs, setDespesaObs] = useState('')
+  const [salvandoDespesa, setSalvandoDespesa] = useState(false)
+  const [despesaSalva, setDespesaSalva] = useState(false)
+  async function salvarDespesaVinculada() {
+    if (!despesaFornecedor.trim() || !despesaValor) return
+    setSalvandoDespesa(true)
+    const centroCustoSugerido = TIPOS_BDN.includes(obra.tipo) ? 'MOVIMENTAÇÃO DE ATM' : 'REFORMA'
+    const registro = {
+      codigo_sige: -Date.now(),
+      origem: 'manual',
+      obra_id: obra.id,
+      data_vencimento: despesaVencimento || null,
+      fornecedor: despesaFornecedor.trim(),
+      centro_custos: centroCustoSugerido,
+      rede: obra.rede || null,
+      valor: Number(despesaValor) || 0,
+      observacoes: despesaObs.trim() || null,
+      status_pagamento: 'pendente',
+    }
+    const { error } = await supabase.from('contas_pagar').insert(registro)
+    setSalvandoDespesa(false)
+    if (!error) {
+      setDespesaSalva(true)
+      setDespesaFornecedor(''); setDespesaValor(''); setDespesaObs('')
+      setTimeout(() => { setDespesaSalva(false); setMostrarDespesa(false) }, 2000)
+    }
+  }
   return (
     <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, marginBottom:10, padding:'12px 14px' }}>
       <div style={{ fontSize:13, fontWeight:600, color:'#1A2340' }}>{obra.nome}</div>
@@ -1967,6 +2002,34 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
         style={{ marginTop:10, width:'100%', padding:10, background: (salvando || !ultimoRegistro) ? '#ccc' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor: (salvando || !ultimoRegistro) ? 'default' : 'pointer' }}>
         {salvando ? 'Salvando...' : salvo ? '✓ Salvo' : 'Salvar'}
       </button>
+
+      <div style={{ marginTop:14, paddingTop:12, borderTop:'1px solid #E0E8F0' }}>
+        <button onClick={() => setMostrarDespesa(v => !v)}
+          style={{ width:'100%', padding:9, background:'#fff', color:'#9A3412', border:'1px solid #FED7AA', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+          💸 {mostrarDespesa ? 'Fechar' : 'Registrar despesa (pagamento a terceiro)'}
+        </button>
+        {mostrarDespesa && (
+          <div style={{ marginTop:8, background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:8, padding:10 }}>
+            <div style={{ fontSize:11, color:'#9A3412', marginBottom:8 }}>
+              Ex: chamou uma empresa terceira pra um reparo/recomposição — isso já vai direto pra Contas a Pagar, pendente de pagamento.
+            </div>
+            <input value={despesaFornecedor} onChange={e => setDespesaFornecedor(up(e.target.value))} placeholder="Fornecedor/empresa contratada"
+              style={{ width:'100%', padding:'8px 10px', border:'1px solid #FED7AA', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8 }} />
+            <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+              <input type="number" value={despesaValor} onChange={e => setDespesaValor(e.target.value)} placeholder="Valor"
+                style={{ flex:1, padding:'8px 10px', border:'1px solid #FED7AA', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+              <input type="date" value={despesaVencimento} onChange={e => setDespesaVencimento(e.target.value)}
+                style={{ flex:1, padding:'8px 10px', border:'1px solid #FED7AA', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+            </div>
+            <textarea value={despesaObs} onChange={e => setDespesaObs(e.target.value)} placeholder="O que foi feito (opcional)" rows={2}
+              style={{ width:'100%', padding:'8px 10px', border:'1px solid #FED7AA', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8, resize:'vertical' }} />
+            <button onClick={salvarDespesaVinculada} disabled={salvandoDespesa || !despesaFornecedor.trim() || !despesaValor}
+              style={{ width:'100%', padding:9, background: (salvandoDespesa || !despesaFornecedor.trim() || !despesaValor) ? '#ccc' : '#9A3412', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+              {salvandoDespesa ? 'Salvando...' : despesaSalva ? '✓ Enviado pro Contas a Pagar' : 'Salvar despesa'}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -2801,6 +2864,12 @@ export default function App() {
   const [novoCustoTipo, setNovoCustoTipo] = useState('GESSO')
   const [novoCustoValor, setNovoCustoValor] = useState('')
   const [novoCustoObs, setNovoCustoObs] = useState('')
+  const [despesaObraFornecedor, setDespesaObraFornecedor] = useState('')
+  const [despesaObraValor, setDespesaObraValor] = useState('')
+  const [despesaObraVencimento, setDespesaObraVencimento] = useState(hojeIso())
+  const [despesaObraObs, setDespesaObraObs] = useState('')
+  const [salvandoDespesaObra, setSalvandoDespesaObra] = useState(false)
+  const [despesaObraSalva, setDespesaObraSalva] = useState(false)
   const [despesasPessoal, setDespesasPessoal] = useState([])
   const [novaDespesaData, setNovaDespesaData] = useState('')
   const [novaDespesaCategoria, setNovaDespesaCategoria] = useState('Hospedagem')
@@ -4840,6 +4909,35 @@ export default function App() {
     setNovaDespesaValor('')
     setNovaDespesaObs('')
     setNovaDespesaKm('')
+  }
+
+  // Despesa vinculada à obra, lançada pelo financeiro/admin de dentro do modal principal - mesma
+  // ideia do painel que o líder de campo tem na tela dele, só que aqui pra quem já usa a tela
+  // cheia da obra (Shirley, 2026-09-16).
+  async function salvarDespesaVinculadaObra() {
+    if (!modal || !despesaObraFornecedor.trim() || !despesaObraValor) return
+    setSalvandoDespesaObra(true)
+    const centroCustoSugerido = TIPOS_BDN.includes(modal.tipo) ? 'MOVIMENTAÇÃO DE ATM' : 'REFORMA'
+    const registro = {
+      codigo_sige: -Date.now(),
+      origem: 'manual',
+      obra_id: modal.id,
+      data_vencimento: despesaObraVencimento || null,
+      fornecedor: despesaObraFornecedor.trim(),
+      centro_custos: centroCustoSugerido,
+      rede: modal.rede || null,
+      valor: Number(despesaObraValor) || 0,
+      observacoes: despesaObraObs.trim() || null,
+      status_pagamento: 'pendente',
+    }
+    const { error } = await supabase.from('contas_pagar').insert(registro)
+    setSalvandoDespesaObra(false)
+    if (!error) {
+      setDespesaObraSalva(true)
+      setDespesaObraFornecedor(''); setDespesaObraValor(''); setDespesaObraObs('')
+      await carregarContasPagar()
+      setTimeout(() => setDespesaObraSalva(false), 2500)
+    }
   }
 
   async function marcarFaturado(id) {
@@ -9245,6 +9343,26 @@ export default function App() {
                   + Adicionar
                 </button>
               </div>
+            </div>
+
+            <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:12, padding:14, marginBottom:16 }}>
+              <div style={{ fontSize:12, color:'#9A3412', fontWeight:700, marginBottom:10 }}>
+                💸 Registrar despesa desta obra (vai direto pro Contas a Pagar)
+              </div>
+              <input value={despesaObraFornecedor} onChange={e => setDespesaObraFornecedor(up(e.target.value))} placeholder="Fornecedor/empresa contratada"
+                style={{ width:'100%', padding:'8px 10px', border:'1px solid #FED7AA', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8 }} />
+              <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+                <input type="number" value={despesaObraValor} onChange={e => setDespesaObraValor(e.target.value)} placeholder="Valor"
+                  style={{ flex:1, padding:'8px 10px', border:'1px solid #FED7AA', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                <input type="date" value={despesaObraVencimento} onChange={e => setDespesaObraVencimento(e.target.value)}
+                  style={{ flex:1, padding:'8px 10px', border:'1px solid #FED7AA', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+              </div>
+              <textarea value={despesaObraObs} onChange={e => setDespesaObraObs(e.target.value)} placeholder="O que foi feito (opcional)" rows={2}
+                style={{ width:'100%', padding:'8px 10px', border:'1px solid #FED7AA', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8, resize:'vertical' }} />
+              <button onClick={salvarDespesaVinculadaObra} disabled={salvandoDespesaObra || !despesaObraFornecedor.trim() || !despesaObraValor}
+                style={{ width:'100%', padding:9, background: (salvandoDespesaObra || !despesaObraFornecedor.trim() || !despesaObraValor) ? '#ccc' : '#9A3412', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                {salvandoDespesaObra ? 'Salvando...' : despesaObraSalva ? '✓ Enviado pro Contas a Pagar' : 'Salvar despesa'}
+              </button>
             </div>
 
             <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:12, padding:14, marginBottom:16 }}>
