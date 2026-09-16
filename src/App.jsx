@@ -2686,6 +2686,12 @@ export default function App() {
   const [dataArt, setDataArt] = useState('')
   const [emNegociacao, setEmNegociacao] = useState(false)
   const [lembretes, setLembretes] = useState([])
+  // Cópia do que a tela tinha quando o modal abriu - usada só pra calcular o que o usuário
+  // realmente adicionou/removeu nesta sessão (ver salvarStatus). Sem isso, salvar qualquer campo
+  // do formulário reescrevia lembretes inteiro com o estado antigo da tela, "ressuscitando"
+  // lembretes que outra pessoa já tinha removido no banco enquanto essa tela ficou aberta
+  // (achado real, Shirley, 2026-09-16).
+  const [lembretesOriginais, setLembretesOriginais] = useState([])
   const [entregaveis, setEntregaveis] = useState([])
   const [entregaveisNA, setEntregaveisNA] = useState([])
   const [entregaveisVistoria, setEntregaveisVistoria] = useState([])
@@ -2825,6 +2831,7 @@ export default function App() {
   const [filtroHistAte, setFiltroHistAte] = useState('')
   const [buscaHist, setBuscaHist] = useState('')
   const [buscaIndisponivel, setBuscaIndisponivel] = useState('')
+  const [buscaFaturar, setBuscaFaturar] = useState('')
   const [rhColaboradores, setRhColaboradores] = useState([])
   const [tecbanCnpjIss, setTecbanCnpjIss] = useState([])
   const [fornecedores, setFornecedores] = useState([])
@@ -4642,7 +4649,18 @@ export default function App() {
       if (dataArt) campos.data_art = dataArt
       campos.em_negociacao = emNegociacao
     }
-    campos.lembretes = lembretes.length > 0 ? lembretes : null
+    {
+      // Não escreve lembretes direto do estado local (que pode estar desatualizado se essa tela
+      // ficou aberta enquanto outra pessoa mexeu no banco) - busca o valor mais fresco possível e
+      // aplica só o que o usuário realmente adicionou/removeu nesta sessão, por cima dele.
+      const { data: freshRow } = await supabase.from('pipeline_obras').select('lembretes').eq('id', modal.id).single()
+      const mesmoLembrete = (a, b) => a.etapa === b.etapa && a.texto === b.texto
+      const lembretesFrescos = Array.isArray(freshRow?.lembretes) ? freshRow.lembretes : []
+      const removidos = lembretesOriginais.filter(orig => !lembretes.some(l => mesmoLembrete(l, orig)))
+      const adicionados = lembretes.filter(l => !lembretesOriginais.some(orig => mesmoLembrete(l, orig)))
+      const lembretesFinais = [...lembretesFrescos.filter(f => !removidos.some(r => mesmoLembrete(f, r))), ...adicionados]
+      campos.lembretes = lembretesFinais.length > 0 ? lembretesFinais : null
+    }
     if (TIPOS_ENTREGAVEIS.includes(modal.tipo)) {
       campos.entregaveis = entregaveis.length > 0 ? entregaveis : null
       campos.entregaveis_na = entregaveisNA.length > 0 ? entregaveisNA : null
@@ -4735,6 +4753,7 @@ export default function App() {
     setDataArt('')
     setEmNegociacao(false)
     setLembretes([])
+    setLembretesOriginais([])
     setEntregaveis([])
     setNovoLembreteEtapa('')
     setNovoLembreteTexto('')
@@ -5012,6 +5031,11 @@ export default function App() {
   })
 
   const obrasFaturar = obras.filter(o => STATUS_FATURAR.includes(o.status) && !(Array.isArray(o.lembretes) && o.lembretes.length > 0))
+  const obrasFaturarFiltradas = !buscaFaturar ? obrasFaturar : obrasFaturar.filter(o => {
+    const palavras = normalizarBusca(buscaFaturar).trim().split(/\s+/).filter(Boolean)
+    const campos = normalizarBusca([o.nome, o.local, o.cidade, o.uf, o.os_tecban, o.pedido, o.sige, o.numero_pc].filter(Boolean).join(' '))
+    return palavras.every(p => campos.includes(p))
+  })
 
   const obrasIndisponiveis = obras.filter(o => {
     if (!o.pedido || o.status === 'NF EMITIDO') return false
@@ -5698,9 +5722,15 @@ export default function App() {
             <div style={{ textAlign:'center', color:'#1A6B4A', marginTop:40, fontSize:14 }}>Nenhuma obra pronta para faturar</div>
           ) : (
             <>
+              <input value={buscaFaturar} onChange={e=>setBuscaFaturar(e.target.value)} placeholder="🔎 Buscar por nome, PC, SIGE, OS, pedido, cidade..." title="Busca"
+                style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box', marginBottom:12 }} />
+              {obrasFaturarFiltradas.length === 0 ? (
+                <div style={{ textAlign:'center', color:'#1A6B4A', marginTop:20, fontSize:14 }}>Nenhuma obra encontrada</div>
+              ) : (
+              <>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, marginBottom:10, padding:'8px 12px', background:'#D1FAE5', borderRadius:8 }}>
                 <div style={{ fontSize:11, color:'#1A6B4A', fontWeight:700 }}>
-                  {obrasFaturar.length} obra(s) · Total: R$ {totalFaturar.toLocaleString('pt-BR',{minimumFractionDigits:2})}
+                  {obrasFaturarFiltradas.length} obra(s) · Total: R$ {obrasFaturarFiltradas.reduce((s,o) => s + Number(o.valor||0), 0).toLocaleString('pt-BR',{minimumFractionDigits:2})}
                 </div>
                 <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                   {EMAILS_CUSTOS_DESPESAS.includes(usuario?.email) && (
@@ -5718,10 +5748,10 @@ export default function App() {
                 </div>
               </div>
               {(() => {
-                const obrasCorrecao = obrasFaturar.filter(o => conferePedidoObra(o).precisaCorrecao)
-                const obrasProntas = obrasFaturar.filter(o => conferePedidoObra(o).completo)
+                const obrasCorrecao = obrasFaturarFiltradas.filter(o => conferePedidoObra(o).precisaCorrecao)
+                const obrasProntas = obrasFaturarFiltradas.filter(o => conferePedidoObra(o).completo)
                 const idsProntas = new Set(obrasProntas.map(o => o.id))
-                const obrasOutras = obrasFaturar.filter(o => !conferePedidoObra(o).precisaCorrecao && !idsProntas.has(o.id))
+                const obrasOutras = obrasFaturarFiltradas.filter(o => !conferePedidoObra(o).precisaCorrecao && !idsProntas.has(o.id))
                 const grupos = agruparParaFaturamento(obrasProntas)
                 return (
                   <>
@@ -5951,6 +5981,8 @@ export default function App() {
                   </>
                 )
               })()}
+              </>
+              )}
             </>
           )}
         </div>
@@ -7624,6 +7656,7 @@ export default function App() {
                         setDataArt(obra.data_art || '')
                         setEmNegociacao(obra.em_negociacao || false)
                         setLembretes(Array.isArray(obra.lembretes) ? obra.lembretes : [])
+                        setLembretesOriginais(Array.isArray(obra.lembretes) ? obra.lembretes : [])
                         setEntregaveis(Array.isArray(obra.entregaveis) ? obra.entregaveis : [])
                         setEntregaveisNA(Array.isArray(obra.entregaveis_na) ? obra.entregaveis_na : [])
                         setEntregaveisVistoria(Array.isArray(obra.entregaveis_vistoria) ? obra.entregaveis_vistoria : [])
