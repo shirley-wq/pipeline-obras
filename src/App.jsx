@@ -1370,8 +1370,14 @@ function temTelaOperacaoCampo(rede, tipo) {
 // Cliente (que não existe pra TRANSF UN) nem os campos de ARS. Manutenção ATM, Sinalização ATM e
 // Pintura ATM ganharam o mesmo registro simples de visitas (2026-08-25, Shirley) - sem checklist
 // ARS, só data + equipe + descrição livre (atividade "Outros"), igual TRANSF UN.
+// Antes só "TRANSF UN" (e os tipos de ATM) tinham essa tela pro líder - os outros tipos de
+// movimentação de agência Bradesco (DESC. PAB, DESC. PA, TRANSF PAE, ENCER. AG, REFORMA, TB
+// FORTE, LINK) nunca apareciam pra nenhum líder, mesmo tendo vistoria/execução agendada (achado
+// real: vistoria da DENSO SISTEMAS TÉRMICOS, tipo DESC. PAB, sumia da lista do Aguinaldo -
+// Shirley, 2026-09-16). Usa a mesma lista de TIPO_COR (todos os tipos de movimentação Bradesco)
+// em vez de checar um por um, pra não repetir esse gap se aparecer um tipo novo.
 function temVisitasDeCampo(rede, tipo) {
-  return temTelaOperacaoCampo(rede, tipo) || tipo === 'TRANSF UN' || tipo === 'MANUTENÇÃO ATM' || tipo === 'SINALIZAÇÃO ATM' || tipo === 'PINTURA ATM' || tipo === 'DESATIVAÇÃO ATM'
+  return temTelaOperacaoCampo(rede, tipo) || Object.keys(TIPO_COR).includes(tipo) || tipo === 'MANUTENÇÃO ATM' || tipo === 'SINALIZAÇÃO ATM' || tipo === 'PINTURA ATM' || tipo === 'DESATIVAÇÃO ATM'
 }
 // Data prevista/confirmada de execução de uma obra - mesma resolução já usada no Cenário
 // (data_inicio_obra_texto pras redes/tipos sem vistoria, data_obra_inicio pros demais). Usada na
