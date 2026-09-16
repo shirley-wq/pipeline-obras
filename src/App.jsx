@@ -1933,6 +1933,13 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
       <div style={{ fontSize:12, fontWeight:700, color: data ? '#1E40AF' : '#9A3412', marginBottom:10 }}>
         {data ? `📅 ${isoToBr(data)}${hora ? ` às ${hora}` : ''}` : '⚠ Sem data definida ainda'}
       </div>
+      {obra.foto_local_instalacao && (
+        <div style={{ marginBottom:10 }}>
+          <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>📷 Local de fixação do ATM</div>
+          <img src={obra.foto_local_instalacao} alt="Local de fixação do ATM"
+            style={{ maxWidth:'100%', maxHeight:220, borderRadius:8, border:'1px solid #CDD8E3', display:'block' }} />
+        </div>
+      )}
       {registrosAnteriores.length > 0 && (
         <div style={{ marginBottom:10, background:'#F8FAFC', border:'1px solid #E0E8F0', borderRadius:8, padding:'8px 10px' }}>
           <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, marginBottom:4 }}>
