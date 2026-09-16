@@ -5030,7 +5030,10 @@ export default function App() {
     return true
   })
 
-  const obrasFaturar = obras.filter(o => STATUS_FATURAR.includes(o.status) && !(Array.isArray(o.lembretes) && o.lembretes.length > 0))
+  // Lembrete não trava mais a obra de aparecer pra faturar (Shirley, 2026-09-16) - virou só um
+  // aviso visível, não uma trava escondida. Motivo: lembretes de etapa já ultrapassada ficavam
+  // "grudados" na obra e sumiam ela da lista sem ninguém perceber (achado real com 11 pedidos).
+  const obrasFaturar = obras.filter(o => STATUS_FATURAR.includes(o.status))
   const obrasFaturarFiltradas = !buscaFaturar ? obrasFaturar : obrasFaturar.filter(o => {
     const palavras = normalizarBusca(buscaFaturar).trim().split(/\s+/).filter(Boolean)
     const campos = normalizarBusca([o.nome, o.local, o.cidade, o.uf, o.os_tecban, o.pedido, o.sige, o.numero_pc].filter(Boolean).join(' '))
@@ -5776,6 +5779,11 @@ export default function App() {
                             {o.nf && <span>NF: <b>{o.nf}</b></span>}
                           </div>
                           {o.obs && <div style={{ fontSize:11, background:'#FFF9E6', borderLeft:'3px solid #F5A623', padding:'5px 8px', borderRadius:4, color:'#7A5A00', marginBottom:10 }}>📌 {o.obs}</div>}
+                          {Array.isArray(o.lembretes) && o.lembretes.length > 0 && (
+                            <div style={{ fontSize:11, background:'#FEF3C7', borderLeft:'3px solid #D97706', padding:'5px 8px', borderRadius:4, color:'#92400E', marginBottom:10 }}>
+                              📝 {o.lembretes.map(l => l.texto).join(' · ')}
+                            </div>
+                          )}
                           <div style={{ fontSize:11, background:'#FFF7ED', borderLeft:'3px solid #EA580C', padding:'5px 8px', borderRadius:4, color:'#9A3412', marginBottom:10 }}>
                             ⚠ Divergência no pedido:{conf.temValor && !conf.valorBate && ' valor'}{conf.temOs && !conf.osBate && ' · OS'}{conf.temCnpj && !conf.cnpjBate && ' · CNPJ'}
                           </div>
@@ -5936,6 +5944,11 @@ export default function App() {
                             {o.nf && <span>NF: <b>{o.nf}</b></span>}
                           </div>
                           {o.obs && <div style={{ fontSize:11, background:'#FFF9E6', borderLeft:'3px solid #F5A623', padding:'5px 8px', borderRadius:4, color:'#7A5A00', marginBottom:10 }}>📌 {o.obs}</div>}
+                          {Array.isArray(o.lembretes) && o.lembretes.length > 0 && (
+                            <div style={{ fontSize:11, background:'#FEF3C7', borderLeft:'3px solid #D97706', padding:'5px 8px', borderRadius:4, color:'#92400E', marginBottom:10 }}>
+                              📝 {o.lembretes.map(l => l.texto).join(' · ')}
+                            </div>
+                          )}
                           <div style={{ background:'#F0F4F8', borderRadius:10, padding:10, marginBottom:10 }}>
                             <div style={{ fontSize:11, color:'#2D3A8C', fontWeight:700, marginBottom:8 }}>Dados para faturamento</div>
                             <div style={{ marginBottom:8 }}>
