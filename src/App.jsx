@@ -3100,7 +3100,7 @@ export default function App() {
   // Líder de campo tem uma tela própria, enxuta (sem valor em nenhum lugar) - não usa a aba
   // Pipeline normal. Manda ele direto pra lá assim que o papel carrega (Shirley, 2026-09-04).
   useEffect(() => {
-    if (papel === 'lider_campo') setAba('atividades_lider')
+    if (papel === 'lider_campo' || papel === 'operacional') setAba('atividades_lider')
   }, [papel])
 
   useEffect(() => {
@@ -5793,11 +5793,13 @@ export default function App() {
 
       {/* Abas */}
       <div style={{ background:'#fff', borderBottom:'2px solid #E0E8F0', display:'flex' }}>
-        {(papel === 'lider_campo' ? [
-          // Líder de campo só enxerga essa tela + os documentos dele mesmo - nunca a aba Pipeline
-          // normal (que tem valor em vários cantos). Blindagem por ausência, não por condição
-          // (Shirley, 2026-09-04: "eles e os técnicos não podem de jeito nenhum ter acesso a
-          // valores, isso tem que blindar 100%").
+        {((papel === 'lider_campo' || papel === 'operacional') ? [
+          // Líder de campo e técnico (operacional) só enxergam essa tela + os documentos deles
+          // mesmos - nunca a aba Pipeline normal (que tem valor em vários cantos). Blindagem por
+          // ausência, não por condição (Shirley, 2026-09-04: "eles e os técnicos não podem de
+          // jeito nenhum ter acesso a valores, isso tem que blindar 100%" - técnico ganhou a
+          // mesma tela em 2026-09-16, filtrada só pra atividade em que ele foi designado, já que
+          // ele não delega equipe como o líder faz).
           { id:'atividades_lider', label:'Atividades Programadas', count:null, cor:'#0F766E' },
           { id:'frota', label:'Frota', count:null, cor:'#7C2D12' },
           { id:'meusdados', label:'Meus Documentos', count:null, cor:'#7C3AED' },
@@ -6291,7 +6293,7 @@ export default function App() {
       )}
 
       {/* ====== ABA: ATIVIDADES PROGRAMADAS (líder de campo) - nunca mostra valor, em lugar nenhum ====== */}
-      {aba === 'atividades_lider' && papel === 'lider_campo' && (() => {
+      {aba === 'atividades_lider' && (papel === 'lider_campo' || papel === 'operacional') && (() => {
         // Só entra na lista do líder o que já tem data programada de hoje pra frente - uma data
         // passada é obra cuja visita já aconteceu (o campo não muda depois, mesmo com registro de
         // visita posterior), não é mais "programada" (Shirley, 2026-09-04).
@@ -6303,8 +6305,18 @@ export default function App() {
         // obras só com vistoria marcada (sem data de execução ainda) sumiam da lista mesmo
         // aparecendo na contagem do card (Shirley, 2026-09-04).
         const diaSelecionado = !!filtroCenarioUF && filtroCenarioUF !== 'S/UF'
+        // Técnico (operacional) só vê a atividade em que ele mesmo foi designado no "Quem vai" -
+        // diferente do líder, que designa equipe pros outros e por isso vê tudo da região dele
+        // (Shirley, 2026-09-16: "eles não delegam", então não faz sentido mostrar a lista toda).
+        const meuNomeCompleto = meuRH ? `${meuRH.nome} ${meuRH.sobrenome || ''}`.trim() : ''
+        const designadoPraMim = o => {
+          const registros = Array.isArray(o.registros_operacao_campo) ? o.registros_operacao_campo : []
+          const equipe = registros[registros.length - 1]?.equipe || []
+          return equipe.some(nome => nomesDeColaboradorBatem(nome, meuNomeCompleto))
+        }
         const atividades = obras
           .filter(o => temVisitasDeCampo(o.rede, o.tipo) && o.status !== 'NF EMITIDO' && o.status !== 'CANCELADO')
+          .filter(o => papel !== 'operacional' || designadoPraMim(o))
           .filter(o => !filtroCenarioUF || estadoDaObra(o) === filtroCenarioUF)
           .filter(o => !diaSelecionado || eventosCenarioObra(o, cenarioData).length > 0)
           .map(o => ({ obra: o, data: diaSelecionado ? cenarioData : dataAtividadeObra(o) }))
