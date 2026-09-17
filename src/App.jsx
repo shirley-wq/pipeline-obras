@@ -1461,13 +1461,21 @@ function eventosCenarioObra(o, dia) {
     const dataExec = temTelaOperacaoCampo(o.rede, o.tipo)
       ? paraIsoDataObraTexto(o.data_inicio_obra_texto)
       : (o.data_obra_inicio || null)
-    if (dataExec === dia) eventos.push({ categoria: ehBDN ? tipoCurto : 'Obra', familia: ehBDN ? 'movimentacao' : 'obra' })
+    if (dataExec === dia) {
+      eventos.push({ categoria: ehBDN ? tipoCurto : 'Obra', familia: ehBDN ? 'movimentacao' : 'obra' })
+    } else if (temVisitasDeCampo(o.rede, o.tipo)) {
+      // Retorno/retrabalho: uma "Nova visita" registrada em "Dia da obra" num dia DIFERENTE do dia
+      // de execução original (ex: precisou voltar noutro dia por um equipamento com defeito) também
+      // vira um evento no card do Cenário daquele dia - sem isso, o escritório não enxergava que
+      // tinha gente indo num ponto hoje só porque a data original já tinha passado (Shirley,
+      // 2026-09-17, caso do PC 99823). Continua sem contar em dobro no MESMO dia, que era a regra
+      // original de 2026-09-03 - só entra quando a data da última visita é diferente de dataExec.
+      const registros = Array.isArray(o.registros_operacao_campo) ? o.registros_operacao_campo : []
+      if (registros[registros.length - 1]?.data === dia) {
+        eventos.push({ categoria: ehBDN ? `Retorno — ${tipoCurto}` : 'Retorno', familia: ehBDN ? 'movimentacao' : 'obra' })
+      }
+    }
   }
-  // Visitas registradas em "Dia da obra" (registros_operacao_campo) não entram aqui - o card do
-  // Cenário é a quantidade de endereços/atividades do dia por tipo de serviço (Instalação,
-  // Desativação etc.), não um contador de visitas de campo (Shirley, 2026-09-03: uma obra que já
-  // conta como "Instalação" não pode contar de novo como "Visita de campo" só porque teve uma
-  // visita registrada no mesmo dia - isso inflava o card além da quantidade real de pontos).
   return eventos
 }
 // Próxima atividade agendada de uma obra (a mais próxima de hoje pra frente), pra mostrar no card
