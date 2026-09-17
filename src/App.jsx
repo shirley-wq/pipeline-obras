@@ -1350,10 +1350,9 @@ const MOTIVOS_IMPEDIMENTO_POR_ETAPA = {
   habilitacao: ['HD', 'Pallvien', 'Biometria', 'Leitor de código de barras', 'Leitora de cartão', 'Leitor de DVD', 'Outro'],
 }
 const RESPONSAVEIS_IMPEDIMENTO_INSTALACAO = ['Tecban', 'Transportadora', 'Cliente/EC', 'Grupo PG', 'Outro']
-// PLACEHOLDER - confirmar com a Shirley o e-mail real do time de Análise de Risco de Segurança
-// (Seg_ATM) da Tecban antes de usar isso em produção. Por ora aponta pro mesmo destino do
-// agendamento só pra não travar o desenvolvimento.
-const EMAIL_SOLICITACAO_ALTERACAO_TECBAN = 'Implantacao.B24horas@tecban.com.br'
+// Destinatários confirmados pela Shirley (2026-09-17) pra Solicitação de Alteração.
+const EMAIL_SOLICITACAO_ALTERACAO_TECBAN = 'analise-risco.seguranca@tecban.com.br'
+const EMAIL_CC_SOLICITACAO_ALTERACAO_TECBAN = 'Implantacao.B24horas@tecban.com.br,Raquel.Barros@servicosintegradostecban.com.br,operacao@grupopg.com.br,Hellen.Silva@servicosintegradostecban.com.br,Felipe.Barros@servicosintegradostecban.com.br,suelen.ferreira@servicosintegradostecban.com.br'
 
 function dataUrlDeArquivoInstalacao(file) {
   return new Promise((resolve, reject) => {
@@ -4813,7 +4812,7 @@ export default function App() {
       const resp = await fetch(EDGE_FUNCTION_TECBAN_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
-        body: JSON.stringify({ to: EMAIL_SOLICITACAO_ALTERACAO_TECBAN, cc: EMAIL_CC_OPERACAO_GRUPOPG, subject: assunto, body: corpo, fotos: item.fotos || [] }),
+        body: JSON.stringify({ to: EMAIL_SOLICITACAO_ALTERACAO_TECBAN, cc: EMAIL_CC_SOLICITACAO_ALTERACAO_TECBAN, subject: assunto, body: corpo, fotos: item.fotos || [] }),
       })
       const resultado = await resp.json()
       if (!resultado.ok) throw new Error(resultado.error || 'Falha no envio')
@@ -8992,10 +8991,15 @@ export default function App() {
                           {s.aprovado_em && ` · aprovado por ${s.aprovado_por} em ${new Date(s.aprovado_em).toLocaleDateString('pt-BR')}`}
                         </div>
                         {s.status === 'pendente' && (
-                          <button onClick={() => enviarSolicitacaoAlteracao(s)} disabled={enviandoAlteracaoId === s.id}
-                            style={{ padding:'7px 12px', background: enviandoAlteracaoId === s.id ? '#94A3B8' : '#9A3412', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                            {enviandoAlteracaoId === s.id ? 'Enviando...' : '📧 Enviar e-mail pra Tecban'}
-                          </button>
+                          <>
+                            <div style={{ fontSize:10, color:'#94A3B8', marginBottom:6 }}>
+                              Para: {EMAIL_SOLICITACAO_ALTERACAO_TECBAN}<br/>Cc: {EMAIL_CC_SOLICITACAO_ALTERACAO_TECBAN}
+                            </div>
+                            <button onClick={() => enviarSolicitacaoAlteracao(s)} disabled={enviandoAlteracaoId === s.id}
+                              style={{ padding:'7px 12px', background: enviandoAlteracaoId === s.id ? '#94A3B8' : '#9A3412', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                              {enviandoAlteracaoId === s.id ? 'Enviando...' : '📧 Enviar e-mail pra Tecban'}
+                            </button>
+                          </>
                         )}
                         {s.status === 'enviado' && (
                           <div style={{ display:'flex', gap:6 }}>
