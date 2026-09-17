@@ -1431,7 +1431,13 @@ function dataAtividadeObra(o) {
   // Lucas: o Anderson cadastrou a vistoria de hoje, mas sumia da lista do Aguinaldo). Vistoria
   // conta como a atividade "programada" até a obra avançar pra execução.
   const dataExecucao = temTelaOperacaoCampo(o.rede, o.tipo) ? paraIsoDataObraTexto(o.data_inicio_obra_texto) : (o.data_obra_inicio || null)
-  return dataExecucao || o.data_vistoria || null
+  // Uma "Nova visita" cadastrada em "Dia da obra" (registros_operacao_campo) pode ter data
+  // diferente da data de execução original (ex: retorno ao ponto num dia posterior) - o painel de
+  // cards do líder/técnico precisa seguir a data da visita mais recente, não a data antiga da obra
+  // (Shirley, 2026-09-17 - caso do PC 99823: nova visita cadastrada não aparecia no painel).
+  const registros = Array.isArray(o.registros_operacao_campo) ? o.registros_operacao_campo : []
+  const dataUltimaVisita = registros[registros.length - 1]?.data || null
+  return dataUltimaVisita || dataExecucao || o.data_vistoria || null
 }
 // Eventos de uma obra pra um dia especifico do Cenario - usado tanto pra montar os cards por
 // estado quanto pra filtrar a lista de baixo quando um card e clicado (Shirley, 2026-08-19: antes o
