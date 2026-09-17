@@ -1329,6 +1329,49 @@ function tiposDaMesmaFamilia(tipo) {
   return TIPOS_BDN.includes(tipo) ? TIPOS_BDN : Object.keys(TIPO_COR)
 }
 
+// Relatório do Técnico — Instalação ATM (Shirley, 2026-09-16/17): desenhado a partir de 6 casos
+// reais e validado com o líder Gabriel. Etapas e motivos são específicos de INSTALAÇÃO ATM - não
+// usar como base pra outros tipos de obra (desativação, manutenção, TRANSF UN etc.) sem levantar
+// exemplos reais próprios primeiro.
+const ETAPAS_INSTALACAO_ATM = [
+  { id: 'chegada', label: 'Cheguei no local' },
+  { id: 'base', label: 'Instalação da Base' },
+  { id: 'equipamento', label: 'Instalação do Equipamento' },
+  { id: 'cabeamento', label: 'Passagem de Cabeamento' },
+  { id: 'alarme', label: 'Baixa de Alarme' },
+  { id: 'habilitacao', label: 'Baixa de Aplicativo (Habilitação)' },
+  { id: 'finalizado', label: 'Finalizado' },
+]
+const MOTIVOS_IMPEDIMENTO_POR_ETAPA = {
+  base: ['Local inadequado (laje/galeria ou passagem de esgoto)', 'EC não autoriza quebrar o piso', 'Outro'],
+  equipamento: ['EC sem energia elétrica disponível', 'Local ainda em obras', 'Erro nas senhas para abertura do cofre', 'Outro'],
+  cabeamento: ['Pé direito acima de 3m de altura', 'Outro'],
+  alarme: ['Bateria', 'Sensor de zona', 'Sirene', 'Fonte', 'Easynet', 'Easyguard', 'Outro'],
+  habilitacao: ['HD', 'Pallvien', 'Biometria', 'Leitor de código de barras', 'Leitora de cartão', 'Leitor de DVD', 'Outro'],
+}
+const RESPONSAVEIS_IMPEDIMENTO_INSTALACAO = ['Tecban', 'Transportadora', 'Cliente/EC', 'Grupo PG', 'Outro']
+// PLACEHOLDER - confirmar com a Shirley o e-mail real do time de Análise de Risco de Segurança
+// (Seg_ATM) da Tecban antes de usar isso em produção. Por ora aponta pro mesmo destino do
+// agendamento só pra não travar o desenvolvimento.
+const EMAIL_SOLICITACAO_ALTERACAO_TECBAN = 'Implantacao.B24horas@tecban.com.br'
+
+function dataUrlDeArquivoInstalacao(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+function base64DeArquivoInstalacao(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '')
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
 // Sugestão do "Número da operação" que vai na RM, a partir da rede/tipo - preenchido pelas meninas
 // do escritório, mas com um número sugerido de partida pra agilizar (podem sempre trocar na mão).
 // Regra da Shirley (2026-08-31): Bradesco é sempre 10, não importa o tipo. Fora Bradesco, cada tipo
@@ -1994,6 +2037,9 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
           </div>
         </div>
       )}
+      {obra.tipo === 'INSTALAÇÃO ATM' && (
+        <PainelAndamentoInstalacaoATM obra={obra} usuario={usuario} onSalvar={onSalvar} />
+      )}
       <button onClick={async () => {
         setSalvando(true)
         const campos = { atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
@@ -2043,6 +2089,210 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// Andamento da Instalação ATM (Shirley, 2026-09-16/17) - linha do tempo com horário automático +
+// registro de impedimento por etapa + solicitar alteração de fixação/local. Escrita sempre via
+// fresh-fetch-and-diff (busca a coluna no banco antes de anexar) pra não sofrer do mesmo bug de
+// estado desatualizado que resolvemos nos lembretes.
+function PainelAndamentoInstalacaoATM({ obra, usuario, onSalvar }) {
+  const etapas = Array.isArray(obra.etapas_instalacao) ? obra.etapas_instalacao : []
+  const impedimentos = Array.isArray(obra.impedimentos_instalacao) ? obra.impedimentos_instalacao : []
+  const solicitacoes = Array.isArray(obra.solicitacoes_alteracao) ? obra.solicitacoes_alteracao : []
+  const feitas = new Set(etapas.map(e => e.etapa))
+  const proximaEtapa = ETAPAS_INSTALACAO_ATM.find(e => !feitas.has(e.id)) || null
+  const impedimentosAbertos = impedimentos.filter(i => !i.resolvido)
+
+  const [marcando, setMarcando] = useState(false)
+  const [mostrarImpedimento, setMostrarImpedimento] = useState(false)
+  const [impMotivo, setImpMotivo] = useState('')
+  const [impResponsavel, setImpResponsavel] = useState('Tecban')
+  const [impDescricao, setImpDescricao] = useState('')
+  const [impFoto, setImpFoto] = useState('')
+  const [salvandoImpedimento, setSalvandoImpedimento] = useState(false)
+  const [resolvendoId, setResolvendoId] = useState(null)
+
+  const [mostrarAlteracao, setMostrarAlteracao] = useState(false)
+  const [altMotivo, setAltMotivo] = useState('')
+  const [altFotos, setAltFotos] = useState([])
+  const [salvandoAlteracao, setSalvandoAlteracao] = useState(false)
+  const [alteracaoEnviada, setAlteracaoEnviada] = useState(false)
+
+  async function marcarEtapa(etapaId) {
+    setMarcando(true)
+    const { data: fresh } = await supabase.from('pipeline_obras').select('etapas_instalacao').eq('id', obra.id).single()
+    const listaFresca = Array.isArray(fresh?.etapas_instalacao) ? fresh.etapas_instalacao : []
+    if (!listaFresca.some(e => e.etapa === etapaId)) {
+      const novaLista = [...listaFresca, { etapa: etapaId, hora: new Date().toISOString(), tecnico: usuario.email }]
+      const campos = { etapas_instalacao: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+      const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
+      if (!error) onSalvar(obra.id, campos)
+    }
+    setMarcando(false)
+  }
+
+  async function handleImpFoto(file) {
+    if (!file) return
+    setImpFoto(await dataUrlDeArquivoInstalacao(file))
+  }
+
+  async function salvarImpedimento() {
+    if (!impMotivo || !proximaEtapa) return
+    setSalvandoImpedimento(true)
+    const { data: fresh } = await supabase.from('pipeline_obras').select('impedimentos_instalacao').eq('id', obra.id).single()
+    const listaFresca = Array.isArray(fresh?.impedimentos_instalacao) ? fresh.impedimentos_instalacao : []
+    const novoItem = {
+      id: Date.now(), etapa: proximaEtapa.id, motivo: impMotivo, responsavel: impResponsavel,
+      descricao: impDescricao.trim() || null, foto: impFoto || null,
+      hora_inicio: new Date().toISOString(), hora_fim: null, resolvido: false, tecnico: usuario.email,
+    }
+    const novaLista = [...listaFresca, novoItem]
+    const campos = { impedimentos_instalacao: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
+    if (!error) {
+      onSalvar(obra.id, campos)
+      setImpMotivo(''); setImpDescricao(''); setImpFoto(''); setMostrarImpedimento(false)
+    }
+    setSalvandoImpedimento(false)
+  }
+
+  async function resolverImpedimento(id) {
+    setResolvendoId(id)
+    const { data: fresh } = await supabase.from('pipeline_obras').select('impedimentos_instalacao').eq('id', obra.id).single()
+    const listaFresca = Array.isArray(fresh?.impedimentos_instalacao) ? fresh.impedimentos_instalacao : []
+    const novaLista = listaFresca.map(i => i.id === id ? { ...i, resolvido: true, hora_fim: new Date().toISOString() } : i)
+    const campos = { impedimentos_instalacao: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
+    if (!error) onSalvar(obra.id, campos)
+    setResolvendoId(null)
+  }
+
+  async function handleAltFotos(fileList) {
+    const arquivos = Array.from(fileList || [])
+    const novas = await Promise.all(arquivos.map(async file => ({
+      filename: file.name, mimeType: file.type || 'image/jpeg', base64: await base64DeArquivoInstalacao(file),
+    })))
+    setAltFotos(prev => [...prev, ...novas])
+  }
+
+  async function salvarSolicitacaoAlteracao() {
+    if (!altMotivo.trim()) return
+    setSalvandoAlteracao(true)
+    const { data: fresh } = await supabase.from('pipeline_obras').select('solicitacoes_alteracao').eq('id', obra.id).single()
+    const listaFresca = Array.isArray(fresh?.solicitacoes_alteracao) ? fresh.solicitacoes_alteracao : []
+    const novoItem = {
+      id: Date.now(), motivo: altMotivo.trim(), fotos: altFotos,
+      criado_em: new Date().toISOString(), criado_por: usuario.email, status: 'pendente',
+    }
+    const novaLista = [...listaFresca, novoItem]
+    const campos = { solicitacoes_alteracao: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
+    if (!error) {
+      onSalvar(obra.id, campos)
+      setAltMotivo(''); setAltFotos([]); setAlteracaoEnviada(true)
+      setTimeout(() => { setAlteracaoEnviada(false); setMostrarAlteracao(false) }, 2500)
+    }
+    setSalvandoAlteracao(false)
+  }
+
+  return (
+    <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #E0E8F0' }}>
+      <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, marginBottom:8 }}>🏗️ Andamento da instalação</div>
+      <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:10 }}>
+        {ETAPAS_INSTALACAO_ATM.map(e => {
+          const feita = etapas.find(x => x.etapa === e.id)
+          return (
+            <div key={e.id} style={{ display:'flex', alignItems:'center', gap:8, fontSize:12 }}>
+              <span style={{ width:16 }}>{feita ? '✅' : '⬜'}</span>
+              <span style={{ flex:1, color: feita ? '#1A2340' : '#64748B' }}>{e.label}</span>
+              {feita ? (
+                <span style={{ color:'#64748B', fontSize:11 }}>{new Date(feita.hora).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</span>
+              ) : (proximaEtapa?.id === e.id) && (
+                <button onClick={() => marcarEtapa(e.id)} disabled={marcando}
+                  style={{ padding:'4px 10px', background: marcando ? '#ccc' : '#0F766E', color:'#fff', border:'none', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer' }}>
+                  Marcar
+                </button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {impedimentosAbertos.length > 0 && (
+        <div style={{ marginBottom:10, background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:8, padding:'8px 10px' }}>
+          <div style={{ fontSize:11, color:'#991B1B', fontWeight:700, marginBottom:4 }}>⚠ Impedimento(s) em aberto</div>
+          {impedimentosAbertos.map(i => (
+            <div key={i.id} style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, color:'#7F1D1D', marginBottom:4 }}>
+              <span style={{ flex:1 }}>{ETAPAS_INSTALACAO_ATM.find(e => e.id === i.etapa)?.label}: {i.motivo} ({i.responsavel})</span>
+              <button onClick={() => resolverImpedimento(i.id)} disabled={resolvendoId === i.id}
+                style={{ padding:'3px 8px', background:'#991B1B', color:'#fff', border:'none', borderRadius:6, fontSize:10, fontWeight:700, cursor:'pointer' }}>
+                Resolvido
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {proximaEtapa && MOTIVOS_IMPEDIMENTO_POR_ETAPA[proximaEtapa.id] && (
+        <>
+          <button onClick={() => setMostrarImpedimento(v => !v)}
+            style={{ width:'100%', padding:8, background:'#fff', color:'#991B1B', border:'1px solid #FECACA', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', marginBottom:8 }}>
+            ⚠ {mostrarImpedimento ? 'Fechar' : 'Tive um problema'}
+          </button>
+          {mostrarImpedimento && (
+            <div style={{ marginBottom:10, background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:8, padding:10 }}>
+              <div style={{ fontSize:11, color:'#7F1D1D', marginBottom:6 }}>Etapa: {proximaEtapa.label}</div>
+              <select value={impMotivo} onChange={e => setImpMotivo(e.target.value)}
+                style={{ width:'100%', padding:'7px 8px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', marginBottom:8, background:'#fff' }}>
+                <option value="">Selecione o motivo</option>
+                {MOTIVOS_IMPEDIMENTO_POR_ETAPA[proximaEtapa.id].map(m => <option key={m}>{m}</option>)}
+              </select>
+              <select value={impResponsavel} onChange={e => setImpResponsavel(e.target.value)}
+                style={{ width:'100%', padding:'7px 8px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', marginBottom:8, background:'#fff' }}>
+                {RESPONSAVEIS_IMPEDIMENTO_INSTALACAO.map(r => <option key={r}>{r}</option>)}
+              </select>
+              <textarea value={impDescricao} onChange={e => setImpDescricao(e.target.value)} rows={2}
+                placeholder="Descreva o que realmente aconteceu"
+                style={{ width:'100%', padding:'7px 8px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', marginBottom:8, resize:'vertical', boxSizing:'border-box' }} />
+              <input type="file" accept="image/*" onChange={e => handleImpFoto(e.target.files?.[0])} style={{ marginBottom:8 }} />
+              <button onClick={salvarImpedimento} disabled={salvandoImpedimento || !impMotivo}
+                style={{ width:'100%', padding:9, background: (salvandoImpedimento || !impMotivo) ? '#ccc' : '#991B1B', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                {salvandoImpedimento ? 'Salvando...' : 'Registrar impedimento'}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      <button onClick={() => setMostrarAlteracao(v => !v)}
+        style={{ width:'100%', padding:8, background:'#fff', color:'#9A3412', border:'1px solid #FED7AA', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+        📋 {mostrarAlteracao ? 'Fechar' : 'Solicitar alteração (fixação/local)'}
+      </button>
+      {mostrarAlteracao && (
+        <div style={{ marginTop:8, background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:8, padding:10 }}>
+          <textarea value={altMotivo} onChange={e => setAltMotivo(e.target.value)} rows={3}
+            placeholder="Explique o motivo da alteração (ex: não tem parede pra encostar o ATM)"
+            style={{ width:'100%', padding:'7px 8px', border:'1px solid #FED7AA', borderRadius:8, fontSize:12, color:'#1A2340', marginBottom:8, resize:'vertical', boxSizing:'border-box' }} />
+          <input type="file" accept="image/*" multiple onChange={e => handleAltFotos(e.target.files)} style={{ marginBottom:8 }} />
+          {altFotos.length > 0 && <div style={{ fontSize:11, color:'#9A3412', marginBottom:8 }}>{altFotos.length} foto(s) anexada(s)</div>}
+          <button onClick={salvarSolicitacaoAlteracao} disabled={salvandoAlteracao || !altMotivo.trim()}
+            style={{ width:'100%', padding:9, background: (salvandoAlteracao || !altMotivo.trim()) ? '#ccc' : '#9A3412', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+            {salvandoAlteracao ? 'Enviando...' : alteracaoEnviada ? '✓ Enviado pro escritório' : 'Enviar solicitação'}
+          </button>
+        </div>
+      )}
+
+      {solicitacoes.length > 0 && (
+        <div style={{ marginTop:10, fontSize:11, color:'#64748B', display:'flex', flexDirection:'column', gap:2 }}>
+          {solicitacoes.map(s => (
+            <div key={s.id}>
+              {s.status === 'aprovado' ? '✅ Aprovado' : s.status === 'enviado' ? '📨 Enviado à Tecban, aguardando aprovação' : '⏳ Aguardando o escritório revisar'} — {new Date(s.criado_em).toLocaleDateString('pt-BR')}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -2865,6 +3115,9 @@ export default function App() {
   const [mostrarEnvioAgendamento, setMostrarEnvioAgendamento] = useState(false)
   const [enviandoAgendamento, setEnviandoAgendamento] = useState(false)
   const [erroEnvioAgendamento, setErroEnvioAgendamento] = useState('')
+  const [enviandoAlteracaoId, setEnviandoAlteracaoId] = useState(null)
+  const [erroEnvioAlteracao, setErroEnvioAlteracao] = useState('')
+  const [aprovadoPorTexto, setAprovadoPorTexto] = useState('')
   const [mostrarEnvioCorrecaoPedido, setMostrarEnvioCorrecaoPedido] = useState(false)
   const [enviandoCorrecaoPedido, setEnviandoCorrecaoPedido] = useState(false)
   const [erroEnvioCorrecaoPedido, setErroEnvioCorrecaoPedido] = useState('')
@@ -4544,6 +4797,54 @@ export default function App() {
       setErroEnvioAgendamento('Não foi possível enviar: ' + err.message)
     } finally {
       setEnviandoAgendamento(false)
+    }
+  }
+
+  // "Solicitar alteração" enviada pelo técnico (fixação/local) - ADM revisa e envia pelo mesmo
+  // mecanismo do agendamento, sem rascunho de e-mail pessoal (Shirley, 2026-09-16: "quero no
+  // pipeline igual o check list do ARS ou de relatorio da obra ou da leitura do pedido").
+  async function enviarSolicitacaoAlteracao(item) {
+    setEnviandoAlteracaoId(item.id)
+    setErroEnvioAlteracao('')
+    try {
+      const assunto = `Solicitação de Alteração — PC ${modal.numero_pc || modal.sige || ''} — ${modal.nome}`
+      const corpo = `Prezados,\n\nSolicitamos avaliação para alteração no ponto abaixo:\n\nPC: ${modal.numero_pc || modal.sige || ''}\nNome do ponto: ${modal.nome}\nEndereço: ${[modal.endereco, [modal.cidade, modal.uf].filter(Boolean).join('/')].filter(Boolean).join(', ')}\n\nMotivo: ${item.motivo}\n\nAguardamos aprovação para prosseguir.\n\nAtenciosamente,\nGrupo PG`
+      const { data: { session } } = await supabase.auth.getSession()
+      const resp = await fetch(EDGE_FUNCTION_TECBAN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
+        body: JSON.stringify({ to: EMAIL_SOLICITACAO_ALTERACAO_TECBAN, cc: EMAIL_CC_OPERACAO_GRUPOPG, subject: assunto, body: corpo, fotos: item.fotos || [] }),
+      })
+      const resultado = await resp.json()
+      if (!resultado.ok) throw new Error(resultado.error || 'Falha no envio')
+      const { data: fresh } = await supabase.from('pipeline_obras').select('solicitacoes_alteracao').eq('id', modal.id).single()
+      const listaFresca = Array.isArray(fresh?.solicitacoes_alteracao) ? fresh.solicitacoes_alteracao : []
+      const agora = new Date().toISOString()
+      const novaLista = listaFresca.map(s => s.id === item.id ? { ...s, status: 'enviado', enviado_em: agora, enviado_por: usuario.email } : s)
+      const campos = { solicitacoes_alteracao: novaLista }
+      await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
+      setObras(prev => prev.map(o => o.id === modal.id ? { ...o, ...campos } : o))
+      setModal(m => m ? { ...m, ...campos } : m)
+    } catch (err) {
+      setErroEnvioAlteracao('Não foi possível enviar: ' + err.message)
+    } finally {
+      setEnviandoAlteracaoId(null)
+    }
+  }
+
+  async function marcarAlteracaoAprovada(item) {
+    const nome = aprovadoPorTexto.trim()
+    if (!nome) return
+    const { data: fresh } = await supabase.from('pipeline_obras').select('solicitacoes_alteracao').eq('id', modal.id).single()
+    const listaFresca = Array.isArray(fresh?.solicitacoes_alteracao) ? fresh.solicitacoes_alteracao : []
+    const agora = new Date().toISOString()
+    const novaLista = listaFresca.map(s => s.id === item.id ? { ...s, status: 'aprovado', aprovado_em: agora, aprovado_por: nome } : s)
+    const campos = { solicitacoes_alteracao: novaLista }
+    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
+    if (!error) {
+      setObras(prev => prev.map(o => o.id === modal.id ? { ...o, ...campos } : o))
+      setModal(m => m ? { ...m, ...campos } : m)
+      setAprovadoPorTexto('')
     }
   }
 
@@ -8633,6 +8934,87 @@ export default function App() {
               )}
             </div>
             )}
+
+            {modal.tipo === 'INSTALAÇÃO ATM' && (() => {
+              const etapasM = Array.isArray(modal.etapas_instalacao) ? modal.etapas_instalacao : []
+              const impedimentosM = Array.isArray(modal.impedimentos_instalacao) ? modal.impedimentos_instalacao : []
+              const solicitacoesM = Array.isArray(modal.solicitacoes_alteracao) ? modal.solicitacoes_alteracao : []
+              if (etapasM.length === 0 && impedimentosM.length === 0 && solicitacoesM.length === 0) return null
+              return (
+              <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
+                <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>📊 Relatório do técnico — andamento da instalação</div>
+                {etapasM.length > 0 && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:3, marginBottom:12 }}>
+                    {ETAPAS_INSTALACAO_ATM.map(e => {
+                      const feita = etapasM.find(x => x.etapa === e.id)
+                      if (!feita) return null
+                      return (
+                        <div key={e.id} style={{ fontSize:12, color:'#1A2340' }}>
+                          ✅ {e.label} — {new Date(feita.hora).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                {impedimentosM.length > 0 && (
+                  <div style={{ marginBottom:12 }}>
+                    <div style={{ fontSize:11, color:'#991B1B', fontWeight:700, marginBottom:6 }}>Impedimentos registrados</div>
+                    {impedimentosM.map(i => (
+                      <div key={i.id} style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:8, padding:'6px 10px', marginBottom:6 }}>
+                        <div style={{ fontSize:12, color:'#1A2340' }}>
+                          {i.resolvido ? '✅' : '⚠'} {ETAPAS_INSTALACAO_ATM.find(e => e.id === i.etapa)?.label}: <strong>{i.motivo}</strong> — responsável: {i.responsavel}
+                        </div>
+                        {i.descricao && <div style={{ fontSize:11, color:'#64748B', marginTop:2 }}>{i.descricao}</div>}
+                        <div style={{ fontSize:10, color:'#94A3B8', marginTop:2 }}>
+                          Início {new Date(i.hora_inicio).toLocaleString('pt-BR')}{i.hora_fim ? ` · Resolvido ${new Date(i.hora_fim).toLocaleString('pt-BR')}` : ' · em aberto'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {solicitacoesM.length > 0 && (
+                  <div>
+                    <div style={{ fontSize:11, color:'#9A3412', fontWeight:700, marginBottom:6 }}>Solicitações de alteração</div>
+                    {solicitacoesM.map(s => (
+                      <div key={s.id} style={{ background:'#fff', border:'1px solid #FED7AA', borderRadius:8, padding:10, marginBottom:8 }}>
+                        <div style={{ fontSize:12, color:'#1A2340', marginBottom:4 }}>{s.motivo}</div>
+                        {s.fotos?.length > 0 && (
+                          <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:6 }}>
+                            {s.fotos.map((f, i) => (
+                              <img key={i} src={`data:${f.mimeType};base64,${f.base64}`} alt={f.filename}
+                                style={{ width:60, height:60, objectFit:'cover', borderRadius:6, border:'1px solid #FED7AA' }} />
+                            ))}
+                          </div>
+                        )}
+                        <div style={{ fontSize:10, color:'#94A3B8', marginBottom:6 }}>
+                          {s.criado_por} em {new Date(s.criado_em).toLocaleString('pt-BR')}
+                          {s.enviado_em && ` · enviado à Tecban ${new Date(s.enviado_em).toLocaleDateString('pt-BR')}`}
+                          {s.aprovado_em && ` · aprovado por ${s.aprovado_por} em ${new Date(s.aprovado_em).toLocaleDateString('pt-BR')}`}
+                        </div>
+                        {s.status === 'pendente' && (
+                          <button onClick={() => enviarSolicitacaoAlteracao(s)} disabled={enviandoAlteracaoId === s.id}
+                            style={{ padding:'7px 12px', background: enviandoAlteracaoId === s.id ? '#94A3B8' : '#9A3412', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                            {enviandoAlteracaoId === s.id ? 'Enviando...' : '📧 Enviar e-mail pra Tecban'}
+                          </button>
+                        )}
+                        {s.status === 'enviado' && (
+                          <div style={{ display:'flex', gap:6 }}>
+                            <input value={aprovadoPorTexto} onChange={e => setAprovadoPorTexto(e.target.value)} placeholder="Quem aprovou (ex: Hellen Tecban, e-mail)"
+                              style={{ flex:1, padding:'7px 8px', border:'1px solid #FED7AA', borderRadius:8, fontSize:12, color:'#1A2340', boxSizing:'border-box' }} />
+                            <button onClick={() => marcarAlteracaoAprovada(s)} disabled={!aprovadoPorTexto.trim()}
+                              style={{ padding:'7px 12px', background: !aprovadoPorTexto.trim() ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                              ✓ Aprovado
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {erroEnvioAlteracao && <div style={{ fontSize:12, color:'#DC2626' }}>{erroEnvioAlteracao}</div>}
+                  </div>
+                )}
+              </div>
+              )
+            })()}
 
             {temVisitasDeCampo(modal.rede, modal.tipo) && (
             <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
