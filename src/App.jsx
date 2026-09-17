@@ -3146,7 +3146,7 @@ export default function App() {
   const [salvandoBulk, setSalvandoBulk] = useState(false)
   const [modalNovaObra, setModalNovaObra] = useState(false)
   const [menuAberto, setMenuAberto] = useState(null)
-  const [novaObra, setNovaObra] = useState({ tipo:'', rede:'', numero_pc:'', numero_pa:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0], data_prevista:'' })
+  const [novaObra, setNovaObra] = useState({ tipo:'', rede:'', numero_pc:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0], data_prevista:'' })
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [erroLogin, setErroLogin] = useState('')
@@ -4059,10 +4059,6 @@ export default function App() {
     }
     setSalvando(true)
     const ehBDN = TIPOS_BDN.includes(novaObra.tipo)
-    const numeroPaDigitado = novaObra.numero_pa.trim()
-    const obsComPA = numeroPaDigitado
-      ? `PA: ${numeroPaDigitado}${novaObra.obs ? '\n' + novaObra.obs : ''}`
-      : (novaObra.obs || null)
     // Data prevista da atividade, já capturada na criação pra não precisar reabrir a obra depois só
     // pra isso (Shirley, 2026-09-04) - vai pro mesmo campo que o resto do sistema já lê como data de
     // execução (data_inicio_obra_texto pras redes/tipos com tela de Operação em Campo sem vistoria,
@@ -4081,7 +4077,7 @@ export default function App() {
       sige: novaObra.sige || null,
       pedido: novaObra.pedido || null,
       nf: novaObra.nf || null,
-      obs: obsComPA,
+      obs: novaObra.obs || null,
       status: ehBDN ? getEtapas(novaObra.rede, novaObra.tipo)[0] : 'VISTORIA',
       data_cadastro: novaObra.data_cadastro || new Date().toISOString().split('T')[0],
       data_inicio_obra_texto: (novaObra.tipo !== 'TRANSF UN' && temTelaOperacaoCampo(novaObra.rede, novaObra.tipo)) ? dataPrevistaIso : null,
@@ -4097,7 +4093,7 @@ export default function App() {
     }
     setSalvando(false)
     setModalNovaObra(false)
-    setNovaObra({ tipo:'', rede:'', numero_pc:'', numero_pa:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0], data_prevista:'' })
+    setNovaObra({ tipo:'', rede:'', numero_pc:'', nome:'', endereco:'', cidade:'', uf:'', valor:'', sige:'', pedido:'', nf:'', obs:'', data_cadastro: new Date().toISOString().split('T')[0], data_prevista:'' })
   }
 
   async function excluirObra(obra) {
@@ -8395,19 +8391,11 @@ export default function App() {
               </div>
             )}
             {TIPOS_BDN.includes(novaObra.tipo) && novaObra.rede && (
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:12 }}>
-                <div>
-                  <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Número do {novaObra.rede === 'BRADESCO' ? 'BDN' : 'PC'} *</label>
-                  <input value={novaObra.numero_pc} onChange={e => setNovaObra(p => ({...p, numero_pc:e.target.value}))}
-                    placeholder="Ex: 12345"
-                    style={{ width:'100%', padding:'10px 12px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Número do PA *</label>
-                  <input value={novaObra.numero_pa} onChange={e => setNovaObra(p => ({...p, numero_pa:e.target.value}))}
-                    placeholder="Ex: 6789"
-                    style={{ width:'100%', padding:'10px 12px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
-                </div>
+              <div style={{ marginBottom:12 }}>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Número do {novaObra.rede === 'BRADESCO' ? 'BDN' : 'PC'} *</label>
+                <input value={novaObra.numero_pc} onChange={e => setNovaObra(p => ({...p, numero_pc:e.target.value}))}
+                  placeholder="Ex: 12345"
+                  style={{ width:'100%', padding:'10px 12px', border:'1px solid #CDD8E3', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
               </div>
             )}
             <div style={{ marginBottom:12 }}>
@@ -8471,8 +8459,8 @@ export default function App() {
                 style={{ width:'100%', padding:'10px 12px', border:'1px solid #BFDBFE', borderRadius:10, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
               <div style={{ fontSize:10, color:'#64748B', marginTop:4 }}>Padrão: hoje. Ajuste se a demanda chegou em outra data.</div>
             </div>
-            <button onClick={salvarNovaObra} disabled={!novaObra.tipo || !novaObra.nome || (TIPOS_BDN.includes(novaObra.tipo) && !novaObra.rede) || (TIPOS_BDN.includes(novaObra.tipo) && novaObra.rede && (!novaObra.numero_pc.trim() || (novaObra.rede === 'BANCO24HORAS' && !novaObra.numero_pa.trim()) || !novaObra.endereco.trim() || !novaObra.cidade.trim() || novaObra.uf.trim().length !== 2)) || salvando}
-              style={{ width:'100%', padding:13, background: (!novaObra.tipo||!novaObra.nome||(TIPOS_BDN.includes(novaObra.tipo) && !novaObra.rede)||(TIPOS_BDN.includes(novaObra.tipo) && novaObra.rede && (!novaObra.numero_pc.trim() || (novaObra.rede === 'BANCO24HORAS' && !novaObra.numero_pa.trim()) || !novaObra.endereco.trim() || !novaObra.cidade.trim() || novaObra.uf.trim().length !== 2))||salvando) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor:'pointer', marginBottom:8 }}>
+            <button onClick={salvarNovaObra} disabled={!novaObra.tipo || !novaObra.nome || (TIPOS_BDN.includes(novaObra.tipo) && !novaObra.rede) || (TIPOS_BDN.includes(novaObra.tipo) && novaObra.rede && (!novaObra.numero_pc.trim() || !novaObra.endereco.trim() || !novaObra.cidade.trim() || novaObra.uf.trim().length !== 2)) || salvando}
+              style={{ width:'100%', padding:13, background: (!novaObra.tipo||!novaObra.nome||(TIPOS_BDN.includes(novaObra.tipo) && !novaObra.rede)||(TIPOS_BDN.includes(novaObra.tipo) && novaObra.rede && (!novaObra.numero_pc.trim() || !novaObra.endereco.trim() || !novaObra.cidade.trim() || novaObra.uf.trim().length !== 2))||salvando) ? '#ccc' : '#1A6B4A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor:'pointer', marginBottom:8 }}>
               {salvando ? 'Salvando...' : 'Criar Obra'}
             </button>
             <button onClick={() => setModalNovaObra(false)}
