@@ -3267,6 +3267,20 @@ export default function App() {
   const [contasPagarErro, setContasPagarErro] = useState('')
   const [contasPagarPreview, setContasPagarPreview] = useState(null)
   const [contasPagarSalvando, setContasPagarSalvando] = useState(false)
+  // Lançamento manual de conta a pagar, sem vínculo com obra (Shirley, 2026-09-18: "hoje só
+  // estamos exportando do SIGE" - precisa de um jeito de lançar uma despesa avulsa direto no
+  // Pipeline, sem depender de importar planilha).
+  const [modalLancamentoManual, setModalLancamentoManual] = useState(false)
+  const [lancamentoFornecedor, setLancamentoFornecedor] = useState('')
+  const [lancamentoValor, setLancamentoValor] = useState('')
+  const [lancamentoVencimento, setLancamentoVencimento] = useState(hojeIso())
+  const [lancamentoCentroCusto, setLancamentoCentroCusto] = useState('')
+  const [lancamentoGrupo, setLancamentoGrupo] = useState('')
+  const [lancamentoEmpresa, setLancamentoEmpresa] = useState('')
+  const [lancamentoBanco, setLancamentoBanco] = useState('')
+  const [lancamentoPlanoContas, setLancamentoPlanoContas] = useState('')
+  const [lancamentoObs, setLancamentoObs] = useState('')
+  const [lancamentoSalvando, setLancamentoSalvando] = useState(false)
   const [despesasModo, setDespesasModo] = useState('mes')
   const [despesasMes, setDespesasMes] = useState(new Date().getMonth() + 1)
   const [despesasAno, setDespesasAno] = useState(new Date().getFullYear())
@@ -4019,6 +4033,35 @@ export default function App() {
       setContasPagarErro('Erro ao ler a planilha: ' + e.message)
     }
     setContasPagarProcessando(false)
+  }
+
+  async function salvarLancamentoManual() {
+    if (!lancamentoFornecedor.trim() || !lancamentoValor || !lancamentoVencimento) return
+    setLancamentoSalvando(true)
+    const registro = {
+      codigo_sige: -Date.now(),
+      origem: 'manual',
+      obra_id: null,
+      data_vencimento: lancamentoVencimento,
+      fornecedor: lancamentoFornecedor.trim(),
+      valor: Number(lancamentoValor) || 0,
+      centro_custos: lancamentoCentroCusto.trim() || null,
+      grupo: lancamentoGrupo.trim() || null,
+      empresa: lancamentoEmpresa.trim() || null,
+      banco: lancamentoBanco.trim() || null,
+      plano_contas: lancamentoPlanoContas.trim() || null,
+      observacoes: lancamentoObs.trim() || null,
+      status_pagamento: 'pendente',
+    }
+    const { error } = await supabase.from('contas_pagar').insert(registro)
+    setLancamentoSalvando(false)
+    if (!error) {
+      await carregarContasPagar()
+      setModalLancamentoManual(false)
+      setLancamentoFornecedor(''); setLancamentoValor(''); setLancamentoVencimento(hojeIso())
+      setLancamentoCentroCusto(''); setLancamentoGrupo(''); setLancamentoEmpresa('')
+      setLancamentoBanco(''); setLancamentoPlanoContas(''); setLancamentoObs('')
+    }
   }
 
   async function confirmarImportacaoContasPagar() {
@@ -5614,6 +5657,8 @@ export default function App() {
   const empresasContasPagar = [...new Set(contasPagar.map(c => c.empresa).filter(Boolean))].sort()
   const centrosCustoContasPagar = [...new Set(contasPagar.map(c => c.centro_custos).filter(Boolean))].sort()
   const gruposContasPagar = [...new Set(contasPagar.map(c => c.grupo).filter(Boolean))].sort()
+  const bancosContasPagar = [...new Set(contasPagar.map(c => c.banco).filter(Boolean))].sort()
+  const planosContaContasPagar = [...new Set(contasPagar.map(c => c.plano_contas).filter(Boolean))].sort()
 
   // Linha fininha (sparkline) com o total por dia (ou por mês, no modo Ano) dentro do período
   // filtrado, pra bater o olho em quais dias concentram os picos de pagamento (Shirley, 2026-09-04).
@@ -7490,10 +7535,16 @@ export default function App() {
                 style={{ padding:'8px 16px', border:'none', background: contasPagarSubaba==='receber' ? '#065F46' : '#fff', color: contasPagarSubaba==='receber' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>💰 Contas a Receber</button>
             </div>
             {contasPagarSubaba === 'pagar' && (
-              <button onClick={() => { setModalImportarContasPagar(true); setContasPagarErro(''); setContasPagarArquivo(null); setContasPagarPreview(null) }}
-                style={{ marginLeft:'auto', padding:'8px 14px', background:'#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                📥 Importar do SIGE
-              </button>
+              <div style={{ marginLeft:'auto', display:'flex', gap:8 }}>
+                <button onClick={() => setModalLancamentoManual(true)}
+                  style={{ padding:'8px 14px', background:'#fff', color:'#0F766E', border:'1px solid #0F766E', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  ✏️ Lançamento manual
+                </button>
+                <button onClick={() => { setModalImportarContasPagar(true); setContasPagarErro(''); setContasPagarArquivo(null); setContasPagarPreview(null) }}
+                  style={{ padding:'8px 14px', background:'#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  📥 Importar do SIGE
+                </button>
+              </div>
             )}
           </div>
 
@@ -7726,6 +7777,83 @@ export default function App() {
         </div>
         )
       })()}
+
+      {modalLancamentoManual && (
+        <div onClick={e => { if (e.target === e.currentTarget && !lancamentoSalvando) setModalLancamentoManual(false) }}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}>
+          <div style={{ background:'#fff', borderRadius:14, padding:20, maxWidth:420, width:'100%', maxHeight:'85vh', overflowY:'auto' }}>
+            <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:12 }}>✏️ Novo lançamento manual</div>
+            <div style={{ fontSize:11, color:'#64748B', marginBottom:14 }}>Despesa avulsa, sem vínculo com obra — vai direto pro Contas a Pagar como pendente.</div>
+
+            <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Fornecedor *</label>
+            <input value={lancamentoFornecedor} onChange={e => setLancamentoFornecedor(up(e.target.value))}
+              style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:10 }} />
+
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
+              <div>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Valor *</label>
+                <input type="number" value={lancamentoValor} onChange={e => setLancamentoValor(e.target.value)}
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Vencimento *</label>
+                <input type="date" value={lancamentoVencimento} onChange={e => setLancamentoVencimento(e.target.value)}
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+              </div>
+            </div>
+
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
+              <div>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Centro de Custo</label>
+                <input list="lista-centro-custo" value={lancamentoCentroCusto} onChange={e => setLancamentoCentroCusto(up(e.target.value))}
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                <datalist id="lista-centro-custo">{centrosCustoContasPagar.map(v => <option key={v} value={v} />)}</datalist>
+              </div>
+              <div>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Grupo</label>
+                <input list="lista-grupo" value={lancamentoGrupo} onChange={e => setLancamentoGrupo(up(e.target.value))}
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                <datalist id="lista-grupo">{gruposContasPagar.map(v => <option key={v} value={v} />)}</datalist>
+              </div>
+            </div>
+
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
+              <div>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Empresa</label>
+                <input list="lista-empresa" value={lancamentoEmpresa} onChange={e => setLancamentoEmpresa(up(e.target.value))}
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                <datalist id="lista-empresa">{empresasContasPagar.map(v => <option key={v} value={v} />)}</datalist>
+              </div>
+              <div>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Banco</label>
+                <input list="lista-banco" value={lancamentoBanco} onChange={e => setLancamentoBanco(up(e.target.value))}
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                <datalist id="lista-banco">{bancosContasPagar.map(v => <option key={v} value={v} />)}</datalist>
+              </div>
+            </div>
+
+            <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Plano de Contas</label>
+            <input list="lista-plano-contas" value={lancamentoPlanoContas} onChange={e => setLancamentoPlanoContas(up(e.target.value))}
+              style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:10 }} />
+            <datalist id="lista-plano-contas">{planosContaContasPagar.map(v => <option key={v} value={v} />)}</datalist>
+
+            <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Observações</label>
+            <textarea value={lancamentoObs} onChange={e => setLancamentoObs(e.target.value)} rows={2}
+              style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:14, resize:'vertical' }} />
+
+            <div style={{ display:'flex', gap:8 }}>
+              <button onClick={() => setModalLancamentoManual(false)} disabled={lancamentoSalvando}
+                style={{ flex:1, padding:10, background:'#F1F5F9', color:'#1A2340', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={salvarLancamentoManual} disabled={lancamentoSalvando || !lancamentoFornecedor.trim() || !lancamentoValor || !lancamentoVencimento}
+                style={{ flex:1, padding:10, background: (lancamentoSalvando || !lancamentoFornecedor.trim() || !lancamentoValor || !lancamentoVencimento) ? '#94A3B8' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                {lancamentoSalvando ? 'Salvando...' : 'Salvar lançamento'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {modalImportarContasPagar && (
         <div onClick={e => { if (e.target === e.currentTarget && !contasPagarSalvando) { setModalImportarContasPagar(false); setContasPagarArquivo(null); setContasPagarPreview(null) } }}
