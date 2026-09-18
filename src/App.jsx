@@ -3249,6 +3249,11 @@ export default function App() {
   const [contasPagarModo, setContasPagarModo] = useState('mes')
   const [contasPagarMes, setContasPagarMes] = useState(new Date().getMonth() + 1)
   const [contasPagarAno, setContasPagarAno] = useState(new Date().getFullYear())
+  // Filtro por período livre (Shirley, 2026-09-18) - alternativa ao mês cheio, pra quem quer ver
+  // só um intervalo de dias (ex: 15 a 28) em Contas a Pagar/Receber, que compartilham esse mesmo
+  // filtro de topo.
+  const [contasPagarDataInicio, setContasPagarDataInicio] = useState('')
+  const [contasPagarDataFim, setContasPagarDataFim] = useState('')
   const [contasPagarFiltroEmpresa, setContasPagarFiltroEmpresa] = useState('')
   const [contasPagarFiltroStatus, setContasPagarFiltroStatus] = useState('')
   const [contasPagarFiltroCentroCusto, setContasPagarFiltroCentroCusto] = useState('')
@@ -5573,10 +5578,16 @@ export default function App() {
   // Contas a Pagar - filtro pelo mesmo período (mês/ano) usado na tela.
   const contasPagarFiltradas = contasPagar.filter(c => {
     if (!c.data_vencimento) return false
-    const ano = Number(c.data_vencimento.slice(0, 4))
-    const mes = Number(c.data_vencimento.slice(5, 7))
-    if (contasPagarModo === 'ano') { if (ano !== contasPagarAno) return false }
-    else if (ano !== contasPagarAno || mes !== contasPagarMes) return false
+    if (contasPagarModo === 'periodo') {
+      if (contasPagarDataInicio && c.data_vencimento < contasPagarDataInicio) return false
+      if (contasPagarDataFim && c.data_vencimento > contasPagarDataFim) return false
+      if (!contasPagarDataInicio && !contasPagarDataFim) return false
+    } else {
+      const ano = Number(c.data_vencimento.slice(0, 4))
+      const mes = Number(c.data_vencimento.slice(5, 7))
+      if (contasPagarModo === 'ano') { if (ano !== contasPagarAno) return false }
+      else if (ano !== contasPagarAno || mes !== contasPagarMes) return false
+    }
     if (contasPagarFiltroEmpresa && c.empresa !== contasPagarFiltroEmpresa) return false
     if (contasPagarFiltroStatus && (c.status_pagamento || 'pendente') !== contasPagarFiltroStatus) return false
     if (contasPagarFiltroCentroCusto && c.centro_custos !== contasPagarFiltroCentroCusto) return false
@@ -5609,6 +5620,16 @@ export default function App() {
       contasPagarFiltradas.forEach(c => { porMes[Number(c.data_vencimento.slice(5, 7)) - 1] += Number(c.valor || 0) })
       return porMes.map((total, i) => ({ label: String(i + 1).padStart(2, '0'), total }))
     }
+    if (contasPagarModo === 'periodo') {
+      if (!contasPagarDataInicio || !contasPagarDataFim) return []
+      const porDiaMap = {}
+      contasPagarFiltradas.forEach(c => { porDiaMap[c.data_vencimento] = (porDiaMap[c.data_vencimento] || 0) + Number(c.valor || 0) })
+      const dias = []
+      for (let d = new Date(contasPagarDataInicio + 'T00:00:00'); d <= new Date(contasPagarDataFim + 'T00:00:00'); d.setDate(d.getDate() + 1)) {
+        dias.push(d.toISOString().slice(0, 10))
+      }
+      return dias.map(iso => ({ label: iso.slice(8, 10) + '/' + iso.slice(5, 7), total: porDiaMap[iso] || 0 }))
+    }
     const diasNoMes = new Date(contasPagarAno, contasPagarMes, 0).getDate()
     const porDia = Array(diasNoMes).fill(0)
     contasPagarFiltradas.forEach(c => {
@@ -5631,6 +5652,13 @@ export default function App() {
     if (o.status !== 'NF EMITIDO' || !o.atualizado_em) return false
     const d = new Date(o.atualizado_em)
     if (isNaN(d.getTime())) return false
+    if (contasPagarModo === 'periodo') {
+      if (!contasPagarDataInicio && !contasPagarDataFim) return false
+      const diaIso = o.atualizado_em.slice(0, 10)
+      if (contasPagarDataInicio && diaIso < contasPagarDataInicio) return false
+      if (contasPagarDataFim && diaIso > contasPagarDataFim) return false
+      return true
+    }
     const ano = d.getFullYear(), mes = d.getMonth() + 1
     if (contasPagarModo === 'ano') return ano === contasPagarAno
     return ano === contasPagarAno && mes === contasPagarMes
@@ -5646,6 +5674,16 @@ export default function App() {
       const porMes = Array(12).fill(0)
       contasReceberFiltradas.forEach(o => { porMes[new Date(o.atualizado_em).getMonth()] += Number(o.valor || 0) })
       return porMes.map((total, i) => ({ label: String(i + 1).padStart(2, '0'), total }))
+    }
+    if (contasPagarModo === 'periodo') {
+      if (!contasPagarDataInicio || !contasPagarDataFim) return []
+      const porDiaMap = {}
+      contasReceberFiltradas.forEach(o => { const iso = o.atualizado_em.slice(0, 10); porDiaMap[iso] = (porDiaMap[iso] || 0) + Number(o.valor || 0) })
+      const dias = []
+      for (let d = new Date(contasPagarDataInicio + 'T00:00:00'); d <= new Date(contasPagarDataFim + 'T00:00:00'); d.setDate(d.getDate() + 1)) {
+        dias.push(d.toISOString().slice(0, 10))
+      }
+      return dias.map(iso => ({ label: iso.slice(8, 10) + '/' + iso.slice(5, 7), total: porDiaMap[iso] || 0 }))
     }
     const diasNoMes = new Date(contasPagarAno, contasPagarMes, 0).getDate()
     const porDia = Array(diasNoMes).fill(0)
@@ -7454,6 +7492,8 @@ export default function App() {
                 style={{ padding:'7px 14px', border:'none', background: contasPagarModo==='mes' ? '#0F766E' : '#fff', color: contasPagarModo==='mes' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>Mês</button>
               <button onClick={() => setContasPagarModo('ano')}
                 style={{ padding:'7px 14px', border:'none', background: contasPagarModo==='ano' ? '#0F766E' : '#fff', color: contasPagarModo==='ano' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>Ano</button>
+              <button onClick={() => setContasPagarModo('periodo')}
+                style={{ padding:'7px 14px', border:'none', background: contasPagarModo==='periodo' ? '#0F766E' : '#fff', color: contasPagarModo==='periodo' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>Período</button>
             </div>
             {contasPagarModo === 'mes' && (
               <select value={contasPagarMes} onChange={e => setContasPagarMes(Number(e.target.value))}
@@ -7461,10 +7501,20 @@ export default function App() {
                 {MESES_FILTRO.map((m,i) => <option key={m} value={i+1}>{m}</option>)}
               </select>
             )}
-            <select value={contasPagarAno} onChange={e => setContasPagarAno(Number(e.target.value))}
-              style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
-              {anosDisponiveis.map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
+            {contasPagarModo === 'periodo' ? (
+              <>
+                <input type="date" value={contasPagarDataInicio} onChange={e => setContasPagarDataInicio(e.target.value)}
+                  style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }} />
+                <span style={{ fontSize:12, color:'#64748B' }}>até</span>
+                <input type="date" value={contasPagarDataFim} onChange={e => setContasPagarDataFim(e.target.value)}
+                  style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }} />
+              </>
+            ) : (
+              <select value={contasPagarAno} onChange={e => setContasPagarAno(Number(e.target.value))}
+                style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
+                {anosDisponiveis.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            )}
             {contasPagarSubaba === 'pagar' && (
               <>
                 <select value={contasPagarFiltroEmpresa} onChange={e => setContasPagarFiltroEmpresa(e.target.value)}
@@ -7563,7 +7613,8 @@ export default function App() {
 
               <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14 }}>
                 <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:10 }}>Lançamentos do período</div>
-                {contasPagarFiltradas.length === 0 && <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'20px 0' }}>Nenhum lançamento nesse período — importe um relatório do SIGE pra começar.</div>}
+                {contasPagarModo === 'periodo' && (!contasPagarDataInicio || !contasPagarDataFim) && <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'20px 0' }}>Escolha a data de início e fim do período.</div>}
+                {(contasPagarModo !== 'periodo' || (contasPagarDataInicio && contasPagarDataFim)) && contasPagarFiltradas.length === 0 && <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'20px 0' }}>Nenhum lançamento nesse período — importe um relatório do SIGE pra começar.</div>}
                 {contasPagarFiltradas.map(c => {
                   const status = c.status_pagamento || 'pendente'
                   const cor = status === 'conciliado' ? '#065F46' : status === 'pago_pendente_conciliacao' ? '#92400E' : '#B91C1C'
@@ -7638,7 +7689,8 @@ export default function App() {
 
               <div style={{ fontSize:11, color:'#64748B', marginBottom:10 }}>Vem direto das obras com NF emitida no Pipeline (aba Histórico) — não precisa importar nada aqui.</div>
               <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14 }}>
-                {contasReceberFiltradas.length === 0 && <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'20px 0' }}>Nenhuma NF emitida nesse período</div>}
+                {contasPagarModo === 'periodo' && (!contasPagarDataInicio || !contasPagarDataFim) && <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'20px 0' }}>Escolha a data de início e fim do período.</div>}
+                {(contasPagarModo !== 'periodo' || (contasPagarDataInicio && contasPagarDataFim)) && contasReceberFiltradas.length === 0 && <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'20px 0' }}>Nenhuma NF emitida nesse período</div>}
                 {contasReceberFiltradas.map(o => (
                   <div key={o.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, borderBottom:'1px solid #F1F5F9', padding:'8px 0' }}>
                     <div>
