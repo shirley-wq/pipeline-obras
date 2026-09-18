@@ -3254,6 +3254,9 @@ export default function App() {
   // filtro de topo.
   const [contasPagarDataInicio, setContasPagarDataInicio] = useState('')
   const [contasPagarDataFim, setContasPagarDataFim] = useState('')
+  // Contas a Receber pode filtrar por data de emissão da NF ou por data de vencimento (Shirley,
+  // 2026-09-18) - as duas ficam disponíveis, alternando por esse toggle.
+  const [contasReceberDataRef, setContasReceberDataRef] = useState('vencimento')
   const [contasPagarFiltroEmpresa, setContasPagarFiltroEmpresa] = useState('')
   const [contasPagarFiltroStatus, setContasPagarFiltroStatus] = useState('')
   const [contasPagarFiltroCentroCusto, setContasPagarFiltroCentroCusto] = useState('')
@@ -5647,38 +5650,46 @@ export default function App() {
 
   // Contas a Receber - não duplica dado: reaproveita as obras já faturadas (NF EMITIDO) do próprio
   // Pipeline, no mesmo período selecionado (Shirley, 2026-09-04: entrada da Tecban no SIGE é a
-  // mesma coisa que já rastreamos aqui).
+  // mesma coisa que já rastreamos aqui). Pode filtrar por data de EMISSÃO (pra saber quanto foi
+  // faturado no período) ou por data de VENCIMENTO (campo `vencimento`, pra saber quanto vai
+  // receber no período) - Shirley, 2026-09-18, escolhido pelo toggle contasReceberDataRef. NFs
+  // antigas sem `vencimento` preenchido caem no fallback da data de emissão quando o modo é
+  // "vencimento", pra não sumirem da lista.
+  function dataReferenciaReceber(o) {
+    const emissao = o.atualizado_em ? o.atualizado_em.slice(0, 10) : null
+    if (contasReceberDataRef === 'emissao') return emissao
+    return o.vencimento || emissao
+  }
   const contasReceberFiltradas = obras.filter(o => {
-    if (o.status !== 'NF EMITIDO' || !o.atualizado_em) return false
-    const d = new Date(o.atualizado_em)
-    if (isNaN(d.getTime())) return false
+    if (o.status !== 'NF EMITIDO') return false
+    const dataRef = dataReferenciaReceber(o)
+    if (!dataRef) return false
     if (contasPagarModo === 'periodo') {
       if (!contasPagarDataInicio && !contasPagarDataFim) return false
-      const diaIso = o.atualizado_em.slice(0, 10)
-      if (contasPagarDataInicio && diaIso < contasPagarDataInicio) return false
-      if (contasPagarDataFim && diaIso > contasPagarDataFim) return false
+      if (contasPagarDataInicio && dataRef < contasPagarDataInicio) return false
+      if (contasPagarDataFim && dataRef > contasPagarDataFim) return false
       return true
     }
-    const ano = d.getFullYear(), mes = d.getMonth() + 1
+    const ano = Number(dataRef.slice(0, 4)), mes = Number(dataRef.slice(5, 7))
     if (contasPagarModo === 'ano') return ano === contasPagarAno
     return ano === contasPagarAno && mes === contasPagarMes
-  }).sort((a, b) => new Date(a.atualizado_em) - new Date(b.atualizado_em))
+  }).sort((a, b) => dataReferenciaReceber(a).localeCompare(dataReferenciaReceber(b)))
   const totalContasReceberPeriodo = contasReceberFiltradas.reduce((s, o) => s + Number(o.valor || 0), 0)
-  const contasReceberFaturadasHoje = obras.filter(o => o.status === 'NF EMITIDO' && o.atualizado_em && o.atualizado_em.slice(0, 10) === dataHojeIso)
+  const contasReceberFaturadasHoje = obras.filter(o => o.status === 'NF EMITIDO' && dataReferenciaReceber(o) === dataHojeIso)
   const totalContasReceberFaturadasHoje = contasReceberFaturadasHoje.reduce((s, o) => s + Number(o.valor || 0), 0)
 
   // Mesma linha fininha do Contas a Pagar, agora com o faturado por dia/mês em Contas a Receber
-  // (Shirley, 2026-09-04).
+  // (Shirley, 2026-09-04), também pela data de vencimento.
   const contasReceberSparkline = (() => {
     if (contasPagarModo === 'ano') {
       const porMes = Array(12).fill(0)
-      contasReceberFiltradas.forEach(o => { porMes[new Date(o.atualizado_em).getMonth()] += Number(o.valor || 0) })
+      contasReceberFiltradas.forEach(o => { porMes[Number(dataReferenciaReceber(o).slice(5, 7)) - 1] += Number(o.valor || 0) })
       return porMes.map((total, i) => ({ label: String(i + 1).padStart(2, '0'), total }))
     }
     if (contasPagarModo === 'periodo') {
       if (!contasPagarDataInicio || !contasPagarDataFim) return []
       const porDiaMap = {}
-      contasReceberFiltradas.forEach(o => { const iso = o.atualizado_em.slice(0, 10); porDiaMap[iso] = (porDiaMap[iso] || 0) + Number(o.valor || 0) })
+      contasReceberFiltradas.forEach(o => { const iso = dataReferenciaReceber(o); porDiaMap[iso] = (porDiaMap[iso] || 0) + Number(o.valor || 0) })
       const dias = []
       for (let d = new Date(contasPagarDataInicio + 'T00:00:00'); d <= new Date(contasPagarDataFim + 'T00:00:00'); d.setDate(d.getDate() + 1)) {
         dias.push(d.toISOString().slice(0, 10))
@@ -7654,9 +7665,18 @@ export default function App() {
             </>
           ) : (
             <>
+              <div style={{ display:'flex', gap:8, marginBottom:10, alignItems:'center' }}>
+                <span style={{ fontSize:11, color:'#64748B', fontWeight:600 }}>Filtrar por:</span>
+                <div style={{ display:'flex', border:'1px solid #CDD8E3', borderRadius:8, overflow:'hidden' }}>
+                  <button onClick={() => setContasReceberDataRef('emissao')}
+                    style={{ padding:'6px 12px', border:'none', background: contasReceberDataRef==='emissao' ? '#065F46' : '#fff', color: contasReceberDataRef==='emissao' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>Emissão</button>
+                  <button onClick={() => setContasReceberDataRef('vencimento')}
+                    style={{ padding:'6px 12px', border:'none', background: contasReceberDataRef==='vencimento' ? '#065F46' : '#fff', color: contasReceberDataRef==='vencimento' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>Vencimento</button>
+                </div>
+              </div>
               <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
                 <div style={{ flex:1, minWidth:160, background:'#065F46', borderRadius:12, padding:'16px 18px' }}>
-                  <div style={{ fontSize:11, color:'rgba(255,255,255,.8)', fontWeight:600, textTransform:'uppercase' }}>A receber no período</div>
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,.8)', fontWeight:600, textTransform:'uppercase' }}>{contasReceberDataRef === 'emissao' ? 'Emitido no período' : 'A receber no período'}</div>
                   <div style={{ fontSize:24, fontWeight:700, color:'#fff', marginTop:4 }}>{fmt(totalContasReceberPeriodo)}</div>
                 </div>
                 <div style={{ flex:1, minWidth:160, background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:'16px 18px' }}>
@@ -7695,7 +7715,7 @@ export default function App() {
                   <div key={o.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, borderBottom:'1px solid #F1F5F9', padding:'8px 0' }}>
                     <div>
                       <div style={{ fontSize:13, fontWeight:600, color:'#1A2340' }}>{o.nome}</div>
-                      <div style={{ fontSize:11, color:'#64748B' }}>{isoToBr(o.atualizado_em.slice(0,10))} · {o.local || '—'}{o.nf ? ` · NF ${o.nf}` : ''}</div>
+                      <div style={{ fontSize:11, color:'#64748B' }}>{contasReceberDataRef === 'emissao' ? 'Emissão' : 'Vencimento'} {isoToBr(dataReferenciaReceber(o))} · {o.local || '—'}{o.nf ? ` · NF ${o.nf}` : ''}</div>
                     </div>
                     <div style={{ fontSize:13, fontWeight:700, color:'#065F46', flexShrink:0 }}>{fmt(o.valor)}</div>
                   </div>
