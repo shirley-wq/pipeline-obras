@@ -1354,6 +1354,54 @@ const RESPONSAVEIS_IMPEDIMENTO_INSTALACAO = ['Tecban', 'Transportadora', 'Client
 const EMAIL_SOLICITACAO_ALTERACAO_TECBAN = 'analise-risco.seguranca@tecban.com.br'
 const EMAIL_CC_SOLICITACAO_ALTERACAO_TECBAN = 'Implantacao.B24horas@tecban.com.br,Raquel.Barros@servicosintegradostecban.com.br,operacao@grupopg.com.br,Hellen.Silva@servicosintegradostecban.com.br,Felipe.Barros@servicosintegradostecban.com.br,suelen.ferreira@servicosintegradostecban.com.br'
 
+// "CHECK LIST - OBRA" digitalizado (Shirley, 2026-09-19) - mesmo formulário de papel usado hoje,
+// só pra Instalação ATM por enquanto. Padrão de preenchimento validado com mockup: tudo já vem
+// "OK" por padrão, o técnico só toca no que deu problema (evita confirmar um por um o que já tá
+// normal). KO's e Conectividade são o oposto - começam "ausentes", técnico marca só o que tem.
+const MODELOS_EQUIPAMENTO_CHECKLIST = ['NCR', 'Diebold', 'Diebold ATM-R']
+const MODELOS_FECHADURA_CHECKLIST = ['MasHamilton', 'Deadbolt', 'Cryptogard', 'Smart Dinamic', 'Chaves Tubular', 'Chaves Gorja']
+const STATUS_FECHADURA_CHECKLIST = ['Ativada', 'Desativada', 'Porta encostada']
+const ACESSORIOS_ATM_CHECKLIST = ['Base (V1/V2) + parafusos', 'Cofre de concreto', 'Gabinete Superior', 'Gabinete Lateral', 'Suporte régua alarme/dimmer', 'Estabilizador', 'CPU', 'No Break', 'Letreiro lateral', 'Monitor', 'Leitora de cartões', 'Impressora', 'Teclado do cliente', 'Módulo Pagador', 'K7S', 'Fechaduras']
+const ACESSORIOS_ALARME_CHECKLIST = ['Bateria', 'Easyguard', 'Easynet', 'Módulo de potência', 'Fonte de Alimentação']
+const COMUNICACAO_VISUAL_CHECKLIST = ['Totem Triedo/Mini/3 Folha', 'Porta Cestas/Cartaz', 'Bandeira Fachada', 'Sinalizador 3 Folhas/Teto', 'Letreiro Lateral']
+const CONECTIVIDADE_CHECKLIST = ['Kit Circuito 3G/4G + Par Chip', 'NGN/Parks', 'Kit ADSL/Cisco', 'Wi-Fi', 'Kit Frame Relay']
+const KOS_CHECKLIST = ['KO 5', 'KO 6', 'KO 8', 'KO 9', 'KO 12', 'KO 16', 'KO 21', 'KO 28']
+
+function fechaduraChecklistVazia() {
+  return { modelo: MODELOS_FECHADURA_CHECKLIST[0], status: 'Ativada', senha: '', senhaMaster: '', senhaManager: '', serieKaba: '' }
+}
+
+// Chip de item "OK por padrão" - toca uma vez pra marcar problema (abre nota), toca de novo pra
+// desfazer. Reaproveitado nas 3 seções que seguem esse padrão (Acessórios ATM, Alarme, Comunicação
+// Visual).
+function ChipChecklistOk({ item, status, nota, onToggle, onNota }) {
+  const isOk = status !== 'problema'
+  return (
+    <div>
+      <button type="button" onClick={onToggle}
+        style={{ width:'100%', boxSizing:'border-box', padding:'8px 8px', borderRadius:8, border:`1.5px solid ${isOk ? '#6EE7B7' : '#FCA5A5'}`, background: isOk ? '#ECFDF5' : '#FEF2F2', cursor:'pointer', textAlign:'left' }}>
+        <div style={{ fontSize:11, fontWeight:600, color:'#1A2340', marginBottom:2 }}>{item}</div>
+        <div style={{ fontSize:10, fontWeight:700, color: isOk ? '#065F46' : '#991B1B' }}>{isOk ? '✓ OK' : '⚠ Problema'}</div>
+      </button>
+      {!isOk && (
+        <textarea value={nota} onChange={e => onNota(e.target.value)} placeholder="O que houve?" rows={2}
+          style={{ width:'100%', boxSizing:'border-box', marginTop:4, padding:'6px 8px', border:'1px solid #FCA5A5', borderRadius:6, fontSize:11, color:'#7F1D1D', resize:'vertical' }} />
+      )}
+    </div>
+  )
+}
+
+// Chip de presença - o oposto do de cima: começa "ausente", toca pra marcar presente (KO's e
+// Conectividade, que não têm estado de "problema", só têm ou não têm).
+function ChipChecklistPresenca({ item, presente, onToggle }) {
+  return (
+    <button type="button" onClick={onToggle}
+      style={{ padding:'9px 12px', borderRadius:20, border: `1.5px solid ${presente ? '#93C5FD' : '#E2E8F0'}`, background: presente ? '#EFF6FF' : '#F8FAFC', color: presente ? '#1E40AF' : '#94A3B8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+      {item}
+    </button>
+  )
+}
+
 function dataUrlDeArquivoInstalacao(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -2065,7 +2113,10 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
         </div>
       )}
       {obra.tipo === 'INSTALAÇÃO ATM' && (
-        <PainelAndamentoInstalacaoATM obra={obra} usuario={usuario} onSalvar={onSalvar} />
+        <>
+          <PainelAndamentoInstalacaoATM obra={obra} usuario={usuario} onSalvar={onSalvar} />
+          <PainelChecklistObra obra={obra} usuario={usuario} onSalvar={onSalvar} />
+        </>
       )}
       <button onClick={async () => {
         setSalvando(true)
@@ -2318,6 +2369,277 @@ function PainelAndamentoInstalacaoATM({ obra, usuario, onSalvar }) {
               {s.status === 'aprovado' ? '✅ Aprovado' : s.status === 'enviado' ? '📨 Enviado à Tecban, aguardando aprovação' : '⏳ Aguardando o escritório revisar'} — {new Date(s.criado_em).toLocaleDateString('pt-BR')}
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Check List da Obra (ativos do equipamento) digitalizado - mesmo formulário de papel usado hoje
+// pra instalação/desinstalação, só que em tela, e só pra Instalação ATM por enquanto (Shirley,
+// 2026-09-19). Fica escondido atrás de um botão (formulário grande) e salva tudo de uma vez num
+// campo jsonb só (não é uma lista de eventos tipo etapas/impedimentos - é um formulário único por
+// obra, então não precisa do padrão de fresh-fetch-and-diff usado lá).
+function PainelChecklistObra({ obra, usuario, onSalvar }) {
+  const c = obra.checklist_obra || {}
+  const [aberto, setAberto] = useState(false)
+  const [modeloEquipamento, setModeloEquipamento] = useState(c.modeloEquipamento || MODELOS_EQUIPAMENTO_CHECKLIST[0])
+  const [numeroSerieAtm, setNumeroSerieAtm] = useState(c.numeroSerieAtm || '')
+  const [idPositivaRg, setIdPositivaRg] = useState(c.idPositivaRg || '')
+  const [fechaduraA, setFechaduraA] = useState(c.fechaduraA || fechaduraChecklistVazia())
+  const [fechaduraB, setFechaduraB] = useState(c.fechaduraB || fechaduraChecklistVazia())
+  const [acessoriosAtm, setAcessoriosAtm] = useState(c.acessoriosAtm || {})
+  const [acessoriosAtmNotas, setAcessoriosAtmNotas] = useState(c.acessoriosAtmNotas || {})
+  const [cpuTesteLigou, setCpuTesteLigou] = useState(c.cpuTesteLigou ?? null)
+  const [cpuTesteMotivo, setCpuTesteMotivo] = useState(c.cpuTesteMotivo || '')
+  const [acessoriosAlarme, setAcessoriosAlarme] = useState(c.acessoriosAlarme || {})
+  const [acessoriosAlarmeNotas, setAcessoriosAlarmeNotas] = useState(c.acessoriosAlarmeNotas || {})
+  const [comunicacaoVisual, setComunicacaoVisual] = useState(c.comunicacaoVisual || {})
+  const [comunicacaoVisualNotas, setComunicacaoVisualNotas] = useState(c.comunicacaoVisualNotas || {})
+  const [conectividade, setConectividade] = useState(c.conectividade || {})
+  const [ipModem, setIpModem] = useState(c.ipModem || '')
+  const [kosPresentes, setKosPresentes] = useState(c.kosPresentes || {})
+  const [devolucaoMaterial, setDevolucaoMaterial] = useState(c.devolucaoMaterial ?? null)
+  const [qualDevolucao, setQualDevolucao] = useState(c.qualDevolucao || '')
+  const [itensFaltantes, setItensFaltantes] = useState(c.itensFaltantes || '')
+  const [lacreAco, setLacreAco] = useState(c.lacreAco || '')
+  const [lacrePapel, setLacrePapel] = useState(c.lacrePapel || '')
+  const [protocoloNome, setProtocoloNome] = useState(c.protocoloNome || '')
+  const [salvando, setSalvando] = useState(false)
+  const [salvo, setSalvo] = useState(false)
+
+  function toggleOk(mapa, setMapa, item) {
+    const atual = mapa[item] || 'ok'
+    setMapa({ ...mapa, [item]: atual === 'ok' ? 'problema' : 'ok' })
+  }
+  function togglePresenca(mapa, setMapa, item) {
+    setMapa({ ...mapa, [item]: !mapa[item] })
+  }
+
+  function totalProblemas() {
+    const todos = { ...acessoriosAtm, ...acessoriosAlarme, ...comunicacaoVisual }
+    return Object.values(todos).filter(s => s === 'problema').length
+  }
+
+  async function salvarChecklist() {
+    setSalvando(true)
+    const checklist_obra = {
+      modeloEquipamento, numeroSerieAtm: numeroSerieAtm.trim(), idPositivaRg: idPositivaRg.trim(),
+      fechaduraA, fechaduraB,
+      acessoriosAtm, acessoriosAtmNotas, cpuTesteLigou, cpuTesteMotivo: cpuTesteMotivo.trim(),
+      acessoriosAlarme, acessoriosAlarmeNotas,
+      comunicacaoVisual, comunicacaoVisualNotas,
+      conectividade, ipModem: ipModem.trim(),
+      kosPresentes,
+      devolucaoMaterial, qualDevolucao: qualDevolucao.trim(),
+      itensFaltantes: itensFaltantes.trim(), lacreAco: lacreAco.trim(), lacrePapel: lacrePapel.trim(),
+      protocoloNome: protocoloNome.trim(),
+      preenchido_por: usuario.email, preenchido_em: new Date().toISOString(),
+    }
+    const campos = { checklist_obra, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
+    setSalvando(false)
+    if (!error) { onSalvar(obra.id, campos); setSalvo(true); setTimeout(() => setSalvo(false), 2500) }
+  }
+
+  const problemas = totalProblemas()
+
+  return (
+    <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #E0E8F0' }}>
+      <button onClick={() => setAberto(v => !v)}
+        style={{ width:'100%', padding:10, background:'#fff', color:'#4A7FC1', border:'1px solid #BFDBFE', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <span>📋 Check List da Obra {c.preenchido_em ? '(preenchido)' : ''}</span>
+        <span>{aberto ? '▲' : '▼'}</span>
+      </button>
+      {aberto && (
+        <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:14 }}>
+          <div style={{ fontSize:10, color:'#64748B', background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:8, padding:'8px 10px', lineHeight:1.4 }}>
+            💡 Tudo já vem marcado como <b>OK</b>. Toque só no que deu problema — não precisa confirmar o que está normal.
+            {problemas > 0 && <div style={{ marginTop:4, fontWeight:700, color:'#991B1B' }}>⚠ {problemas} problema(s) reportado(s)</div>}
+          </div>
+
+          <div>
+            <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, textTransform:'uppercase', marginBottom:8 }}>Equipamento</div>
+            <div style={{ fontSize:11, color:'#64748B', marginBottom:4 }}>Modelo</div>
+            <select value={modeloEquipamento} onChange={e => setModeloEquipamento(e.target.value)}
+              style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', background:'#fff', marginBottom:8 }}>
+              {MODELOS_EQUIPAMENTO_CHECKLIST.map(m => <option key={m}>{m}</option>)}
+            </select>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              <div>
+                <div style={{ fontSize:11, color:'#64748B', marginBottom:4 }}>Nº série ATM</div>
+                <input value={numeroSerieAtm} onChange={e => setNumeroSerieAtm(e.target.value)}
+                  style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340' }} />
+              </div>
+              <div>
+                <div style={{ fontSize:11, color:'#64748B', marginBottom:4 }}>Identificação Positiva (RG)</div>
+                <input value={idPositivaRg} onChange={e => setIdPositivaRg(e.target.value)}
+                  style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340' }} />
+              </div>
+            </div>
+          </div>
+
+          {[{ label: 'Fechadura A', valor: fechaduraA, set: setFechaduraA }, { label: 'Fechadura B', valor: fechaduraB, set: setFechaduraB }].map(f => (
+            <div key={f.label}>
+              <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, textTransform:'uppercase', marginBottom:8 }}>{f.label}</div>
+              <div style={{ fontSize:11, color:'#64748B', marginBottom:4 }}>Modelo</div>
+              <select value={f.valor.modelo} onChange={e => f.set({ ...f.valor, modelo: e.target.value })}
+                style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', background:'#fff', marginBottom:8 }}>
+                {MODELOS_FECHADURA_CHECKLIST.map(m => <option key={m}>{m}</option>)}
+              </select>
+              <div style={{ fontSize:11, color:'#64748B', marginBottom:4 }}>Status</div>
+              <div style={{ display:'flex', gap:6, marginBottom:8 }}>
+                {STATUS_FECHADURA_CHECKLIST.map(st => (
+                  <button key={st} type="button" onClick={() => f.set({ ...f.valor, status: st })}
+                    style={{ flex:1, padding:'8px 4px', borderRadius:8, border:`1px solid ${f.valor.status === st ? '#0F766E' : '#CDD8E3'}`, background: f.valor.status === st ? '#0F766E' : '#fff', color: f.valor.status === st ? '#fff' : '#1A2340', fontSize:11, fontWeight:700, cursor:'pointer' }}>
+                    {st}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
+                <div>
+                  <div style={{ fontSize:11, color:'#64748B', marginBottom:4 }}>Senha Fechadura</div>
+                  <input value={f.valor.senha} onChange={e => f.set({ ...f.valor, senha: e.target.value })}
+                    style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize:11, color:'#64748B', marginBottom:4 }}>Nº série Kaba</div>
+                  <input value={f.valor.serieKaba} onChange={e => f.set({ ...f.valor, serieKaba: e.target.value })}
+                    style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340' }} />
+                </div>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                <div>
+                  <div style={{ fontSize:11, color:'#64748B', marginBottom:4 }}>Senha Master</div>
+                  <input value={f.valor.senhaMaster} onChange={e => f.set({ ...f.valor, senhaMaster: e.target.value })}
+                    style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize:11, color:'#64748B', marginBottom:4 }}>Senha Manager</div>
+                  <input value={f.valor.senhaManager} onChange={e => f.set({ ...f.valor, senhaManager: e.target.value })}
+                    style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340' }} />
+                </div>
+              </div>
+            </div>
+          ))}
+
+          <div>
+            <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, textTransform:'uppercase', marginBottom:8 }}>Acessórios do ATM</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              {ACESSORIOS_ATM_CHECKLIST.map(item => (
+                <ChipChecklistOk key={item} item={item} status={acessoriosAtm[item]} nota={acessoriosAtmNotas[item] || ''}
+                  onToggle={() => toggleOk(acessoriosAtm, setAcessoriosAtm, item)}
+                  onNota={v => setAcessoriosAtmNotas({ ...acessoriosAtmNotas, [item]: v })} />
+              ))}
+            </div>
+            <div style={{ marginTop:10, background:'#F8FAFC', border:'1px solid #E0E8F0', borderRadius:8, padding:10 }}>
+              <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:6 }}>Realizou teste de ligar o ATM?</div>
+              <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+                <button type="button" onClick={() => setCpuTesteLigou('sim')}
+                  style={{ flex:1, padding:9, borderRadius:8, border:`1px solid ${cpuTesteLigou === 'sim' ? '#0F766E' : '#CDD8E3'}`, background: cpuTesteLigou === 'sim' ? '#0F766E' : '#fff', color: cpuTesteLigou === 'sim' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>Sim</button>
+                <button type="button" onClick={() => setCpuTesteLigou('nao')}
+                  style={{ flex:1, padding:9, borderRadius:8, border:`1px solid ${cpuTesteLigou === 'nao' ? '#0F766E' : '#CDD8E3'}`, background: cpuTesteLigou === 'nao' ? '#0F766E' : '#fff', color: cpuTesteLigou === 'nao' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>Não</button>
+              </div>
+              {cpuTesteLigou === 'nao' && (
+                <input value={cpuTesteMotivo} onChange={e => setCpuTesteMotivo(e.target.value)} placeholder="Motivo"
+                  style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340' }} />
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, textTransform:'uppercase', marginBottom:8 }}>Acessórios de Alarme</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              {ACESSORIOS_ALARME_CHECKLIST.map(item => (
+                <ChipChecklistOk key={item} item={item} status={acessoriosAlarme[item]} nota={acessoriosAlarmeNotas[item] || ''}
+                  onToggle={() => toggleOk(acessoriosAlarme, setAcessoriosAlarme, item)}
+                  onNota={v => setAcessoriosAlarmeNotas({ ...acessoriosAlarmeNotas, [item]: v })} />
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, textTransform:'uppercase', marginBottom:8 }}>Comunicação Visual</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              {COMUNICACAO_VISUAL_CHECKLIST.map(item => (
+                <ChipChecklistOk key={item} item={item} status={comunicacaoVisual[item]} nota={comunicacaoVisualNotas[item] || ''}
+                  onToggle={() => toggleOk(comunicacaoVisual, setComunicacaoVisual, item)}
+                  onNota={v => setComunicacaoVisualNotas({ ...comunicacaoVisualNotas, [item]: v })} />
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, textTransform:'uppercase', marginBottom:4 }}>Conectividade</div>
+            <div style={{ fontSize:10, color:'#94A3B8', marginBottom:8 }}>Começa tudo "não usado" — toque só no(s) kit(s) realmente instalado(s).</div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:8 }}>
+              {CONECTIVIDADE_CHECKLIST.map(item => (
+                <ChipChecklistPresenca key={item} item={item} presente={!!conectividade[item]}
+                  onToggle={() => togglePresenca(conectividade, setConectividade, item)} />
+              ))}
+            </div>
+            <div style={{ fontSize:11, color:'#64748B', marginBottom:4 }}>IP do modem</div>
+            <input value={ipModem} onChange={e => setIpModem(e.target.value)}
+              style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340' }} />
+          </div>
+
+          <div>
+            <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, textTransform:'uppercase', marginBottom:4 }}>KO's presentes</div>
+            <div style={{ fontSize:10, color:'#94A3B8', marginBottom:8 }}>Começa tudo "ausente" — toque só nos que estão presentes.</div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+              {KOS_CHECKLIST.map(item => (
+                <ChipChecklistPresenca key={item} item={item} presente={!!kosPresentes[item]}
+                  onToggle={() => togglePresenca(kosPresentes, setKosPresentes, item)} />
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, textTransform:'uppercase', marginBottom:8 }}>Devolução de material pra transportadora?</div>
+            <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+              <button type="button" onClick={() => setDevolucaoMaterial('sim')}
+                style={{ flex:1, padding:11, borderRadius:8, border:`1.5px solid ${devolucaoMaterial === 'sim' ? '#0F766E' : '#CDD8E3'}`, background: devolucaoMaterial === 'sim' ? '#0F766E' : '#fff', color: devolucaoMaterial === 'sim' ? '#fff' : '#1A2340', fontSize:13, fontWeight:700, cursor:'pointer' }}>Sim</button>
+              <button type="button" onClick={() => { setDevolucaoMaterial('nao'); setQualDevolucao('') }}
+                style={{ flex:1, padding:11, borderRadius:8, border:`1.5px solid ${devolucaoMaterial === 'nao' ? '#0F766E' : '#CDD8E3'}`, background: devolucaoMaterial === 'nao' ? '#0F766E' : '#fff', color: devolucaoMaterial === 'nao' ? '#fff' : '#1A2340', fontSize:13, fontWeight:700, cursor:'pointer' }}>Não</button>
+            </div>
+            {devolucaoMaterial === 'sim' && (
+              <input value={qualDevolucao} onChange={e => setQualDevolucao(e.target.value)} placeholder="Qual material?"
+                style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340' }} />
+            )}
+          </div>
+
+          <div>
+            <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, textTransform:'uppercase', marginBottom:6 }}>Itens faltantes</div>
+            <textarea value={itensFaltantes} onChange={e => setItensFaltantes(e.target.value)} rows={2}
+              style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', resize:'vertical' }} />
+          </div>
+
+          <div>
+            <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, textTransform:'uppercase', marginBottom:8 }}>Lacres</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              <div>
+                <div style={{ fontSize:11, color:'#64748B', marginBottom:4 }}>Lacre de aço (nº)</div>
+                <input value={lacreAco} onChange={e => setLacreAco(e.target.value)}
+                  style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340' }} />
+              </div>
+              <div>
+                <div style={{ fontSize:11, color:'#64748B', marginBottom:4 }}>Lacre de papel (nº)</div>
+                <input value={lacrePapel} onChange={e => setLacrePapel(e.target.value)}
+                  style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340' }} />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, textTransform:'uppercase', marginBottom:6 }}>Protocolo de segurança — nome de quem atendeu (verificação do alarme)</div>
+            <input value={protocoloNome} onChange={e => setProtocoloNome(e.target.value)}
+              style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340' }} />
+          </div>
+
+          <button onClick={salvarChecklist} disabled={salvando}
+            style={{ width:'100%', padding:13, background: salvando ? '#94A3B8' : '#0F766E', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:700, cursor:'pointer' }}>
+            {salvando ? 'Salvando...' : salvo ? '✓ Checklist salvo' : 'Salvar checklist'}
+          </button>
         </div>
       )}
     </div>
@@ -9154,7 +9476,7 @@ export default function App() {
               const etapasM = Array.isArray(modal.etapas_instalacao) ? modal.etapas_instalacao : []
               const impedimentosM = Array.isArray(modal.impedimentos_instalacao) ? modal.impedimentos_instalacao : []
               const solicitacoesM = Array.isArray(modal.solicitacoes_alteracao) ? modal.solicitacoes_alteracao : []
-              if (etapasM.length === 0 && impedimentosM.length === 0 && solicitacoesM.length === 0) return null
+              if (etapasM.length === 0 && impedimentosM.length === 0 && solicitacoesM.length === 0 && !modal.checklist_obra) return null
               return (
               <div style={{ background:'#F0F4F8', borderRadius:12, padding:14, marginBottom:16 }}>
                 <div style={{ fontSize:12, color:'#2D3A8C', fontWeight:700, marginBottom:10 }}>📊 Relatório do técnico — andamento da instalação</div>
@@ -9230,6 +9552,29 @@ export default function App() {
                       </div>
                     ))}
                     {erroEnvioAlteracao && <div style={{ fontSize:12, color:'#DC2626' }}>{erroEnvioAlteracao}</div>}
+                  </div>
+                )}
+                {modal.checklist_obra && (
+                  <div style={{ marginTop: (etapasM.length || impedimentosM.length || solicitacoesM.length) ? 12 : 0 }}>
+                    <div style={{ fontSize:11, color:'#2D3A8C', fontWeight:700, marginBottom:6 }}>
+                      📋 Check List da Obra — preenchido por {modal.checklist_obra.preenchido_por} em {new Date(modal.checklist_obra.preenchido_em).toLocaleString('pt-BR')}
+                    </div>
+                    {(() => {
+                      const c = modal.checklist_obra
+                      const todos = { ...(c.acessoriosAtm || {}), ...(c.acessoriosAlarme || {}), ...(c.comunicacaoVisual || {}) }
+                      const problemasChecklist = Object.entries(todos).filter(([, v]) => v === 'problema')
+                      if (problemasChecklist.length === 0) return <div style={{ fontSize:12, color:'#065F46' }}>✅ Nenhum problema reportado no checklist.</div>
+                      return (
+                        <div style={{ background:'#fff', border:'1px solid #FECACA', borderRadius:8, padding:'8px 10px' }}>
+                          <div style={{ fontSize:11, color:'#991B1B', fontWeight:700, marginBottom:4 }}>⚠ {problemasChecklist.length} problema(s) no checklist</div>
+                          {problemasChecklist.map(([item]) => (
+                            <div key={item} style={{ fontSize:11, color:'#7F1D1D', marginBottom:2 }}>
+                              {item}{(c.acessoriosAtmNotas?.[item] || c.acessoriosAlarmeNotas?.[item] || c.comunicacaoVisualNotas?.[item]) ? ` — ${c.acessoriosAtmNotas?.[item] || c.acessoriosAlarmeNotas?.[item] || c.comunicacaoVisualNotas?.[item]}` : ''}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })()}
                   </div>
                 )}
               </div>
