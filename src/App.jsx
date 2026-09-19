@@ -2447,9 +2447,9 @@ function PainelChecklistObra({ obra, usuario, onSalvar }) {
   return (
     <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #E0E8F0' }}>
       <button onClick={() => setAberto(v => !v)}
-        style={{ width:'100%', padding:10, background:'#fff', color:'#4A7FC1', border:'1px solid #BFDBFE', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <span>📋 Check List da Obra {c.preenchido_em ? '(preenchido)' : ''}</span>
-        <span>{aberto ? '▲' : '▼'}</span>
+        style={{ width:'100%', padding:14, background: c.preenchido_em ? '#065F46' : '#2D3A8C', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:700, cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow:'0 2px 6px rgba(0,0,0,.15)' }}>
+        <span>📋 Check List da Obra {c.preenchido_em ? '— ✓ preenchido' : '— pendente'}</span>
+        <span style={{ fontSize:16 }}>{aberto ? '▲' : '▼'}</span>
       </button>
       {aberto && (
         <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:14 }}>
