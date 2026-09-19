@@ -1938,8 +1938,13 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
     && obra.tipo !== 'DESATIVAÇÃO ATM' && obra.tipo !== 'SINALIZAÇÃO ATM'
   const [ecNome, setEcNome] = useState(obra.ec_nome || '')
   const [ecTelefone, setEcTelefone] = useState(obra.ec_telefone || '')
-  const [segurancaItens, setSegurancaItens] = useState(Array.isArray(obra.seguranca_itens) ? obra.seguranca_itens : [])
-  const [barreiraDissuasao, setBarreiraDissuasao] = useState(obra.barreira_dissuasao || false)
+  const segurancaItens = Array.isArray(obra.seguranca_itens) ? obra.seguranca_itens : []
+  const barreiraDissuasao = obra.barreira_dissuasao || false
+  // O que o ARS pediu chega congelado pro técnico (ele não pode mudar) - só o escritório edita
+  // isso, no modal grande. Ao lado, o técnico preenche o que foi realmente executado em campo,
+  // nos mesmos campos que o escritório já usa (Shirley, 2026-09-19).
+  const [segurancaItensCampo, setSegurancaItensCampo] = useState(Array.isArray(obra.seguranca_itens_campo) ? obra.seguranca_itens_campo : [])
+  const [barreiraDissuasaoCampo, setBarreiraDissuasaoCampo] = useState(obra.barreira_dissuasao_campo || false)
   const hora = temTelaOperacaoCampo(obra.rede, obra.tipo) ? obra.hora_inicio_obra_texto : null
   // Histórico de visitas já registradas nesse ponto (mesma fonte da tela "Dia da obra"), sem
   // contar a última (que é a que o líder está designando agora, mostrada abaixo) - o líder
@@ -2032,21 +2037,30 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
             <input value={ecTelefone} onChange={e => setEcTelefone(e.target.value)} placeholder="Telefone"
               style={{ padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
           </div>
-          <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:6 }}>O que o ARS solicitou (tipo de fixação / critérios de segurança)</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-            {[...ITENS_SEGURANCA_BANCO24H, 'Tem barreira de dissuasão'].map(item => {
-              const ehBarreira = item === 'Tem barreira de dissuasão'
-              const marcado = ehBarreira ? barreiraDissuasao : segurancaItens.includes(item)
-              return (
-                <label key={item} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontSize:13, color:'#1A2340' }}>
-                  <input type="checkbox" checked={marcado} onChange={e => {
-                    if (ehBarreira) setBarreiraDissuasao(e.target.checked)
-                    else setSegurancaItens(prev => e.target.checked ? [...prev, item] : prev.filter(i => i !== item))
-                  }} />
-                  {item}
-                </label>
-              )
-            })}
+          <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:6 }}>Critérios de segurança — o que o ARS pediu × o que foi executado em campo</div>
+          <div style={{ overflowX:'auto', marginBottom:4 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'minmax(150px, 220px) 70px 70px', gap:4, alignItems:'center' }}>
+              <div></div>
+              <div style={{ fontSize:9, color:'#4A7FC1', fontWeight:700, textAlign:'center', lineHeight:1.2 }}>Pedido no ARS</div>
+              <div style={{ fontSize:9, color:'#4A7FC1', fontWeight:700, textAlign:'center', lineHeight:1.2 }}>Feito em campo</div>
+              {[...ITENS_SEGURANCA_BANCO24H, 'Tem barreira de dissuasão'].map(item => {
+                const ehBarreira = item === 'Tem barreira de dissuasão'
+                const arsMarcado = ehBarreira ? barreiraDissuasao : segurancaItens.includes(item)
+                const campoMarcado = ehBarreira ? barreiraDissuasaoCampo : segurancaItensCampo.includes(item)
+                return (
+                  <React.Fragment key={item}>
+                    <span style={{ fontSize:12, color:'#1A2340' }}>{item}</span>
+                    <div style={{ textAlign:'center', fontSize:14 }}>{arsMarcado ? '✅' : '—'}</div>
+                    <div style={{ textAlign:'center' }}>
+                      <input type="checkbox" checked={campoMarcado} onChange={e => {
+                        if (ehBarreira) setBarreiraDissuasaoCampo(e.target.checked)
+                        else setSegurancaItensCampo(prev => e.target.checked ? [...prev, item] : prev.filter(i => i !== item))
+                      }} />
+                    </div>
+                  </React.Fragment>
+                )
+              })}
+            </div>
           </div>
         </div>
       )}
@@ -2064,8 +2078,8 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
         if (temArs) {
           campos.ec_nome = ecNome.trim() || null
           campos.ec_telefone = ecTelefone.trim() || null
-          campos.seguranca_itens = segurancaItens.length > 0 ? segurancaItens : null
-          campos.barreira_dissuasao = barreiraDissuasao
+          campos.seguranca_itens_campo = segurancaItensCampo.length > 0 ? segurancaItensCampo : null
+          campos.barreira_dissuasao_campo = barreiraDissuasaoCampo
         }
         const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
         if (!error) { onSalvar(obra.id, campos); setSalvo(true); setTimeout(() => setSalvo(false), 2500) }
