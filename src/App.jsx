@@ -3658,7 +3658,7 @@ export default function App() {
     alert('Senha atualizada com sucesso! Você já está logado.')
   }
 
-  useEffect(() => { if (usuario) carregarObras() }, [usuario])
+  useEffect(() => { if (usuario && papel !== null) carregarObras(papel) }, [usuario, papel])
   useEffect(() => { if (usuario && EMAILS_CUSTOS_DESPESAS.includes(usuario.email)) carregarContasPagar() }, [usuario])
   // Alíquota de ISS por CNPJ do tomador (Shirley/Aline, 2026-09-09) - vem da planilha própria deles
   // (ALIQUOTA ISS, aba FORNECEDOR: 1 CNPJ da Tecban por município/filial), não da base oficial
@@ -4267,15 +4267,27 @@ export default function App() {
     return [...lista].sort((a, b) => a.tipo.localeCompare(b.tipo) || a.nome.localeCompare(b.nome))
   }
 
-  async function carregarObras() {
+  // Colunas que a tela do líder/técnico realmente usa (Atividades Programadas + Frota) - exclui
+  // os campos pesados/irrelevantes pra eles (valor, pedido_*, custos_terceirizados,
+  // despesas_pessoal etc.), sem cortar nenhuma linha (a Frota precisa achar QUALQUER obra pelo id
+  // pra mostrar o nome em viagens antigas, mesmo já finalizada - só o tamanho de cada linha cai).
+  // Shirley, 2026-09-21: "esse problema de lentidão não pode acontecer" - líder/técnico em campo,
+  // muitas vezes em conexão ruim, baixava a tabela inteira (1000+ obras, com jsonb pesado) igual
+  // ao escritório, que precisa de tudo pras abas de Financeiro/Histórico.
+  const COLUNAS_OBRAS_CAMPO = 'id,nome,tipo,rede,numero_pc,sige,local,endereco,cidade,uf,status,hora_inicio_obra_texto,data_inicio_obra_texto,data_obra_inicio,data_vistoria,data_etapa2,data_etapa3,registros_operacao_campo,ec_nome,ec_telefone,seguranca_itens,seguranca_itens_campo,barreira_dissuasao,barreira_dissuasao_campo,foto_local_instalacao,etapas_instalacao,impedimentos_instalacao,solicitacoes_alteracao,checklist_obra,lembretes,atualizado_em,atualizado_por'
+
+  async function carregarObras(papelAtual) {
     // O Supabase/PostgREST corta em 1000 linhas por padrão - com a tabela passando de 1000 obras
     // (Shirley, 2026-08-19: BTG FLUMINENSE FOOTBALL CLUB existia no banco mas nunca aparecia no app,
     // pq ficava depois do corte), precisa paginar com .range() até a página vir vazia/incompleta.
     const TAMANHO_PAGINA = 1000
+    const ehCampo = papelAtual === 'lider_campo' || papelAtual === 'operacional'
     let todas = []
     let pagina = 0
     while (true) {
-      const { data, error } = await supabase.rpc('pipeline_obras_seguro')
+      let query = supabase.rpc('pipeline_obras_seguro')
+      if (ehCampo) query = query.select(COLUNAS_OBRAS_CAMPO)
+      const { data, error } = await query
         .range(pagina * TAMANHO_PAGINA, pagina * TAMANHO_PAGINA + TAMANHO_PAGINA - 1)
       if (error) {
         console.error('Erro ao carregar obras:', error)
