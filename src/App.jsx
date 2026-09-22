@@ -1335,6 +1335,10 @@ function tiposDaMesmaFamilia(tipo) {
 // exemplos reais próprios primeiro.
 const ETAPAS_INSTALACAO_ATM = [
   { id: 'chegada', label: 'Cheguei no local' },
+  // Passo de validação entre chegar e começar o serviço - antes disso não estava claro se o
+  // técnico tinha autorização confirmada (do EC/cliente) e se o tipo de fixação combinado batia
+  // com o que ele encontrou no local (Shirley, 2026-09-22).
+  { id: 'autorizacao', label: 'Autorizado a iniciar o serviço' },
   { id: 'base', label: 'Instalação da Base' },
   { id: 'equipamento', label: 'Instalação do Equipamento' },
   { id: 'cabeamento', label: 'Passagem de Cabeamento' },
@@ -1343,6 +1347,7 @@ const ETAPAS_INSTALACAO_ATM = [
   { id: 'finalizado', label: 'Finalizado' },
 ]
 const MOTIVOS_IMPEDIMENTO_POR_ETAPA = {
+  autorizacao: ['Autorização não confirmada com o EC/cliente', 'Tipo de fixação divergente do combinado', 'Local não estava pronto/liberado', 'Outro'],
   base: ['Local inadequado (laje/galeria ou passagem de esgoto)', 'EC não autoriza quebrar o piso', 'Outro'],
   equipamento: ['EC sem energia elétrica disponível', 'Local ainda em obras', 'Erro nas senhas para abertura do cofre', 'Outro'],
   cabeamento: ['Pé direito acima de 3m de altura', 'Outro'],
@@ -2036,18 +2041,27 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
       setTimeout(() => { setDespesaSalva(false); setMostrarDespesa(false) }, 2000)
     }
   }
+  // Resumo do tipo de fixação pedido no ARS, pra aparecer já de cara junto com local/endereço/
+  // data - antes só aparecia escondido dentro da tabela de critérios, lá embaixo (Shirley,
+  // 2026-09-22: "o que precisa saber é o local endereço data horario e o tipo de fixação").
+  const tipoFixacaoResumo = segurancaItens.filter(i => i !== 'Tem barreira de dissuasão').join(', ')
   return (
     <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, marginBottom:10, padding:'12px 14px' }}>
-      <div style={{ fontSize:13, fontWeight:600, color:'#1A2340' }}>{obra.nome}</div>
-      <div style={{ fontSize:11, color:'#64748B', marginBottom:8 }}>
+      <div style={{ fontSize:16, fontWeight:700, color:'#1A2340' }}>{obra.nome}</div>
+      <div style={{ fontSize:13, color:'#64748B', marginBottom:8 }}>
         {obra.tipo}{(obra.numero_pc || obra.sige) ? ` · ${obra.rede === 'BRADESCO' ? 'BDN' : 'PC'} ${obra.numero_pc || obra.sige}` : ''}{obra.local ? ` · ${obra.local}` : ''}
       </div>
       {obra.endereco && (
-        <div style={{ fontSize:12, color:'#1A2340', marginBottom:8 }}>📍 {obra.endereco}</div>
+        <div style={{ fontSize:14, color:'#1A2340', marginBottom:8 }}>📍 {obra.endereco}</div>
       )}
-      <div style={{ fontSize:12, fontWeight:700, color: data ? '#1E40AF' : '#9A3412', marginBottom:10 }}>
+      <div style={{ fontSize:15, fontWeight:700, color: data ? '#1E40AF' : '#9A3412', marginBottom:10 }}>
         {data ? `📅 ${isoToBr(data)}${hora ? ` às ${hora}` : ''}` : '⚠ Sem data definida ainda'}
       </div>
+      {temArs && tipoFixacaoResumo && (
+        <div style={{ fontSize:14, fontWeight:700, color:'#1A2340', marginBottom:10, background:'#F8FAFC', border:'1px solid #E0E8F0', borderRadius:8, padding:'8px 10px' }}>
+          🔧 Fixação: {tipoFixacaoResumo}
+        </div>
+      )}
       {obra.foto_local_instalacao && (
         <div style={{ marginBottom:10 }}>
           <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>📷 Local de fixação do ATM</div>
@@ -2182,6 +2196,21 @@ function PainelAndamentoInstalacaoATM({ obra, usuario, onSalvar }) {
   const feitas = new Set(etapas.map(e => e.etapa))
   const proximaEtapa = ETAPAS_INSTALACAO_ATM.find(e => !feitas.has(e.id)) || null
   const impedimentosAbertos = impedimentos.filter(i => !i.resolvido)
+  const indiceProximaEtapa = proximaEtapa ? ETAPAS_INSTALACAO_ATM.findIndex(e => e.id === proximaEtapa.id) : ETAPAS_INSTALACAO_ATM.length - 1
+
+  // Tela virou "uma etapa por página" com letra grande, em vez da lista inteira de uma vez
+  // (Shirley, 2026-09-22: "ele pode ir passando pagina por pagina... letra e numero bem grande
+  // pra facilitar a visualização no celular"). Pula sozinho pra próxima etapa pendente sempre que
+  // uma nova etapa é marcada, mas o técnico ainda pode navegar livremente pra trás/frente com as
+  // setas pra conferir o que já foi feito.
+  const [pagina, setPagina] = useState(indiceProximaEtapa)
+  const feitasAnterioresRef = useRef(feitas.size)
+  useEffect(() => {
+    if (feitas.size !== feitasAnterioresRef.current) {
+      feitasAnterioresRef.current = feitas.size
+      setPagina(indiceProximaEtapa)
+    }
+  }, [feitas.size, indiceProximaEtapa])
 
   const [marcando, setMarcando] = useState(false)
   // Aviso de erro pra qualquer gravação deste painel (Shirley, 2026-09-22: uma gravação que falha
@@ -2310,44 +2339,30 @@ function PainelAndamentoInstalacaoATM({ obra, usuario, onSalvar }) {
     setSalvandoAlteracao(false)
   }
 
+  const etapaPagina = ETAPAS_INSTALACAO_ATM[pagina]
+  const feitaPagina = etapas.find(x => x.etapa === etapaPagina.id)
+  const ehAPendente = proximaEtapa?.id === etapaPagina.id
+  const aindaNaoChegou = !feitaPagina && !ehAPendente
+
   return (
     <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #E0E8F0' }}>
-      <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, marginBottom:8 }}>🏗️ Andamento da instalação</div>
+      <div style={{ fontSize:14, color:'#4A7FC1', fontWeight:700, marginBottom:10 }}>🏗️ Andamento da instalação</div>
       {erroPainel && (
         <div style={{ marginBottom:10, background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:8, padding:'8px 10px', display:'flex', alignItems:'center', gap:8 }}>
           <span style={{ fontSize:16 }}>⚠</span>
-          <span style={{ flex:1, fontSize:12, color:'#991B1B', fontWeight:600 }}>{erroPainel}</span>
+          <span style={{ flex:1, fontSize:13, color:'#991B1B', fontWeight:600 }}>{erroPainel}</span>
           <button onClick={() => setErroPainel('')} style={{ background:'none', border:'none', color:'#991B1B', fontSize:14, fontWeight:700, cursor:'pointer', padding:'0 4px' }}>×</button>
         </div>
       )}
-      <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:10 }}>
-        {ETAPAS_INSTALACAO_ATM.map(e => {
-          const feita = etapas.find(x => x.etapa === e.id)
-          return (
-            <div key={e.id} style={{ display:'flex', alignItems:'center', gap:8, fontSize:12 }}>
-              <span style={{ width:16 }}>{feita ? '✅' : '⬜'}</span>
-              <span style={{ flex:1, color: feita ? '#1A2340' : '#64748B' }}>{e.label}</span>
-              {feita ? (
-                <span style={{ color:'#64748B', fontSize:11 }}>{new Date(feita.hora).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</span>
-              ) : (proximaEtapa?.id === e.id) && (
-                <button onClick={() => marcarEtapa(e.id)} disabled={marcando}
-                  style={{ padding:'4px 10px', background: marcando ? '#ccc' : '#0F766E', color:'#fff', border:'none', borderRadius:6, fontSize:11, fontWeight:700, cursor:'pointer' }}>
-                  Marcar
-                </button>
-              )}
-            </div>
-          )
-        })}
-      </div>
 
       {impedimentosAbertos.length > 0 && (
-        <div style={{ marginBottom:10, background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:8, padding:'8px 10px' }}>
-          <div style={{ fontSize:11, color:'#991B1B', fontWeight:700, marginBottom:4 }}>⚠ Impedimento(s) em aberto</div>
+        <div style={{ marginBottom:12, background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:10, padding:'10px 12px' }}>
+          <div style={{ fontSize:14, color:'#991B1B', fontWeight:700, marginBottom:6 }}>⚠ Impedimento(s) em aberto</div>
           {impedimentosAbertos.map(i => (
-            <div key={i.id} style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, color:'#7F1D1D', marginBottom:4 }}>
+            <div key={i.id} style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:'#7F1D1D', marginBottom:6 }}>
               <span style={{ flex:1 }}>{ETAPAS_INSTALACAO_ATM.find(e => e.id === i.etapa)?.label}: {i.motivo} ({i.responsavel})</span>
               <button onClick={() => resolverImpedimento(i.id)} disabled={resolvendoId === i.id}
-                style={{ padding:'3px 8px', background:'#991B1B', color:'#fff', border:'none', borderRadius:6, fontSize:10, fontWeight:700, cursor:'pointer' }}>
+                style={{ padding:'7px 14px', background:'#991B1B', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer' }}>
                 Resolvido
               </button>
             </div>
@@ -2355,30 +2370,79 @@ function PainelAndamentoInstalacaoATM({ obra, usuario, onSalvar }) {
         </div>
       )}
 
-      {proximaEtapa && MOTIVOS_IMPEDIMENTO_POR_ETAPA[proximaEtapa.id] && (
-        <>
-          <button onClick={() => setMostrarImpedimento(v => !v)}
-            style={{ width:'100%', padding:8, background:'#fff', color:'#991B1B', border:'1px solid #FECACA', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', marginBottom:8 }}>
-            ⚠ {mostrarImpedimento ? 'Fechar' : 'Tive um problema'}
+      {/* Uma etapa por página, letra grande - navega com as setas pra ver o que já passou, e
+          avança sozinho pra próxima pendente assim que uma etapa nova é marcada (Shirley,
+          2026-09-22). */}
+      <div style={{ background:'#F8FAFC', border:'1px solid #E0E8F0', borderRadius:14, padding:16, marginBottom:12 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+          <button onClick={() => setPagina(p => Math.max(0, p - 1))} disabled={pagina === 0}
+            style={{ width:46, height:46, borderRadius:10, border:'1px solid #CDD8E3', background: pagina === 0 ? '#F1F5F9' : '#fff', color: pagina === 0 ? '#CBD5E1' : '#1A2340', fontSize:20, fontWeight:700, cursor: pagina === 0 ? 'default' : 'pointer' }}>
+            ◀
           </button>
+          <div style={{ fontSize:13, color:'#64748B', fontWeight:700, letterSpacing:0.5 }}>
+            ETAPA {pagina + 1} DE {ETAPAS_INSTALACAO_ATM.length}
+          </div>
+          <button onClick={() => setPagina(p => Math.min(ETAPAS_INSTALACAO_ATM.length - 1, p + 1))} disabled={pagina === ETAPAS_INSTALACAO_ATM.length - 1}
+            style={{ width:46, height:46, borderRadius:10, border:'1px solid #CDD8E3', background: pagina === ETAPAS_INSTALACAO_ATM.length - 1 ? '#F1F5F9' : '#fff', color: pagina === ETAPAS_INSTALACAO_ATM.length - 1 ? '#CBD5E1' : '#1A2340', fontSize:20, fontWeight:700, cursor: pagina === ETAPAS_INSTALACAO_ATM.length - 1 ? 'default' : 'pointer' }}>
+            ▶
+          </button>
+        </div>
+
+        <div style={{ textAlign:'center' }}>
+          <div style={{ fontSize:24, fontWeight:800, color: feitaPagina ? '#0F766E' : aindaNaoChegou ? '#94A3B8' : '#1A2340', marginBottom:12, lineHeight:1.25 }}>
+            {etapaPagina.label}
+          </div>
+
+          {feitaPagina && (
+            <div style={{ fontSize:17, color:'#0F766E', fontWeight:700 }}>
+              ✅ Feito às {new Date(feitaPagina.hora).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}
+            </div>
+          )}
+
+          {aindaNaoChegou && (
+            <div style={{ fontSize:16, color:'#94A3B8', fontWeight:600 }}>
+              ⏳ Ainda não chegou nessa etapa
+            </div>
+          )}
+
+          {ehAPendente && (
+            <div style={{ display:'flex', flexDirection:'column', gap:10, marginTop:4 }}>
+              <button onClick={() => marcarEtapa(etapaPagina.id)} disabled={marcando}
+                style={{ width:'100%', padding:18, background: marcando ? '#94A3B8' : '#0F766E', color:'#fff', border:'none', borderRadius:12, fontSize:19, fontWeight:800, cursor:'pointer' }}>
+                {marcando ? 'Salvando...' : '✓ Marcar'}
+              </button>
+
+              {MOTIVOS_IMPEDIMENTO_POR_ETAPA[etapaPagina.id] && (
+                <button onClick={() => setMostrarImpedimento(v => !v)}
+                  style={{ width:'100%', padding:14, background:'#fff', color:'#991B1B', border:'2px solid #FECACA', borderRadius:12, fontSize:16, fontWeight:700, cursor:'pointer' }}>
+                  ⚠ {mostrarImpedimento ? 'Fechar' : 'Tive um problema'}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {ehAPendente && mostrarImpedimento && MOTIVOS_IMPEDIMENTO_POR_ETAPA[proximaEtapa.id] && (
+        <>
           {mostrarImpedimento && (
             <div style={{ marginBottom:10, background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:8, padding:10 }}>
-              <div style={{ fontSize:11, color:'#7F1D1D', marginBottom:6 }}>Etapa: {proximaEtapa.label}</div>
+              <div style={{ fontSize:13, color:'#7F1D1D', marginBottom:6, fontWeight:700 }}>Etapa: {proximaEtapa.label}</div>
               <select value={impMotivo} onChange={e => setImpMotivo(e.target.value)}
-                style={{ width:'100%', padding:'7px 8px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', marginBottom:8, background:'#fff' }}>
+                style={{ width:'100%', padding:'10px 8px', border:'1px solid #FECACA', borderRadius:8, fontSize:14, color:'#1A2340', marginBottom:8, background:'#fff' }}>
                 <option value="">Selecione o motivo</option>
                 {MOTIVOS_IMPEDIMENTO_POR_ETAPA[proximaEtapa.id].map(m => <option key={m}>{m}</option>)}
               </select>
               <select value={impResponsavel} onChange={e => setImpResponsavel(e.target.value)}
-                style={{ width:'100%', padding:'7px 8px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', marginBottom:8, background:'#fff' }}>
+                style={{ width:'100%', padding:'10px 8px', border:'1px solid #FECACA', borderRadius:8, fontSize:14, color:'#1A2340', marginBottom:8, background:'#fff' }}>
                 {RESPONSAVEIS_IMPEDIMENTO_INSTALACAO.map(r => <option key={r}>{r}</option>)}
               </select>
               <textarea value={impDescricao} onChange={e => setImpDescricao(e.target.value)} rows={2}
                 placeholder="Descreva o que realmente aconteceu"
-                style={{ width:'100%', padding:'7px 8px', border:'1px solid #FECACA', borderRadius:8, fontSize:12, color:'#1A2340', marginBottom:8, resize:'vertical', boxSizing:'border-box' }} />
+                style={{ width:'100%', padding:'10px 8px', border:'1px solid #FECACA', borderRadius:8, fontSize:14, color:'#1A2340', marginBottom:8, resize:'vertical', boxSizing:'border-box' }} />
               <input type="file" accept="image/*" onChange={e => handleImpFoto(e.target.files?.[0])} style={{ marginBottom:8 }} />
               <button onClick={salvarImpedimento} disabled={salvandoImpedimento || !impMotivo}
-                style={{ width:'100%', padding:9, background: (salvandoImpedimento || !impMotivo) ? '#ccc' : '#991B1B', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                style={{ width:'100%', padding:13, background: (salvandoImpedimento || !impMotivo) ? '#ccc' : '#991B1B', color:'#fff', border:'none', borderRadius:8, fontSize:15, fontWeight:700, cursor:'pointer' }}>
                 {salvandoImpedimento ? 'Salvando...' : 'Registrar impedimento'}
               </button>
             </div>
@@ -2387,25 +2451,25 @@ function PainelAndamentoInstalacaoATM({ obra, usuario, onSalvar }) {
       )}
 
       <button onClick={() => setMostrarAlteracao(v => !v)}
-        style={{ width:'100%', padding:8, background:'#fff', color:'#9A3412', border:'1px solid #FED7AA', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+        style={{ width:'100%', padding:12, background:'#fff', color:'#9A3412', border:'1px solid #FED7AA', borderRadius:8, fontSize:14, fontWeight:700, cursor:'pointer' }}>
         📋 {mostrarAlteracao ? 'Fechar' : 'Solicitar alteração (fixação/local)'}
       </button>
       {mostrarAlteracao && (
         <div style={{ marginTop:8, background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:8, padding:10 }}>
           <textarea value={altMotivo} onChange={e => setAltMotivo(e.target.value)} rows={3}
             placeholder="Explique o motivo da alteração (ex: não tem parede pra encostar o ATM)"
-            style={{ width:'100%', padding:'7px 8px', border:'1px solid #FED7AA', borderRadius:8, fontSize:12, color:'#1A2340', marginBottom:8, resize:'vertical', boxSizing:'border-box' }} />
+            style={{ width:'100%', padding:'10px 8px', border:'1px solid #FED7AA', borderRadius:8, fontSize:14, color:'#1A2340', marginBottom:8, resize:'vertical', boxSizing:'border-box' }} />
           <input type="file" accept="image/*" multiple onChange={e => handleAltFotos(e.target.files)} style={{ marginBottom:8 }} />
-          {altFotos.length > 0 && <div style={{ fontSize:11, color:'#9A3412', marginBottom:8 }}>{altFotos.length} foto(s) anexada(s)</div>}
+          {altFotos.length > 0 && <div style={{ fontSize:13, color:'#9A3412', marginBottom:8 }}>{altFotos.length} foto(s) anexada(s)</div>}
           <button onClick={salvarSolicitacaoAlteracao} disabled={salvandoAlteracao || !altMotivo.trim()}
-            style={{ width:'100%', padding:9, background: (salvandoAlteracao || !altMotivo.trim()) ? '#ccc' : '#9A3412', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+            style={{ width:'100%', padding:13, background: (salvandoAlteracao || !altMotivo.trim()) ? '#ccc' : '#9A3412', color:'#fff', border:'none', borderRadius:8, fontSize:15, fontWeight:700, cursor:'pointer' }}>
             {salvandoAlteracao ? 'Enviando...' : alteracaoEnviada ? '✓ Enviado pro escritório' : 'Enviar solicitação'}
           </button>
         </div>
       )}
 
       {solicitacoes.length > 0 && (
-        <div style={{ marginTop:10, fontSize:11, color:'#64748B', display:'flex', flexDirection:'column', gap:2 }}>
+        <div style={{ marginTop:10, fontSize:13, color:'#64748B', display:'flex', flexDirection:'column', gap:4 }}>
           {solicitacoes.map(s => (
             <div key={s.id}>
               {s.status === 'aprovado' ? '✅ Aprovado' : s.status === 'enviado' ? '📨 Enviado à Tecban, aguardando aprovação' : '⏳ Aguardando o escritório revisar'} — {new Date(s.criado_em).toLocaleDateString('pt-BR')}
