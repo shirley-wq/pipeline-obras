@@ -2217,6 +2217,11 @@ function PainelAndamentoInstalacaoATM({ obra, usuario, onSalvar }) {
         const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
         if (error) throw error
         onSalvar(obra.id, campos)
+      } else {
+        // Já estava gravada no banco (ex.: tentativa anterior salvou mas a tela local ainda não
+        // tinha recebido essa atualização) - sincroniza a tela com o que já está salvo, em vez de
+        // não fazer nada e deixar "Marcar" parecendo não responder pra sempre.
+        onSalvar(obra.id, { etapas_instalacao: listaFresca })
       }
     } catch (e) {
       setErroPainel('Não salvou (sem sinal ou erro de conexão) - toque em "Marcar" de novo.')
