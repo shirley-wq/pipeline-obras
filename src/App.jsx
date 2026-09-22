@@ -2184,6 +2184,12 @@ function PainelAndamentoInstalacaoATM({ obra, usuario, onSalvar }) {
   const impedimentosAbertos = impedimentos.filter(i => !i.resolvido)
 
   const [marcando, setMarcando] = useState(false)
+  // Aviso de erro pra qualquer gravação deste painel (Shirley, 2026-09-22: uma gravação que falha
+  // por instabilidade de rede/Supabase não pode acontecer em silêncio - o técnico precisa ver que
+  // não salvou e poder tentar de novo, em vez da tela só "voltar ao normal" sem explicação. Achado
+  // no teste do PC 1709: marcarEtapa lançava exceção sem try/catch quando o fetch-fresco falhava,
+  // e o clique simplesmente desaparecia sem gravar nada.
+  const [erroPainel, setErroPainel] = useState('')
   const [mostrarImpedimento, setMostrarImpedimento] = useState(false)
   const [impMotivo, setImpMotivo] = useState('')
   const [impResponsavel, setImpResponsavel] = useState('Tecban')
@@ -2200,13 +2206,20 @@ function PainelAndamentoInstalacaoATM({ obra, usuario, onSalvar }) {
 
   async function marcarEtapa(etapaId) {
     setMarcando(true)
-    const { data: fresh } = await supabase.from('pipeline_obras').select('etapas_instalacao').eq('id', obra.id).single()
-    const listaFresca = Array.isArray(fresh?.etapas_instalacao) ? fresh.etapas_instalacao : []
-    if (!listaFresca.some(e => e.etapa === etapaId)) {
-      const novaLista = [...listaFresca, { etapa: etapaId, hora: new Date().toISOString(), tecnico: usuario.email }]
-      const campos = { etapas_instalacao: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
-      const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
-      if (!error) onSalvar(obra.id, campos)
+    setErroPainel('')
+    try {
+      const { data: fresh, error: erroFetch } = await supabase.from('pipeline_obras').select('etapas_instalacao').eq('id', obra.id).single()
+      if (erroFetch) throw erroFetch
+      const listaFresca = Array.isArray(fresh?.etapas_instalacao) ? fresh.etapas_instalacao : []
+      if (!listaFresca.some(e => e.etapa === etapaId)) {
+        const novaLista = [...listaFresca, { etapa: etapaId, hora: new Date().toISOString(), tecnico: usuario.email }]
+        const campos = { etapas_instalacao: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+        const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
+        if (error) throw error
+        onSalvar(obra.id, campos)
+      }
+    } catch (e) {
+      setErroPainel('Não salvou (sem sinal ou erro de conexão) - toque em "Marcar" de novo.')
     }
     setMarcando(false)
   }
@@ -2219,31 +2232,43 @@ function PainelAndamentoInstalacaoATM({ obra, usuario, onSalvar }) {
   async function salvarImpedimento() {
     if (!impMotivo || !proximaEtapa) return
     setSalvandoImpedimento(true)
-    const { data: fresh } = await supabase.from('pipeline_obras').select('impedimentos_instalacao').eq('id', obra.id).single()
-    const listaFresca = Array.isArray(fresh?.impedimentos_instalacao) ? fresh.impedimentos_instalacao : []
-    const novoItem = {
-      id: Date.now(), etapa: proximaEtapa.id, motivo: impMotivo, responsavel: impResponsavel,
-      descricao: impDescricao.trim() || null, foto: impFoto || null,
-      hora_inicio: new Date().toISOString(), hora_fim: null, resolvido: false, tecnico: usuario.email,
-    }
-    const novaLista = [...listaFresca, novoItem]
-    const campos = { impedimentos_instalacao: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
-    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
-    if (!error) {
+    setErroPainel('')
+    try {
+      const { data: fresh, error: erroFetch } = await supabase.from('pipeline_obras').select('impedimentos_instalacao').eq('id', obra.id).single()
+      if (erroFetch) throw erroFetch
+      const listaFresca = Array.isArray(fresh?.impedimentos_instalacao) ? fresh.impedimentos_instalacao : []
+      const novoItem = {
+        id: Date.now(), etapa: proximaEtapa.id, motivo: impMotivo, responsavel: impResponsavel,
+        descricao: impDescricao.trim() || null, foto: impFoto || null,
+        hora_inicio: new Date().toISOString(), hora_fim: null, resolvido: false, tecnico: usuario.email,
+      }
+      const novaLista = [...listaFresca, novoItem]
+      const campos = { impedimentos_instalacao: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+      const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
+      if (error) throw error
       onSalvar(obra.id, campos)
       setImpMotivo(''); setImpDescricao(''); setImpFoto(''); setMostrarImpedimento(false)
+    } catch (e) {
+      setErroPainel('Não salvou o impedimento (sem sinal ou erro de conexão) - toque em "Salvar" de novo.')
     }
     setSalvandoImpedimento(false)
   }
 
   async function resolverImpedimento(id) {
     setResolvendoId(id)
-    const { data: fresh } = await supabase.from('pipeline_obras').select('impedimentos_instalacao').eq('id', obra.id).single()
-    const listaFresca = Array.isArray(fresh?.impedimentos_instalacao) ? fresh.impedimentos_instalacao : []
-    const novaLista = listaFresca.map(i => i.id === id ? { ...i, resolvido: true, hora_fim: new Date().toISOString() } : i)
-    const campos = { impedimentos_instalacao: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
-    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
-    if (!error) onSalvar(obra.id, campos)
+    setErroPainel('')
+    try {
+      const { data: fresh, error: erroFetch } = await supabase.from('pipeline_obras').select('impedimentos_instalacao').eq('id', obra.id).single()
+      if (erroFetch) throw erroFetch
+      const listaFresca = Array.isArray(fresh?.impedimentos_instalacao) ? fresh.impedimentos_instalacao : []
+      const novaLista = listaFresca.map(i => i.id === id ? { ...i, resolvido: true, hora_fim: new Date().toISOString() } : i)
+      const campos = { impedimentos_instalacao: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+      const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
+      if (error) throw error
+      onSalvar(obra.id, campos)
+    } catch (e) {
+      setErroPainel('Não salvou (sem sinal ou erro de conexão) - toque em "Resolver" de novo.')
+    }
     setResolvendoId(null)
   }
 
@@ -2258,19 +2283,24 @@ function PainelAndamentoInstalacaoATM({ obra, usuario, onSalvar }) {
   async function salvarSolicitacaoAlteracao() {
     if (!altMotivo.trim()) return
     setSalvandoAlteracao(true)
-    const { data: fresh } = await supabase.from('pipeline_obras').select('solicitacoes_alteracao').eq('id', obra.id).single()
-    const listaFresca = Array.isArray(fresh?.solicitacoes_alteracao) ? fresh.solicitacoes_alteracao : []
-    const novoItem = {
-      id: Date.now(), motivo: altMotivo.trim(), fotos: altFotos,
-      criado_em: new Date().toISOString(), criado_por: usuario.email, status: 'pendente',
-    }
-    const novaLista = [...listaFresca, novoItem]
-    const campos = { solicitacoes_alteracao: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
-    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
-    if (!error) {
+    setErroPainel('')
+    try {
+      const { data: fresh, error: erroFetch } = await supabase.from('pipeline_obras').select('solicitacoes_alteracao').eq('id', obra.id).single()
+      if (erroFetch) throw erroFetch
+      const listaFresca = Array.isArray(fresh?.solicitacoes_alteracao) ? fresh.solicitacoes_alteracao : []
+      const novoItem = {
+        id: Date.now(), motivo: altMotivo.trim(), fotos: altFotos,
+        criado_em: new Date().toISOString(), criado_por: usuario.email, status: 'pendente',
+      }
+      const novaLista = [...listaFresca, novoItem]
+      const campos = { solicitacoes_alteracao: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+      const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
+      if (error) throw error
       onSalvar(obra.id, campos)
       setAltMotivo(''); setAltFotos([]); setAlteracaoEnviada(true)
       setTimeout(() => { setAlteracaoEnviada(false); setMostrarAlteracao(false) }, 2500)
+    } catch (e) {
+      setErroPainel('Não salvou a solicitação (sem sinal ou erro de conexão) - toque em "Enviar" de novo.')
     }
     setSalvandoAlteracao(false)
   }
@@ -2278,6 +2308,13 @@ function PainelAndamentoInstalacaoATM({ obra, usuario, onSalvar }) {
   return (
     <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #E0E8F0' }}>
       <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, marginBottom:8 }}>🏗️ Andamento da instalação</div>
+      {erroPainel && (
+        <div style={{ marginBottom:10, background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:8, padding:'8px 10px', display:'flex', alignItems:'center', gap:8 }}>
+          <span style={{ fontSize:16 }}>⚠</span>
+          <span style={{ flex:1, fontSize:12, color:'#991B1B', fontWeight:600 }}>{erroPainel}</span>
+          <button onClick={() => setErroPainel('')} style={{ background:'none', border:'none', color:'#991B1B', fontSize:14, fontWeight:700, cursor:'pointer', padding:'0 4px' }}>×</button>
+        </div>
+      )}
       <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:10 }}>
         {ETAPAS_INSTALACAO_ATM.map(e => {
           const feita = etapas.find(x => x.etapa === e.id)
@@ -2407,6 +2444,7 @@ function PainelChecklistObra({ obra, usuario, onSalvar }) {
   const [protocoloNome, setProtocoloNome] = useState(c.protocoloNome || '')
   const [salvando, setSalvando] = useState(false)
   const [salvo, setSalvo] = useState(false)
+  const [erroChecklist, setErroChecklist] = useState('')
 
   function toggleOk(mapa, setMapa, item) {
     const atual = mapa[item] || 'ok'
@@ -2423,23 +2461,29 @@ function PainelChecklistObra({ obra, usuario, onSalvar }) {
 
   async function salvarChecklist() {
     setSalvando(true)
-    const checklist_obra = {
-      modeloEquipamento, numeroSerieAtm: numeroSerieAtm.trim(), idPositivaRg: idPositivaRg.trim(),
-      fechaduraA, fechaduraB,
-      acessoriosAtm, acessoriosAtmNotas, cpuTesteLigou, cpuTesteMotivo: cpuTesteMotivo.trim(),
-      acessoriosAlarme, acessoriosAlarmeNotas,
-      comunicacaoVisual, comunicacaoVisualNotas,
-      conectividade, ipModem: ipModem.trim(),
-      kosPresentes,
-      devolucaoMaterial, qualDevolucao: qualDevolucao.trim(),
-      itensFaltantes: itensFaltantes.trim(), lacreAco: lacreAco.trim(), lacrePapel: lacrePapel.trim(),
-      protocoloNome: protocoloNome.trim(),
-      preenchido_por: usuario.email, preenchido_em: new Date().toISOString(),
+    setErroChecklist('')
+    try {
+      const checklist_obra = {
+        modeloEquipamento, numeroSerieAtm: numeroSerieAtm.trim(), idPositivaRg: idPositivaRg.trim(),
+        fechaduraA, fechaduraB,
+        acessoriosAtm, acessoriosAtmNotas, cpuTesteLigou, cpuTesteMotivo: cpuTesteMotivo.trim(),
+        acessoriosAlarme, acessoriosAlarmeNotas,
+        comunicacaoVisual, comunicacaoVisualNotas,
+        conectividade, ipModem: ipModem.trim(),
+        kosPresentes,
+        devolucaoMaterial, qualDevolucao: qualDevolucao.trim(),
+        itensFaltantes: itensFaltantes.trim(), lacreAco: lacreAco.trim(), lacrePapel: lacrePapel.trim(),
+        protocoloNome: protocoloNome.trim(),
+        preenchido_por: usuario.email, preenchido_em: new Date().toISOString(),
+      }
+      const campos = { checklist_obra, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+      const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
+      if (error) throw error
+      onSalvar(obra.id, campos); setSalvo(true); setTimeout(() => setSalvo(false), 2500)
+    } catch (e) {
+      setErroChecklist('Não salvou o checklist (sem sinal ou erro de conexão) - toque em "Salvar checklist" de novo.')
     }
-    const campos = { checklist_obra, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
-    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
     setSalvando(false)
-    if (!error) { onSalvar(obra.id, campos); setSalvo(true); setTimeout(() => setSalvo(false), 2500) }
   }
 
   const problemas = totalProblemas()
@@ -2635,6 +2679,14 @@ function PainelChecklistObra({ obra, usuario, onSalvar }) {
             <input value={protocoloNome} onChange={e => setProtocoloNome(e.target.value)}
               style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340' }} />
           </div>
+
+          {erroChecklist && (
+            <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:8, padding:'8px 10px', display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ fontSize:16 }}>⚠</span>
+              <span style={{ flex:1, fontSize:12, color:'#991B1B', fontWeight:600 }}>{erroChecklist}</span>
+              <button onClick={() => setErroChecklist('')} style={{ background:'none', border:'none', color:'#991B1B', fontSize:14, fontWeight:700, cursor:'pointer', padding:'0 4px' }}>×</button>
+            </div>
+          )}
 
           <button onClick={salvarChecklist} disabled={salvando}
             style={{ width:'100%', padding:13, background: salvando ? '#94A3B8' : '#0F766E', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:700, cursor:'pointer' }}>
