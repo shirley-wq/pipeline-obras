@@ -74,6 +74,17 @@ function isoToBr(iso) {
 function normalizarBusca(s) {
   return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 }
+function fmtKm(v) {
+  return v == null || v === '' ? '—' : Number(v).toLocaleString('pt-BR')
+}
+// Placa sem espaço/hífen e em maiúsculo - usada pra comparar placas digitadas de jeitos diferentes
+// (ABC-1234, abc1234, ABC 1D23) na checagem de duplicidade do cadastro de veículos.
+function normalizarPlaca(p) {
+  return (p || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
+// Acima disso numa viagem só, pede confirmação (provável erro de digitação no odômetro).
+const KM_ALERTA_SALTO = 1000
+
 function fmtDuracao(inicioIso, fimIso) {
   if (!inicioIso || !fimIso) return null
   const min = Math.round((new Date(fimIso) - new Date(inicioIso)) / 60000)
@@ -107,6 +118,19 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
   const [painelViagens, setPainelViagens] = useState([])
   const [carregandoPainel, setCarregandoPainel] = useState(false)
   const [veiculosEmUso, setVeiculosEmUso] = useState({}) // placa -> registro aberto (de qualquer pessoa)
+
+  // Encerramento de viagem pela administração (Shirley, 2026-09-23) - quando o colaborador esquece
+  // a viagem aberta, ele fica travado (não abre outra) e o carro aparece "em uso". O escritório
+  // encerra pelo Painel informando o KM real do odômetro.
+  const [encerrandoAdm, setEncerrandoAdm] = useState(null) // registro aberto sendo encerrado
+  const [formEncerrarAdm, setFormEncerrarAdm] = useState({ km: '', data: '', hora: '' })
+  const [salvandoEncerrarAdm, setSalvandoEncerrarAdm] = useState(false)
+  const [erroEncerrarAdm, setErroEncerrarAdm] = useState('')
+
+  // Cadastro de veículos (Shirley, 2026-09-23) - antes só dava pra incluir carro direto no banco.
+  const [formVeiculo, setFormVeiculo] = useState(null) // { modo: 'novo'|'editar', placa, modelo, tipo, cor, km_atual }
+  const [salvandoVeiculo, setSalvandoVeiculo] = useState(false)
+  const [erroVeiculo, setErroVeiculo] = useState('')
 
   const [manutencoes, setManutencoes] = useState([])
   const [veiculoManutencaoAberto, setVeiculoManutencaoAberto] = useState(null)
@@ -162,6 +186,17 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
     setErroAbertura('')
     if (!veiculoEscolhido) { setErroAbertura('Escolha um veículo.'); return }
     if (!kmInicio || isNaN(Number(kmInicio))) { setErroAbertura('Informe o KM de saída.'); return }
+    // KM de saída não pode ser menor que o último KM registrado do carro (Shirley, 2026-09-23) -
+    // senão distorce km rodados e a previsão de manutenção. Lê do banco na hora, porque a lista
+    // da tela pode estar desatualizada se alguém acabou de fechar uma viagem com esse carro.
+    const { data: vAtual } = await supabase.from('frota_veiculos').select('km_atual').eq('placa', veiculoEscolhido.placa).limit(1)
+    const kmUltimo = vAtual && vAtual[0] && vAtual[0].km_atual != null ? Number(vAtual[0].km_atual) : null
+    if (kmUltimo != null && Number(kmInicio) < kmUltimo) {
+      setErroAbertura(`KM de saída (${fmtKm(kmInicio)}) é menor que o último KM registrado desse veículo (${fmtKm(kmUltimo)}). Confira o painel do carro. Se o último KM estiver errado, avise o escritório.`)
+      return
+    }
+    if (kmUltimo != null && Number(kmInicio) - kmUltimo > KM_ALERTA_SALTO &&
+      !window.confirm(`O KM informado (${fmtKm(kmInicio)}) está ${fmtKm(Number(kmInicio) - kmUltimo)} km acima do último registrado (${fmtKm(kmUltimo)}). Está correto?`)) return
     if (temObra && !obraId) { setErroAbertura('Escolha a obra, ou marque "Sem obra".'); return }
     if (!temObra && !motivoSemObra.trim()) { setErroAbertura('Descreva o motivo (compra de material, treino, etc.).'); return }
     setSalvandoAbertura(true)
@@ -217,6 +252,7 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
     if (!kmFim || isNaN(Number(kmFim))) { setErroFechamento('Informe o KM de chegada.'); return }
     const kmRodados = Number(kmFim) - Number(viagemAberta.km_inicio)
     if (kmRodados < 0) { setErroFechamento('KM de chegada não pode ser menor que o KM de saída (' + viagemAberta.km_inicio + ').'); return }
+    if (kmRodados > KM_ALERTA_SALTO && !window.confirm(`Essa viagem ficaria com ${fmtKm(kmRodados)} km rodados. Está correto?`)) return
     setSalvandoFechamento(true)
     const campos = {
       km_fim: Number(kmFim),
@@ -231,7 +267,7 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
     if (error) { setErroFechamento('Erro ao salvar: ' + error.message); return }
     // Mantém o KM atual do veículo sempre atualizado, pra previsão de manutenção por km funcionar
     // sem precisar recalcular varrendo o histórico de viagens toda hora (Shirley, 2026-09-14).
-    await supabase.from('frota_veiculos').update({ km_atual: Number(kmFim) }).eq('placa', viagemAberta.plate)
+    await atualizarKmVeiculo(viagemAberta.plate, Number(kmFim))
     setViagemAberta(null)
     setKmFim('')
     carregarTudo()
@@ -295,16 +331,132 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
     carregarTudo()
   }
 
+  // Só sobe o km_atual do veículo, nunca desce - evita que o fechamento de uma viagem antiga
+  // (ex.: encerrada depois pela adm) volte o odômetro pra trás. Correção pra baixo é feita
+  // manualmente na aba Veículos.
+  async function atualizarKmVeiculo(placa, km) {
+    const { data } = await supabase.from('frota_veiculos').select('km_atual').eq('placa', placa).limit(1)
+    const atual = data && data[0] && data[0].km_atual != null ? Number(data[0].km_atual) : null
+    if (atual == null || km > atual) {
+      await supabase.from('frota_veiculos').update({ km_atual: km }).eq('placa', placa)
+    }
+  }
+
+  async function recarregarVeiculos() {
+    const { data } = await supabase.from('frota_veiculos').select('*').order('placa')
+    setVeiculos(data || [])
+  }
+
   async function carregarPainel() {
     setCarregandoPainel(true)
-    const { data } = await supabase.from('frota_registros').select('*')
-      .eq('type', 'bordo').order('date', { ascending: false }).order('time', { ascending: false }).limit(60)
+    // Viagens em aberto vêm numa consulta separada (sem limite) - as "últimas 60" podem não
+    // incluir uma viagem esquecida aberta há vários dias.
+    const [{ data }, { data: abertas }] = await Promise.all([
+      supabase.from('frota_registros').select('*')
+        .eq('type', 'bordo').order('date', { ascending: false }).order('time', { ascending: false }).limit(60),
+      supabase.from('frota_registros').select('*').eq('type', 'bordo').eq('closed', false),
+    ])
     setPainelViagens(data || [])
+    const mapaUso = {}
+    ;(abertas || []).forEach(r => { mapaUso[r.plate] = r })
+    setVeiculosEmUso(mapaUso)
     setCarregandoPainel(false)
+  }
+
+  function abrirEncerrarAdm(r) {
+    setErroEncerrarAdm('')
+    setEncerrandoAdm(r)
+    setFormEncerrarAdm({ km: '', data: hojeIso(), hora: agoraHora() })
+  }
+
+  async function encerrarPelaAdm() {
+    const r = encerrandoAdm
+    if (!r) return
+    setErroEncerrarAdm('')
+    const km = Number(formEncerrarAdm.km)
+    if (!formEncerrarAdm.km || isNaN(km)) { setErroEncerrarAdm('Informe o KM de chegada (odômetro atual do carro).'); return }
+    if (km < Number(r.km_inicio)) { setErroEncerrarAdm(`KM de chegada não pode ser menor que o KM de saída (${fmtKm(r.km_inicio)}).`); return }
+    if (!formEncerrarAdm.data || !formEncerrarAdm.hora) { setErroEncerrarAdm('Informe data e hora da chegada.'); return }
+    if (`${formEncerrarAdm.data}T${formEncerrarAdm.hora}` < `${r.date}T${r.time}`) { setErroEncerrarAdm('A chegada não pode ser antes da saída.'); return }
+    const kmRodados = km - Number(r.km_inicio)
+    if (kmRodados > KM_ALERTA_SALTO && !window.confirm(`Essa viagem ficaria com ${fmtKm(kmRodados)} km rodados. Está correto?`)) return
+    setSalvandoEncerrarAdm(true)
+    // .eq('closed', false): se o próprio colaborador fechou nesse meio tempo, não sobrescreve.
+    const { data: atualizados, error } = await supabase.from('frota_registros').update({
+      km_fim: km,
+      km_rodados: kmRodados,
+      date_fim: formEncerrarAdm.data,
+      time_fim: formEncerrarAdm.hora,
+      fechado_por: `${usuario?.email || 'adm'} (adm)`,
+      closed: true,
+    }).eq('id', r.id).eq('closed', false).select()
+    setSalvandoEncerrarAdm(false)
+    if (error) { setErroEncerrarAdm('Erro ao salvar: ' + error.message); return }
+    if (!atualizados || atualizados.length === 0) {
+      setErroEncerrarAdm('Essa viagem já tinha sido encerrada (provavelmente pelo próprio colaborador). Atualizei a lista.')
+      carregarPainel()
+      return
+    }
+    await atualizarKmVeiculo(r.plate, km)
+    if (r.collab === nomeCompleto) setViagemAberta(null)
+    setEncerrandoAdm(null)
+    await Promise.all([carregarPainel(), recarregarVeiculos()])
+  }
+
+  async function salvarVeiculo() {
+    const f = formVeiculo
+    if (!f) return
+    setErroVeiculo('')
+    const kmNum = f.km_atual === '' || f.km_atual == null ? null : Number(f.km_atual)
+    if (kmNum != null && (isNaN(kmNum) || kmNum < 0)) { setErroVeiculo('KM atual inválido.'); return }
+    if (!f.modelo.trim()) { setErroVeiculo('Informe o modelo.'); return }
+    setSalvandoVeiculo(true)
+    let error
+    if (f.modo === 'novo') {
+      const norm = normalizarPlaca(f.placa)
+      // Placa antiga (ABC1234) ou Mercosul (ABC1D23)
+      if (!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(norm)) { setSalvandoVeiculo(false); setErroVeiculo('Placa inválida. Use o formato ABC1234 ou ABC1D23.'); return }
+      if (veiculos.some(v => normalizarPlaca(v.placa) === norm)) { setSalvandoVeiculo(false); setErroVeiculo('Já existe um veículo com essa placa.'); return }
+      // Segue o formato das placas já cadastradas (com ou sem hífen), pra bater com os outros lançamentos.
+      const usaHifen = veiculos.some(v => (v.placa || '').includes('-'))
+      const placa = usaHifen ? `${norm.slice(0, 3)}-${norm.slice(3)}` : norm
+      ;({ error } = await supabase.from('frota_veiculos').insert({
+        placa, modelo: f.modelo.trim(), tipo: f.tipo || 'carro', cor: f.cor.trim() || null, km_atual: kmNum,
+      }))
+    } else {
+      ;({ error } = await supabase.from('frota_veiculos').update({
+        modelo: f.modelo.trim(), tipo: f.tipo || 'carro', cor: f.cor.trim() || null, km_atual: kmNum,
+      }).eq('placa', f.placa))
+    }
+    setSalvandoVeiculo(false)
+    if (error) {
+      const faltaColuna = error.code === 'PGRST204' || /column/i.test(error.message)
+      setErroVeiculo(faltaColuna
+        ? 'O banco ainda não tem todas as colunas do cadastro de veículos. Rode o script frota_pacote1.sql no Supabase e tente de novo.'
+        : 'Erro ao salvar: ' + error.message)
+      return
+    }
+    setFormVeiculo(null)
+    recarregarVeiculos()
+  }
+
+  async function alternarAtivoVeiculo(v) {
+    const desativar = v.ativo !== false
+    if (desativar && veiculosEmUso[v.placa]) { alert(`Não dá pra desativar: ${v.placa} está em uso por ${veiculosEmUso[v.placa].collab}. Encerre a viagem antes.`); return }
+    if (desativar && !window.confirm(`Desativar ${v.placa}? Ele some da lista de escolha de veículo, mas o histórico é mantido.`)) return
+    const { error } = await supabase.from('frota_veiculos').update({ ativo: !desativar }).eq('placa', v.placa)
+    if (error) {
+      alert(/column/i.test(error.message) || error.code === 'PGRST204'
+        ? 'O banco ainda não tem a coluna "ativo". Rode o script frota_pacote1.sql no Supabase e tente de novo.'
+        : 'Erro ao salvar: ' + error.message)
+      return
+    }
+    recarregarVeiculos()
   }
 
   useEffect(() => {
     if (subaba === 'painel' && podeVerPainelGeral) carregarPainel()
+    if (subaba === 'veiculos' && podeVerPainelGeral) { recarregarVeiculos(); carregarPainel() }
   }, [subaba])
 
   // Pedágio/estacionamento (Sem Parar) - carregado por mês pra não puxar o histórico inteiro toda
@@ -328,6 +480,7 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
   if (carregando) return <div style={{ padding: 40, textAlign: 'center', color: '#888', fontSize: 14 }}>Carregando...</div>
 
   const veiculosFiltrados = veiculos
+    .filter(v => v.ativo !== false)
     .filter(v => !buscaVeiculo || `${v.placa} ${v.modelo}`.toLowerCase().includes(buscaVeiculo.toLowerCase()))
     .sort((a, b) => {
       const favA = favoritos.includes(a.placa) ? 0 : 1
@@ -361,6 +514,12 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
           <button onClick={() => setSubaba('pedagio')}
             style={{ padding: '8px 16px', border: 'none', borderRadius: 8, background: subaba === 'pedagio' ? '#7C2D12' : '#F1F5F9', color: subaba === 'pedagio' ? '#fff' : '#1A2340', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
             🛣️ Pedágio/Estacionamento
+          </button>
+        )}
+        {podeVerPainelGeral && (
+          <button onClick={() => setSubaba('veiculos')}
+            style={{ padding: '8px 16px', border: 'none', borderRadius: 8, background: subaba === 'veiculos' ? '#7C2D12' : '#F1F5F9', color: subaba === 'veiculos' ? '#fff' : '#1A2340', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            🚙 Veículos
           </button>
         )}
         {podeVerPainelGeral && (
@@ -478,7 +637,9 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
                     <input value={motivoSemObra} onChange={e => setMotivoSemObra(e.target.value)} placeholder="Motivo (compra de material, treino, etc.)"
                       style={{ ...inp, marginBottom: 10 }} />
                   )}
-                  <label style={{ fontSize: 11, color: '#4A7FC1', fontWeight: 600, display: 'block', marginBottom: 3 }}>KM de saída</label>
+                  <label style={{ fontSize: 11, color: '#4A7FC1', fontWeight: 600, display: 'block', marginBottom: 3 }}>
+                    KM de saída{veiculoEscolhido.km_atual != null && <span style={{ color: '#64748B', fontWeight: 400 }}> · último registrado: {fmtKm(veiculoEscolhido.km_atual)}</span>}
+                  </label>
                   <input type="number" value={kmInicio} onChange={e => setKmInicio(e.target.value)} placeholder="Ex: 45200" style={{ ...inp, marginBottom: 10 }} />
                   {erroAbertura && (
                     <div style={{ background: '#FEF2F2', border: '2px solid #DC2626', borderRadius: 8, padding: '10px 12px', marginBottom: 10, color: '#991B1B', fontSize: 13, fontWeight: 700 }}>
@@ -507,7 +668,7 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
             )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {veiculos.map(v => {
+            {veiculos.filter(v => v.ativo !== false).map(v => {
               const pior = piorStatusVeiculo(v.placa)
               const corResumo = pior ? COR_STATUS_MANUTENCAO[pior.status] : null
               const aberto = veiculoManutencaoAberto === v.placa
@@ -678,8 +839,155 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
         </div>
       )}
 
+      {subaba === 'veiculos' && podeVerPainelGeral && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1A2340' }}>Veículos cadastrados ({veiculos.filter(v => v.ativo !== false).length} ativos)</div>
+            {!formVeiculo && (
+              <button onClick={() => { setErroVeiculo(''); setFormVeiculo({ modo: 'novo', placa: '', modelo: '', tipo: 'carro', cor: '', km_atual: '' }) }}
+                style={{ padding: '8px 14px', background: '#7C2D12', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                + Novo veículo
+              </button>
+            )}
+          </div>
+
+          {formVeiculo && (
+            <div style={{ background: '#F8FAFC', border: '1px solid #E0E8F0', borderRadius: 12, padding: 14, marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#1A2340', marginBottom: 10 }}>
+                {formVeiculo.modo === 'novo' ? 'Novo veículo' : `Editar ${formVeiculo.placa}`}
+              </div>
+              {formVeiculo.modo === 'novo' && (
+                <>
+                  <label style={{ fontSize: 11, color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 3 }}>Placa</label>
+                  <input value={formVeiculo.placa} onChange={e => setFormVeiculo(f => ({ ...f, placa: e.target.value.toUpperCase() }))} placeholder="ABC1D23" maxLength={8} style={{ ...inp, marginBottom: 8 }} />
+                </>
+              )}
+              <label style={{ fontSize: 11, color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 3 }}>Modelo</label>
+              <input value={formVeiculo.modelo} onChange={e => setFormVeiculo(f => ({ ...f, modelo: e.target.value }))} placeholder="Ex: Fiat Strada 1.4" style={{ ...inp, marginBottom: 8 }} />
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 11, color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 3 }}>Tipo</label>
+                  <select value={formVeiculo.tipo} onChange={e => setFormVeiculo(f => ({ ...f, tipo: e.target.value }))} style={inp}>
+                    {Object.keys(TIPOS_ICONE).map(t => <option key={t} value={t}>{TIPOS_ICONE[t]} {t}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 11, color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 3 }}>Cor</label>
+                  <input value={formVeiculo.cor} onChange={e => setFormVeiculo(f => ({ ...f, cor: e.target.value }))} placeholder="Ex: Branco" style={inp} />
+                </div>
+              </div>
+              <label style={{ fontSize: 11, color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 3 }}>
+                KM atual (odômetro){formVeiculo.modo === 'editar' && <span style={{ fontWeight: 400 }}> · use pra corrigir um KM digitado errado</span>}
+              </label>
+              <input type="number" value={formVeiculo.km_atual} onChange={e => setFormVeiculo(f => ({ ...f, km_atual: e.target.value }))} style={{ ...inp, marginBottom: 10 }} />
+              {erroVeiculo && <div style={{ color: '#DC2626', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>⚠️ {erroVeiculo}</div>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setFormVeiculo(null)}
+                  style={{ flex: 1, padding: 10, background: '#F1F5F9', color: '#1A2340', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  Cancelar
+                </button>
+                <button onClick={salvarVeiculo} disabled={salvandoVeiculo}
+                  style={{ flex: 2, padding: 10, background: salvandoVeiculo ? '#94A3B8' : '#7C2D12', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: salvandoVeiculo ? 'default' : 'pointer' }}>
+                  {salvandoVeiculo ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {[...veiculos].sort((a, b) => ((a.ativo === false) - (b.ativo === false)) || a.placa.localeCompare(b.placa)).map(v => {
+              const inativo = v.ativo === false
+              const emUso = veiculosEmUso[v.placa]
+              return (
+                <div key={v.placa} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', border: '1px solid #E0E8F0', borderRadius: 8, background: inativo ? '#F8FAFC' : '#fff', opacity: inativo ? 0.6 : 1 }}>
+                  <span style={{ fontSize: 18 }}>{TIPOS_ICONE[v.tipo] || '🚗'}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#1A2340' }}>
+                      {v.placa}
+                      {inativo && <span style={{ fontSize: 9, fontWeight: 800, marginLeft: 6, padding: '2px 6px', borderRadius: 6, background: '#E2E8F0', color: '#475569' }}>INATIVO</span>}
+                      {emUso && <span style={{ fontSize: 9, fontWeight: 800, marginLeft: 6, padding: '2px 6px', borderRadius: 6, background: '#FFF7ED', color: '#9A3412' }}>EM USO</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#64748B' }}>{v.modelo || '—'}{v.cor ? ` · ${v.cor}` : ''} · KM {fmtKm(v.km_atual)}</div>
+                  </div>
+                  <button onClick={() => { setErroVeiculo(''); setFormVeiculo({ modo: 'editar', placa: v.placa, modelo: v.modelo || '', tipo: v.tipo || 'carro', cor: v.cor || '', km_atual: v.km_atual != null ? String(v.km_atual) : '' }) }}
+                    style={{ padding: '6px 10px', background: '#F1F5F9', color: '#1A2340', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                    Editar
+                  </button>
+                  <button onClick={() => alternarAtivoVeiculo(v)}
+                    style={{ padding: '6px 10px', background: inativo ? '#DCFCE7' : '#FEF2F2', color: inativo ? '#166534' : '#991B1B', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                    {inativo ? 'Reativar' : 'Desativar'}
+                  </button>
+                </div>
+              )
+            })}
+            {veiculos.length === 0 && <div style={{ textAlign: 'center', color: '#888', fontSize: 12, padding: 12 }}>Nenhum veículo cadastrado.</div>}
+          </div>
+        </div>
+      )}
+
       {subaba === 'painel' && podeVerPainelGeral && (
         <div>
+          {(() => {
+            const abertas = Object.values(veiculosEmUso).sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`))
+            if (abertas.length === 0) return null
+            return (
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#9A3412', marginBottom: 8 }}>🔓 Viagens em aberto ({abertas.length})</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {abertas.map(r => {
+                    const obra = r.obra_id ? (obras || []).find(o => o.id === r.obra_id) : null
+                    const horasAberta = Math.floor((new Date() - new Date(`${r.date}T${r.time}`)) / 3600000)
+                    const suspeita = horasAberta >= 12
+                    const editando = encerrandoAdm?.id === r.id
+                    return (
+                      <div key={r.id} style={{ background: suspeita ? '#FEF2F2' : '#FFF7ED', border: `2px solid ${suspeita ? '#DC2626' : '#FDBA74'}`, borderRadius: 10, padding: '10px 14px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#1A2340' }}>{r.collab}</div>
+                          <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 6, background: suspeita ? '#DC2626' : '#FDBA74', color: '#fff', whiteSpace: 'nowrap' }}>
+                            {suspeita ? `⚠️ ABERTA HÁ ${horasAberta >= 48 ? `${Math.floor(horasAberta / 24)} DIAS` : `${horasAberta}H`}` : 'EM ANDAMENTO'}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>🚗 {r.plate} · saída {r.time} ({isoToBr(r.date)}) - KM {fmtKm(r.km_inicio)}</div>
+                        <div style={{ fontSize: 11, color: '#4A7FC1', marginTop: 2 }}>{obra ? obra.nome : r.obs ? `Sem obra — ${r.obs}` : '—'}</div>
+                        {!editando ? (
+                          <button onClick={() => abrirEncerrarAdm(r)}
+                            style={{ marginTop: 8, padding: '6px 12px', background: '#9A3412', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                            🏁 Encerrar pela administração
+                          </button>
+                        ) : (
+                          <div style={{ marginTop: 10, background: '#fff', border: '1px solid #E0E8F0', borderRadius: 8, padding: 10 }}>
+                            <label style={{ fontSize: 11, color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 3 }}>KM de chegada (odômetro atual do carro)</label>
+                            <input type="number" value={formEncerrarAdm.km} onChange={e => setFormEncerrarAdm(f => ({ ...f, km: e.target.value }))} placeholder={`Mínimo ${fmtKm(r.km_inicio)}`} style={{ ...inp, marginBottom: 8 }} />
+                            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                              <div style={{ flex: 1 }}>
+                                <label style={{ fontSize: 11, color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 3 }}>Data da chegada</label>
+                                <input type="date" value={formEncerrarAdm.data} onChange={e => setFormEncerrarAdm(f => ({ ...f, data: e.target.value }))} style={inp} />
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <label style={{ fontSize: 11, color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 3 }}>Hora</label>
+                                <input type="time" value={formEncerrarAdm.hora} onChange={e => setFormEncerrarAdm(f => ({ ...f, hora: e.target.value }))} style={inp} />
+                              </div>
+                            </div>
+                            {erroEncerrarAdm && <div style={{ color: '#DC2626', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>⚠️ {erroEncerrarAdm}</div>}
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button onClick={() => setEncerrandoAdm(null)}
+                                style={{ flex: 1, padding: 9, background: '#F1F5F9', color: '#1A2340', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                                Cancelar
+                              </button>
+                              <button onClick={encerrarPelaAdm} disabled={salvandoEncerrarAdm}
+                                style={{ flex: 2, padding: 9, background: salvandoEncerrarAdm ? '#94A3B8' : '#9A3412', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: salvandoEncerrarAdm ? 'default' : 'pointer' }}>
+                                {salvandoEncerrarAdm ? 'Salvando...' : 'Confirmar encerramento'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
           <div style={{ fontSize: 13, fontWeight: 700, color: '#1A2340', marginBottom: 10 }}>Últimas viagens (todo mundo)</div>
           {carregandoPainel ? (
             <div style={{ textAlign: 'center', color: '#888', padding: 20 }}>Carregando...</div>
@@ -696,6 +1004,7 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
                     <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
                       🚗 {r.plate} · saída {r.time} ({isoToBr(r.date)}) - KM {r.km_inicio}
                       {r.closed && <> · chegada {r.time_fim} - KM {r.km_fim} · {r.km_rodados} km rodados{fmtDuracao(`${r.date}T${r.time}`, `${r.date_fim}T${r.time_fim}`) ? ` · ${fmtDuracao(`${r.date}T${r.time}`, `${r.date_fim}T${r.time_fim}`)}` : ''}</>}
+                      {r.closed && (r.fechado_por || '').endsWith('(adm)') && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 6, background: '#E0E7FF', color: '#3730A3' }}>ENCERRADA PELA ADM</span>}
                     </div>
                     <div style={{ fontSize: 11, color: '#4A7FC1', marginTop: 2 }}>{obra ? obra.nome : r.obs ? `Sem obra — ${r.obs}` : '—'}</div>
                   </div>
