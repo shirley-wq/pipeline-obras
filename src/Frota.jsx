@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 import { lerPdfSemParar, acharViagem } from './semParar'
+import Multas from './Multas'
 
 // Módulo de Frota dentro do Pipeline (Shirley, 2026-09-14) - registro OPERACIONAL de uso de
 // veículo (não é ponto oficial pra folha, isso continua no Ponto Mais). Reaproveita as tabelas
@@ -630,6 +631,12 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
           </button>
         )}
         {podeVerPainelGeral && (
+          <button onClick={() => setSubaba('multas')}
+            style={{ padding: '8px 16px', border: 'none', borderRadius: 8, background: subaba === 'multas' ? '#7C2D12' : '#F1F5F9', color: subaba === 'multas' ? '#fff' : '#1A2340', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            🚨 Multas
+          </button>
+        )}
+        {podeVerPainelGeral && (
           <button onClick={() => setSubaba('veiculos')}
             style={{ padding: '8px 16px', border: 'none', borderRadius: 8, background: subaba === 'veiculos' ? '#7C2D12' : '#F1F5F9', color: subaba === 'veiculos' ? '#fff' : '#1A2340', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
             🚙 Veículos
@@ -1046,6 +1053,10 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
             )
           })()}
         </div>
+      )}
+
+      {subaba === 'multas' && podeVerPainelGeral && (
+        <Multas usuario={usuario} veiculos={veiculos} obras={obras} />
       )}
 
       {subaba === 'veiculos' && podeVerPainelGeral && (
