@@ -547,7 +547,12 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
           .select('id', { count: 'exact', head: true }).eq('fatura_numero', res.fatura)
         existentes = count || 0
       }
-      setImportFatura({ nomeArquivo: arquivo.name, res, existentes })
+      // Faturas antigas trazem carros que já saíram da frota e não estão no cadastro - a tabela
+      // de pedágio exige placa cadastrada (chave estrangeira), então eles entram como inativos.
+      const { data: vs } = await supabase.from('frota_veiculos').select('placa')
+      const cadastradas = new Set((vs || []).map(v => normalizarPlaca(v.placa)))
+      const placasNovas = [...new Set(res.lancamentos.map(l => l.placa))].filter(pl => !cadastradas.has(normalizarPlaca(pl))).sort()
+      setImportFatura({ nomeArquivo: arquivo.name, res, existentes, placasNovas })
     } catch (err) {
       setImportFatura({ nomeArquivo: arquivo.name, erro: 'Não consegui ler esse PDF: ' + (err?.message || err) })
     }
@@ -562,6 +567,16 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
     if (imp.existentes > 0) {
       const { error } = await supabase.from('frota_pedagios_estacionamentos').delete().eq('fatura_numero', fatura)
       if (error) { setImportFatura(f => ({ ...f, salvando: false, erro: 'Erro ao apagar a importação anterior: ' + error.message })); return }
+    }
+    if (imp.placasNovas?.length) {
+      const { error: errV } = await supabase.from('frota_veiculos').insert(imp.placasNovas.map(pl => ({
+        placa: pl, modelo: 'Veículo antigo (cadastrado pela fatura Sem Parar)', tipo: 'carro', ativo: false, status: 'inativo',
+      })))
+      if (errV && errV.code !== '23505') {
+        setImportFatura(f => ({ ...f, salvando: false, erro: `Não consegui cadastrar os veículos antigos (${imp.placasNovas.join(', ')}): ${errV.message}` }))
+        return
+      }
+      recarregarVeiculos()
     }
     const linhas = imp.res.lancamentos.map(l => ({
       fatura_numero: fatura,
@@ -932,6 +947,11 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
                     {r.avisos.length > 0 && (
                       <div style={{ marginTop: 8, fontSize: 12, color: '#991B1B', fontWeight: 600 }}>
                         ⚠️ A leitura não bateu com a fatura, por isso não vou gravar. Me mande esse PDF para eu ajustar a leitura.
+                      </div>
+                    )}
+                    {importFatura.placasNovas?.length > 0 && !importFatura.ok && (
+                      <div style={{ marginTop: 8, fontSize: 12, color: '#1E40AF', fontWeight: 600 }}>
+                        ℹ️ {importFatura.placasNovas.length} veículo{importFatura.placasNovas.length > 1 ? 's' : ''} dessa fatura não {importFatura.placasNovas.length > 1 ? 'estão' : 'está'} no cadastro ({importFatura.placasNovas.join(', ')}). Ao gravar, {importFatura.placasNovas.length > 1 ? 'serão cadastrados' : 'será cadastrado'} como <b>inativo{importFatura.placasNovas.length > 1 ? 's' : ''}</b> na aba Veículos, para guardar o histórico.
                       </div>
                     )}
                     {importFatura.existentes > 0 && !importFatura.ok && (
