@@ -565,7 +565,10 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
     setImportFatura(f => ({ ...f, salvando: true, erro: '' }))
     const fatura = imp.res.fatura
     if (imp.existentes > 0) {
-      const { error } = await supabase.from('frota_pedagios_estacionamentos').delete().eq('fatura_numero', fatura)
+      // .select() devolve o que foi apagado: se a regra de acesso do banco não deixar apagar, o
+      // Supabase não dá erro, só apaga 0 linhas - aí a gravação abaixo completa o que falta sem
+      // duplicar (on conflict do nothing na chave fatura+placa+data+hora).
+      const { error } = await supabase.from('frota_pedagios_estacionamentos').delete().eq('fatura_numero', fatura).select('id')
       if (error) { setImportFatura(f => ({ ...f, salvando: false, erro: 'Erro ao apagar a importação anterior: ' + error.message })); return }
     }
     if (imp.placasNovas?.length) {
@@ -590,8 +593,19 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
         : l.tipo === 'estabelecimento' && l.litros ? `${l.local} (${String(l.litros).replace('.', ',')} L)` : l.local,
       valor: l.valor,
     }))
-    for (let i = 0; i < linhas.length; i += 500) {
-      const { error } = await supabase.from('frota_pedagios_estacionamentos').insert(linhas.slice(i, i + 500))
+    // Mesma placa + data + hora duas vezes na mesma fatura não cabe na chave única do banco;
+    // junta somando o valor (não se perde centavo).
+    const porChave = new Map()
+    linhas.forEach(l => {
+      const k = [l.placa, l.data, l.hora].join('|')
+      const ex = porChave.get(k)
+      if (ex) { ex.valor = Math.round((Number(ex.valor) + Number(l.valor)) * 100) / 100; ex.local = ex.local === l.local ? ex.local : `${ex.local} + ${l.local}` }
+      else porChave.set(k, { ...l })
+    })
+    const linhasUnicas = [...porChave.values()]
+    for (let i = 0; i < linhasUnicas.length; i += 500) {
+      const { error } = await supabase.from('frota_pedagios_estacionamentos')
+        .upsert(linhasUnicas.slice(i, i + 500), { onConflict: 'fatura_numero,placa,data,hora', ignoreDuplicates: true })
       if (error) {
         setImportFatura(f => ({ ...f, salvando: false, erro: `Erro ao gravar (parte ${i / 500 + 1}): ${error.message}. Tente importar de novo - a fatura será substituída inteira.` }))
         return
@@ -599,7 +613,15 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
     }
     const meses = [...new Set(linhas.map(l => l.data.slice(0, 7)))].sort()
     const mesPrincipal = meses.reduce((a, m) => (linhas.filter(l => l.data.startsWith(m)).length > linhas.filter(l => l.data.startsWith(a)).length ? m : a), meses[0])
-    setImportFatura(f => ({ ...f, salvando: false, ok: `Fatura ${fatura} importada: ${linhas.length} lançamentos.` }))
+    // Confere o que ficou no banco para essa fatura
+    const { count: noBanco } = await supabase.from('frota_pedagios_estacionamentos')
+      .select('id', { count: 'exact', head: true }).eq('fatura_numero', fatura)
+    const sobra = (noBanco || 0) - linhasUnicas.length
+    setImportFatura(f => ({
+      ...f, salvando: false,
+      ok: `Fatura ${fatura} importada: ${linhasUnicas.length} lançamentos no banco.`,
+      erro: sobra > 0 ? `Atenção: ficaram ${sobra} lançamento(s) antigo(s) dessa fatura que o banco não deixou apagar. Avise a Shirley.` : '',
+    }))
     if (mesPrincipal && mesPrincipal !== mesFiltroPedagio) setMesFiltroPedagio(mesPrincipal)
     else carregarPedagios()
   }
