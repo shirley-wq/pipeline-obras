@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
+import { lerPdfSemParar, acharViagem } from './semParar'
 
 // Módulo de Frota dentro do Pipeline (Shirley, 2026-09-14) - registro OPERACIONAL de uso de
 // veículo (não é ponto oficial pra folha, isso continua no Ponto Mais). Reaproveita as tabelas
@@ -164,6 +165,12 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
   const [carregandoPedagios, setCarregandoPedagios] = useState(false)
   const [mesFiltroPedagio, setMesFiltroPedagio] = useState(hojeIso().slice(0, 7))
   const [veiculoPedagioAberto, setVeiculoPedagioAberto] = useState(null)
+  // Importação da fatura Sem Parar pelo próprio app + cruzamento com as viagens (Shirley,
+  // 2026-09-23) - antes a fatura era salva no Drive por automação, mas os lançamentos só
+  // entravam no Pipeline quando alguém pedia pro Claude.
+  const [viagensPedagio, setViagensPedagio] = useState([]) // viagens que tocam o mês filtrado
+  const [importFatura, setImportFatura] = useState(null) // { lendo, erro, res, existentes, salvando, ok }
+  const [agrupPedagio, setAgrupPedagio] = useState('placa') // 'placa' | 'obra' | 'condutor'
 
   const nomeCompleto = meuRH ? `${meuRH.nome} ${meuRH.sobrenome || ''}`.trim() : (usuario?.email || '')
 
@@ -509,15 +516,77 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
     const [ano, mes] = mesFiltroPedagio.split('-').map(Number)
     const fimData = new Date(ano, mes, 0) // dia 0 do mes seguinte = ultimo dia do mes atual
     const fim = `${fimData.getFullYear()}-${String(fimData.getMonth() + 1).padStart(2, '0')}-${String(fimData.getDate()).padStart(2, '0')}`
-    const { data } = await supabase.from('frota_pedagios_estacionamentos').select('*')
-      .gte('data', inicio).lte('data', fim).order('placa').order('data').order('hora')
+    const [{ data }, { data: vgs }] = await Promise.all([
+      supabase.from('frota_pedagios_estacionamentos').select('*')
+        .gte('data', inicio).lte('data', fim).order('placa').order('data').order('hora'),
+      // Viagens que começaram até o fim do mês e não terminaram antes do início dele
+      // (inclui as ainda abertas) - base do cruzamento "quem estava com o carro".
+      supabase.from('frota_registros').select('id, plate, collab, obra_id, obs, date, time, date_fim, time_fim, closed')
+        .eq('type', 'bordo').lte('date', fim).or(`date_fim.gte.${inicio},closed.eq.false`),
+    ])
     setPedagios(data || [])
+    setViagensPedagio(vgs || [])
     setCarregandoPedagios(false)
   }
 
   useEffect(() => {
     if (subaba === 'pedagio' && podeVerPainelGeral) carregarPedagios()
   }, [subaba, mesFiltroPedagio])
+
+  async function lerFaturaSelecionada(e) {
+    const arquivo = e.target.files && e.target.files[0]
+    e.target.value = ''
+    if (!arquivo) return
+    setImportFatura({ lendo: true, nomeArquivo: arquivo.name })
+    try {
+      const res = await lerPdfSemParar(arquivo)
+      let existentes = 0
+      if (res.fatura) {
+        const { count } = await supabase.from('frota_pedagios_estacionamentos')
+          .select('id', { count: 'exact', head: true }).eq('fatura_numero', res.fatura)
+        existentes = count || 0
+      }
+      setImportFatura({ nomeArquivo: arquivo.name, res, existentes })
+    } catch (err) {
+      setImportFatura({ nomeArquivo: arquivo.name, erro: 'Não consegui ler esse PDF: ' + (err?.message || err) })
+    }
+  }
+
+  async function gravarFatura() {
+    const imp = importFatura
+    if (!imp?.res?.fatura || imp.res.avisos.length) return
+    if (imp.existentes > 0 && !window.confirm(`Essa fatura já tem ${imp.existentes} lançamentos gravados. Substituir pelos ${imp.res.lancamentos.length} lidos agora?`)) return
+    setImportFatura(f => ({ ...f, salvando: true, erro: '' }))
+    const fatura = imp.res.fatura
+    if (imp.existentes > 0) {
+      const { error } = await supabase.from('frota_pedagios_estacionamentos').delete().eq('fatura_numero', fatura)
+      if (error) { setImportFatura(f => ({ ...f, salvando: false, erro: 'Erro ao apagar a importação anterior: ' + error.message })); return }
+    }
+    const linhas = imp.res.lancamentos.map(l => ({
+      fatura_numero: fatura,
+      placa: l.placa,
+      tipo: l.tipo === 'estabelecimento' ? 'abastecimento' : l.tipo,
+      data: l.data,
+      hora: l.hora,
+      data_saida: l.data_saida || null,
+      hora_saida: l.hora_saida || null,
+      local: l.tipo === 'pedagio' && l.concessionaria ? `${l.local} (${l.concessionaria})`
+        : l.tipo === 'estabelecimento' && l.litros ? `${l.local} (${String(l.litros).replace('.', ',')} L)` : l.local,
+      valor: l.valor,
+    }))
+    for (let i = 0; i < linhas.length; i += 500) {
+      const { error } = await supabase.from('frota_pedagios_estacionamentos').insert(linhas.slice(i, i + 500))
+      if (error) {
+        setImportFatura(f => ({ ...f, salvando: false, erro: `Erro ao gravar (parte ${i / 500 + 1}): ${error.message}. Tente importar de novo - a fatura será substituída inteira.` }))
+        return
+      }
+    }
+    const meses = [...new Set(linhas.map(l => l.data.slice(0, 7)))].sort()
+    const mesPrincipal = meses.reduce((a, m) => (linhas.filter(l => l.data.startsWith(m)).length > linhas.filter(l => l.data.startsWith(a)).length ? m : a), meses[0])
+    setImportFatura(f => ({ ...f, salvando: false, ok: `Fatura ${fatura} importada: ${linhas.length} lançamentos.` }))
+    if (mesPrincipal && mesPrincipal !== mesFiltroPedagio) setMesFiltroPedagio(mesPrincipal)
+    else carregarPedagios()
+  }
 
   if (carregando) return <div style={{ padding: 40, textAlign: 'center', color: '#888', fontSize: 14 }}>Carregando...</div>
 
@@ -817,42 +886,133 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#1A2340' }}>Pedágio e estacionamento (Sem Parar)</div>
-            <input type="month" value={mesFiltroPedagio} onChange={e => setMesFiltroPedagio(e.target.value)}
-              style={{ padding: '7px 10px', border: '1px solid #CDD8E3', borderRadius: 8, fontSize: 13, color: '#1A2340' }} />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <label style={{ padding: '7px 12px', background: '#7C2D12', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                📄 Importar fatura (PDF)
+                <input type="file" accept="application/pdf,.pdf" onChange={lerFaturaSelecionada} style={{ display: 'none' }} />
+              </label>
+              <input type="month" value={mesFiltroPedagio} onChange={e => setMesFiltroPedagio(e.target.value)}
+                style={{ padding: '7px 10px', border: '1px solid #CDD8E3', borderRadius: 8, fontSize: 13, color: '#1A2340' }} />
+            </div>
           </div>
+
+          {importFatura && (
+            <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: 12, padding: 14, marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1A2340' }}>📄 {importFatura.nomeArquivo}</div>
+                {!importFatura.lendo && !importFatura.salvando && <span onClick={() => setImportFatura(null)} style={{ cursor: 'pointer', color: '#64748B', fontWeight: 700 }}>✕</span>}
+              </div>
+              {importFatura.lendo && <div style={{ fontSize: 12, color: '#64748B' }}>Lendo a fatura...</div>}
+              {importFatura.res && (() => {
+                const r = importFatura.res
+                const d = r.declarado
+                const linha = (rot, k) => d[k] && (d[k].qtd != null || d[k].lidoQtd > 0) && (
+                  <div style={{ fontSize: 12, color: '#374151' }}>
+                    {rot}: <b>{d[k].lidoQtd}</b> lançamentos · <b>R$ {d[k].lidoValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</b>
+                    {d[k].qtd != null && (d[k].qtd === d[k].lidoQtd && Math.abs(d[k].valor - d[k].lidoValor) <= 0.01
+                      ? <span style={{ color: '#166534', fontWeight: 700 }}> ✓ bate com a fatura</span>
+                      : <span style={{ color: '#991B1B', fontWeight: 700 }}> ✗ fatura diz {d[k].qtd} / R$ {d[k].valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>)}
+                  </div>
+                )
+                return (
+                  <>
+                    <div style={{ fontSize: 12, color: '#64748B', marginBottom: 6 }}>
+                      Fatura <b>{r.fatura || '?'}</b>{r.emissao ? ` · emitida em ${isoToBr(r.emissao)}` : ''}{r.total != null ? ` · total R$ ${r.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''}
+                    </div>
+                    {linha('🛣️ Pedágios', 'pedagio')}
+                    {linha('🅿️ Estacionamentos', 'estacionamento')}
+                    {linha('⛽ Abastecimento (Sem Parar)', 'estabelecimento')}
+                    {r.avisos.length > 0 && (
+                      <div style={{ marginTop: 8, fontSize: 12, color: '#991B1B', fontWeight: 600 }}>
+                        ⚠️ A leitura não bateu com a fatura, por isso não vou gravar. Me mande esse PDF para eu ajustar a leitura.
+                      </div>
+                    )}
+                    {importFatura.existentes > 0 && !importFatura.ok && (
+                      <div style={{ marginTop: 8, fontSize: 12, color: '#92400E', fontWeight: 600 }}>
+                        Essa fatura já foi importada antes ({importFatura.existentes} lançamentos). Se gravar, a importação anterior é substituída.
+                      </div>
+                    )}
+                    {importFatura.erro && <div style={{ marginTop: 8, fontSize: 12, color: '#991B1B', fontWeight: 600 }}>⚠️ {importFatura.erro}</div>}
+                    {importFatura.ok ? (
+                      <div style={{ marginTop: 8, fontSize: 13, color: '#166534', fontWeight: 700 }}>✅ {importFatura.ok}</div>
+                    ) : r.avisos.length === 0 && r.fatura && (
+                      <button onClick={gravarFatura} disabled={importFatura.salvando}
+                        style={{ marginTop: 10, padding: '9px 16px', background: importFatura.salvando ? '#94A3B8' : '#166534', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: importFatura.salvando ? 'default' : 'pointer' }}>
+                        {importFatura.salvando ? 'Gravando...' : importFatura.existentes > 0 ? 'Substituir importação' : `Gravar ${r.lancamentos.length} lançamentos`}
+                      </button>
+                    )}
+                  </>
+                )
+              })()}
+              {!importFatura.res && importFatura.erro && <div style={{ fontSize: 12, color: '#991B1B', fontWeight: 600 }}>⚠️ {importFatura.erro}</div>}
+            </div>
+          )}
           {carregandoPedagios ? (
             <div style={{ textAlign: 'center', color: '#888', padding: 20 }}>Carregando...</div>
           ) : (() => {
+            // Cruzamento com as viagens: quem estava com o carro e qual obra (Shirley, 2026-09-23)
+            const viagensPorPlaca = {}
+            viagensPedagio.forEach(vg => { (viagensPorPlaca[vg.plate] = viagensPorPlaca[vg.plate] || []).push(vg) })
+            const nomeObra = id => (obras || []).find(o => o.id === id)?.nome || 'Obra não encontrada'
+            const cruzados = pedagios.map(p => {
+              const vg = acharViagem(p, viagensPorPlaca[p.placa])
+              return { ...p, viagem: vg, condutor: vg?.collab || null, obraNome: vg ? (vg.obra_id ? nomeObra(vg.obra_id) : `Sem obra${vg.obs ? ` — ${vg.obs}` : ''}`) : null }
+            })
+            const chaveGrupo = p => agrupPedagio === 'obra' ? (p.obraNome || '⚠️ Sem viagem registrada')
+              : agrupPedagio === 'condutor' ? (p.condutor || '⚠️ Sem viagem registrada') : p.placa
             const porPlaca = {}
-            pedagios.forEach(p => {
-              porPlaca[p.placa] = porPlaca[p.placa] || { pedagio: 0, estacionamento: 0, qtdPedagio: 0, qtdEstac: 0, itens: [] }
-              porPlaca[p.placa][p.tipo] += Number(p.valor)
-              porPlaca[p.placa][p.tipo === 'pedagio' ? 'qtdPedagio' : 'qtdEstac']++
-              porPlaca[p.placa].itens.push(p)
+            cruzados.forEach(p => {
+              const k = chaveGrupo(p)
+              porPlaca[k] = porPlaca[k] || { pedagio: 0, estacionamento: 0, abastecimento: 0, qtdPedagio: 0, qtdEstac: 0, qtdAbast: 0, itens: [] }
+              const tipo = ['pedagio', 'estacionamento', 'abastecimento'].includes(p.tipo) ? p.tipo : 'estacionamento'
+              porPlaca[k][tipo] += Number(p.valor)
+              porPlaca[k][tipo === 'pedagio' ? 'qtdPedagio' : tipo === 'abastecimento' ? 'qtdAbast' : 'qtdEstac']++
+              porPlaca[k].itens.push(p)
             })
             const totalGeral = pedagios.reduce((s, p) => s + Number(p.valor), 0)
-            const placas = Object.keys(porPlaca).sort()
+            const semViagem = cruzados.filter(p => !p.viagem)
+            const valorSemViagem = semViagem.reduce((s, p) => s + Number(p.valor), 0)
+            const placas = Object.keys(porPlaca).sort((a, b) => agrupPedagio === 'placa' ? a.localeCompare(b)
+              : (a.startsWith('⚠️') - b.startsWith('⚠️')) || (porPlaca[b].pedagio + porPlaca[b].estacionamento + porPlaca[b].abastecimento) - (porPlaca[a].pedagio + porPlaca[a].estacionamento + porPlaca[a].abastecimento))
             return (
               <>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#1A6B4A', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 8, padding: '8px 12px', marginBottom: 12, display: 'inline-block' }}>
-                  Total do mês: R$ {totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#1A6B4A', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 8, padding: '8px 12px' }}>
+                    Total do mês: R$ {totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </div>
+                  {pedagios.length > 0 && (
+                    <div style={{ fontSize: 12, fontWeight: 700, color: semViagem.length ? '#92400E' : '#166534', background: semViagem.length ? '#FFFBEB' : '#F0FDF4', border: `1px solid ${semViagem.length ? '#FCD34D' : '#86EFAC'}`, borderRadius: 8, padding: '8px 12px' }}>
+                      {semViagem.length
+                        ? `⚠️ ${semViagem.length} de ${pedagios.length} sem viagem registrada (R$ ${valorSemViagem.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`
+                        : '✓ Todos os lançamentos têm condutor identificado'}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                  {[['placa', '🚗 Por veículo'], ['obra', '🏗️ Por obra'], ['condutor', '👤 Por condutor']].map(([k, rot]) => (
+                    <span key={k} onClick={() => { setAgrupPedagio(k); setVeiculoPedagioAberto(null) }}
+                      style={{ padding: '5px 11px', borderRadius: 14, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: agrupPedagio === k ? '#7C2D12' : '#F1F5F9', color: agrupPedagio === k ? '#fff' : '#1A2340' }}>
+                      {rot}
+                    </span>
+                  ))}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {placas.map(placa => {
                     const v = porPlaca[placa]
                     const veic = veiculos.find(x => x.placa === placa)
                     const aberto = veiculoPedagioAberto === placa
-                    const total = v.pedagio + v.estacionamento
+                    const total = v.pedagio + v.estacionamento + v.abastecimento
                     return (
                       <div key={placa} style={{ background: '#fff', border: '1px solid #E0E8F0', borderRadius: 10, overflow: 'hidden' }}>
                         <div onClick={() => setVeiculoPedagioAberto(aberto ? null : placa)}
                           style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer' }}>
-                          <span style={{ fontSize: 18 }}>{TIPOS_ICONE[veic?.tipo] || '🚗'}</span>
+                          <span style={{ fontSize: 18 }}>{agrupPedagio === 'obra' ? (placa.startsWith('⚠️') ? '❓' : '🏗️') : agrupPedagio === 'condutor' ? (placa.startsWith('⚠️') ? '❓' : '👤') : (TIPOS_ICONE[veic?.tipo] || '🚗')}</span>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: '#1A2340' }}>{placa} {veic?.modelo ? <span style={{ fontWeight: 400, color: '#64748B' }}>· {veic.modelo}</span> : ''}</div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#1A2340' }}>{placa} {agrupPedagio === 'placa' && veic?.modelo ? <span style={{ fontWeight: 400, color: '#64748B' }}>· {veic.modelo}</span> : ''}</div>
                             <div style={{ fontSize: 11, color: '#64748B' }}>
                               {v.qtdPedagio > 0 && <>{v.qtdPedagio} pedágio{v.qtdPedagio > 1 ? 's' : ''}: R$ {v.pedagio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</>}
                               {v.qtdEstac > 0 && <>{v.qtdPedagio > 0 ? ' · ' : ''}{v.qtdEstac} estacionamento{v.qtdEstac > 1 ? 's' : ''}: R$ {v.estacionamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</>}
+                              {v.qtdAbast > 0 && <>{v.qtdPedagio + v.qtdEstac > 0 ? ' · ' : ''}{v.qtdAbast} abastec.: R$ {v.abastecimento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</>}
                             </div>
                           </div>
                           <div style={{ fontSize: 13, fontWeight: 800, color: '#1A2340' }}>R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
@@ -862,10 +1022,15 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
                           <div style={{ padding: '4px 14px 10px', maxHeight: 300, overflowY: 'auto' }}>
                             {v.itens.sort((a, b) => (a.data + (a.hora || '')).localeCompare(b.data + (b.hora || ''))).map(item => (
                               <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: '1px solid #F1F5F9', fontSize: 11 }}>
-                                <span>{item.tipo === 'pedagio' ? '🛣️' : '🅿️'}</span>
+                                <span>{item.tipo === 'pedagio' ? '🛣️' : item.tipo === 'abastecimento' ? '⛽' : '🅿️'}</span>
                                 <div style={{ flex: 1, minWidth: 0, color: '#374151' }}>
                                   <b>{isoToBr(item.data)}{item.hora ? ` ${item.hora}` : ''}</b> — {item.local}
                                   {item.tipo === 'estacionamento' && item.data_saida && <> (saída {isoToBr(item.data_saida)} {item.hora_saida})</>}
+                                  <div style={{ fontSize: 10, color: item.viagem ? '#4A7FC1' : '#B45309', marginTop: 1 }}>
+                                    {item.viagem
+                                      ? <>{agrupPedagio !== 'placa' && <>🚗 {item.placa} · </>}{agrupPedagio !== 'condutor' && <>👤 {item.condutor}</>}{agrupPedagio !== 'obra' && <>{agrupPedagio !== 'condutor' ? ' · ' : ''}🏗️ {item.obraNome}</>}</>
+                                      : <>{agrupPedagio !== 'placa' && <>🚗 {item.placa} · </>}sem viagem registrada</>}
+                                  </div>
                                 </div>
                                 <div style={{ fontWeight: 700, color: '#1A2340', whiteSpace: 'nowrap' }}>R$ {Number(item.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                               </div>
