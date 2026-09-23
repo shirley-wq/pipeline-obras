@@ -22,7 +22,7 @@ function dataIso(ddmmaa) {
 const txt = row => row.items.map(i => i.str).join(' ')
 
 export function parseFaturaSemParar(paginas) {
-  const out = { fatura: null, emissao: null, vencimento: null, total: null, lancamentos: [], declarado: {}, avisos: [] }
+  const out = { fatura: null, emissao: null, vencimento: null, total: null, lancamentos: [], declarado: {}, avisos: [], resumo: {} }
   let placa = null
   let secao = null // 'pedagio' | 'estacionamento' | 'estabelecimento' | null
   let ultimo = null
@@ -44,6 +44,21 @@ export function parseFaturaSemParar(paginas) {
         if (mapa[rot] && /^\d+$/.test(it[k + 1].str) && RE_VALOR.test(it[k + 2].str)) {
           out.declarado[mapa[rot]] = { qtd: Number(it[k + 1].str), valor: valorNum(it[k + 2].str) }
         }
+      }
+
+      // Quadro "Resumo da sua Fatura" (1 linha por placa): contando do fim - total, qtd vale,
+      // vale, qtd estabelecimento, estabelecimento, qtd estacionamento, estacionamento, qtd
+      // passagens, passagens. É a referência para conferir o abastecimento: o quadro fiscal
+      // do fim da fatura mostra o abastecimento já compensado pelo crédito "ABASTECE" (R$ 0,00).
+      if (!secao && it.length >= 10 && /^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(it[0].str) && /^\d{6,}$/.test(it[1].str) && RE_VALOR.test(it[it.length - 1].str)) {
+        const tk = it.map(i => i.str)
+        const n = tk.length
+        out.resumo[tk[0]] = {
+          pedagio: { valor: valorNum(tk[n - 9]), qtd: Number(tk[n - 8]) },
+          estacionamento: { valor: valorNum(tk[n - 7]), qtd: Number(tk[n - 6]) },
+          estabelecimento: { valor: valorNum(tk[n - 5]), qtd: Number(tk[n - 4]) },
+        }
+        continue
       }
 
       const mDesc = t.match(/^Descritivo:\s*([A-Z]{3}\d[A-Z0-9]\d{2})\b/)
@@ -97,6 +112,16 @@ export function parseFaturaSemParar(paginas) {
       if (ultimo && it.length <= 2 && it.every(i => colOk(i) && !RE_VALOR.test(i.str) && !/^P[áa]gina/.test(i.str))) {
         ultimo.local = `${ultimo.local} ${it.map(i => i.str).join(' ')}`.trim()
       }
+    }
+  }
+
+  // Abastecimento: confere pelo quadro-resumo por placa (o quadro fiscal traz o valor líquido
+  // do crédito "ABASTECE", que zera o total).
+  const placasResumo = Object.values(out.resumo)
+  if (placasResumo.length) {
+    out.declarado.estabelecimento = {
+      qtd: placasResumo.reduce((s, r) => s + (r.estabelecimento.qtd || 0), 0),
+      valor: Math.round(placasResumo.reduce((s, r) => s + (r.estabelecimento.valor || 0), 0) * 100) / 100,
     }
   }
 

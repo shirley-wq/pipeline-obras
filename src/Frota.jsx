@@ -928,7 +928,7 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
               {importFatura.res && (() => {
                 const r = importFatura.res
                 const d = r.declarado
-                const linha = (rot, k) => d[k] && (d[k].qtd != null || d[k].lidoQtd > 0) && (
+                const linha = (rot, k) => d[k] && (d[k].qtd > 0 || d[k].lidoQtd > 0) && (
                   <div style={{ fontSize: 12, color: '#374151' }}>
                     {rot}: <b>{d[k].lidoQtd}</b> lançamentos · <b>R$ {d[k].lidoValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</b>
                     {d[k].qtd != null && (d[k].qtd === d[k].lidoQtd && Math.abs(d[k].valor - d[k].lidoValor) <= 0.01
