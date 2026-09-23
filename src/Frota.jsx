@@ -85,6 +85,26 @@ function normalizarPlaca(p) {
 // Acima disso numa viagem só, pede confirmação (provável erro de digitação no odômetro).
 const KM_ALERTA_SALTO = 1000
 
+// Regionais padrão pro campo "Base" do veículo - somadas às que já existirem no banco.
+// Mesmo padrão de sigla já usado no banco (SP, RJ, MG, CWB, ES, RS).
+const BASES_PADRAO = ['SP', 'RJ', 'MG', 'CWB']
+const UFS = ['SP', 'RJ', 'MG', 'PR', 'ES', 'SC', 'RS', 'BA', 'GO', 'DF']
+
+// Monta o formulário do cadastro a partir de um veículo (ou vazio, pra novo). Campos extras
+// (fabricante, anos, base, Renavam, proprietário, UF) vieram do Frota PG antigo e já existiam
+// em frota_veiculos - Shirley, 2026-09-23.
+function formVeiculoDe(v) {
+  const txt = x => (x == null ? '' : String(x))
+  return {
+    modo: v ? 'editar' : 'novo',
+    placa: txt(v?.placa), modelo: txt(v?.modelo), tipo: v?.tipo || 'carro', cor: txt(v?.cor),
+    km_atual: txt(v?.km_atual), fabricante: txt(v?.fabricante),
+    ano_fabricacao: txt(v?.ano_fabricacao), ano_modelo: txt(v?.ano_modelo),
+    unidade_base: txt(v?.unidade_base), renavam: txt(v?.renavam), proprietario: txt(v?.proprietario),
+    cnpj_proprietario: txt(v?.cnpj_proprietario), uf_licenciamento: txt(v?.uf_licenciamento),
+  }
+}
+
 function fmtDuracao(inicioIso, fimIso) {
   if (!inicioIso || !fimIso) return null
   const min = Math.round((new Date(fimIso) - new Date(inicioIso)) / 60000)
@@ -131,6 +151,8 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
   const [formVeiculo, setFormVeiculo] = useState(null) // { modo: 'novo'|'editar', placa, modelo, tipo, cor, km_atual }
   const [salvandoVeiculo, setSalvandoVeiculo] = useState(false)
   const [erroVeiculo, setErroVeiculo] = useState('')
+  const [filtroBaseVeiculos, setFiltroBaseVeiculos] = useState('') // '' = todas
+  const [buscaCadastroVeiculo, setBuscaCadastroVeiculo] = useState('')
 
   const [manutencoes, setManutencoes] = useState([])
   const [veiculoManutencaoAberto, setVeiculoManutencaoAberto] = useState(null)
@@ -407,9 +429,29 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
     const f = formVeiculo
     if (!f) return
     setErroVeiculo('')
-    const kmNum = f.km_atual === '' || f.km_atual == null ? null : Number(f.km_atual)
+    const kmNum = f.km_atual === '' || f.km_atual == null ? null : Math.round(Number(f.km_atual))
     if (kmNum != null && (isNaN(kmNum) || kmNum < 0)) { setErroVeiculo('KM atual inválido.'); return }
     if (!f.modelo.trim()) { setErroVeiculo('Informe o modelo.'); return }
+    const anoMax = new Date().getFullYear() + 1
+    const lerAno = (x, nome) => {
+      if (!String(x).trim()) return { ok: true, v: null }
+      const n = Number(x)
+      return Number.isInteger(n) && n >= 1980 && n <= anoMax ? { ok: true, v: n } : { ok: false, msg: `${nome} inválido.` }
+    }
+    const anoFab = lerAno(f.ano_fabricacao, 'Ano de fabricação')
+    const anoMod = lerAno(f.ano_modelo, 'Ano do modelo')
+    if (!anoFab.ok) { setErroVeiculo(anoFab.msg); return }
+    if (!anoMod.ok) { setErroVeiculo(anoMod.msg); return }
+    const renavam = f.renavam.replace(/\D/g, '')
+    if (renavam && renavam.length !== 11 && renavam.length !== 9) { setErroVeiculo('Renavam deve ter 11 dígitos (ou 9, nos antigos).'); return }
+    const cnpj = f.cnpj_proprietario.replace(/\D/g, '')
+    if (cnpj && cnpj.length !== 14 && cnpj.length !== 11) { setErroVeiculo('CNPJ/CPF do proprietário inválido.'); return }
+    const t = x => (x || '').trim() || null
+    const extras = {
+      fabricante: t(f.fabricante), ano_fabricacao: anoFab.v, ano_modelo: anoMod.v,
+      unidade_base: t(f.unidade_base), renavam: renavam || null, proprietario: t(f.proprietario),
+      cnpj_proprietario: cnpj || null, uf_licenciamento: t(f.uf_licenciamento),
+    }
     setSalvandoVeiculo(true)
     let error
     if (f.modo === 'novo') {
@@ -421,11 +463,11 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
       const usaHifen = veiculos.some(v => (v.placa || '').includes('-'))
       const placa = usaHifen ? `${norm.slice(0, 3)}-${norm.slice(3)}` : norm
       ;({ error } = await supabase.from('frota_veiculos').insert({
-        placa, modelo: f.modelo.trim(), tipo: f.tipo || 'carro', cor: f.cor.trim() || null, km_atual: kmNum,
+        placa, modelo: f.modelo.trim(), tipo: f.tipo || 'carro', cor: f.cor.trim() || null, km_atual: kmNum, ...extras,
       }))
     } else {
       ;({ error } = await supabase.from('frota_veiculos').update({
-        modelo: f.modelo.trim(), tipo: f.tipo || 'carro', cor: f.cor.trim() || null, km_atual: kmNum,
+        modelo: f.modelo.trim(), tipo: f.tipo || 'carro', cor: f.cor.trim() || null, km_atual: kmNum, ...extras,
       }).eq('placa', f.placa))
     }
     setSalvandoVeiculo(false)
@@ -444,7 +486,7 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
     const desativar = v.ativo !== false
     if (desativar && veiculosEmUso[v.placa]) { alert(`Não dá pra desativar: ${v.placa} está em uso por ${veiculosEmUso[v.placa].collab}. Encerre a viagem antes.`); return }
     if (desativar && !window.confirm(`Desativar ${v.placa}? Ele some da lista de escolha de veículo, mas o histórico é mantido.`)) return
-    const { error } = await supabase.from('frota_veiculos').update({ ativo: !desativar }).eq('placa', v.placa)
+    const { error } = await supabase.from('frota_veiculos').update({ ativo: !desativar, status: desativar ? 'inativo' : 'ativo' }).eq('placa', v.placa)
     if (error) {
       alert(/column/i.test(error.message) || error.code === 'PGRST204'
         ? 'O banco ainda não tem a coluna "ativo". Rode o script frota_pacote1.sql no Supabase e tente de novo.'
@@ -497,6 +539,8 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
   }).slice(0, 30)
   const obraEscolhida = obraId ? (obras || []).find(o => o.id === obraId) : null
 
+  const basesVeiculos = [...new Set([...BASES_PADRAO, ...veiculos.map(v => v.unidade_base).filter(Boolean)])]
+  const lbl = { fontSize: 11, color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 3 }
   const inp = { width: '100%', padding: '9px 10px', border: '1px solid #CDD8E3', borderRadius: 8, fontSize: 13, color: '#1A2340', boxSizing: 'border-box' }
 
   return (
@@ -844,7 +888,7 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#1A2340' }}>Veículos cadastrados ({veiculos.filter(v => v.ativo !== false).length} ativos)</div>
             {!formVeiculo && (
-              <button onClick={() => { setErroVeiculo(''); setFormVeiculo({ modo: 'novo', placa: '', modelo: '', tipo: 'carro', cor: '', km_atual: '' }) }}
+              <button onClick={() => { setErroVeiculo(''); setFormVeiculo({ ...formVeiculoDe(null), unidade_base: filtroBaseVeiculos }) }}
                 style={{ padding: '8px 14px', background: '#7C2D12', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                 + Novo veículo
               </button>
@@ -876,6 +920,48 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
                   <input value={formVeiculo.cor} onChange={e => setFormVeiculo(f => ({ ...f, cor: e.target.value }))} placeholder="Ex: Branco" style={inp} />
                 </div>
               </div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <div style={{ flex: 2 }}>
+                  <label style={lbl}>Fabricante</label>
+                  <input value={formVeiculo.fabricante} onChange={e => setFormVeiculo(f => ({ ...f, fabricante: e.target.value }))} placeholder="Ex: Fiat" style={inp} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Ano fab.</label>
+                  <input type="number" value={formVeiculo.ano_fabricacao} onChange={e => setFormVeiculo(f => ({ ...f, ano_fabricacao: e.target.value }))} style={inp} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Ano mod.</label>
+                  <input type="number" value={formVeiculo.ano_modelo} onChange={e => setFormVeiculo(f => ({ ...f, ano_modelo: e.target.value }))} style={inp} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <div style={{ flex: 2 }}>
+                  <label style={lbl}>Base (regional)</label>
+                  <select value={formVeiculo.unidade_base} onChange={e => setFormVeiculo(f => ({ ...f, unidade_base: e.target.value }))} style={inp}>
+                    <option value="">— sem base —</option>
+                    {basesVeiculos.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>UF licenc.</label>
+                  <select value={formVeiculo.uf_licenciamento} onChange={e => setFormVeiculo(f => ({ ...f, uf_licenciamento: e.target.value }))} style={inp}>
+                    <option value="">—</option>
+                    {[...new Set([...UFS, formVeiculo.uf_licenciamento].filter(Boolean))].map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+              </div>
+              <label style={lbl}>Renavam</label>
+              <input value={formVeiculo.renavam} onChange={e => setFormVeiculo(f => ({ ...f, renavam: e.target.value }))} inputMode="numeric" style={{ ...inp, marginBottom: 8 }} />
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <div style={{ flex: 3 }}>
+                  <label style={lbl}>Proprietário (documento)</label>
+                  <input value={formVeiculo.proprietario} onChange={e => setFormVeiculo(f => ({ ...f, proprietario: e.target.value }))} placeholder="Ex: Grupo PG Construtora" style={inp} />
+                </div>
+                <div style={{ flex: 2 }}>
+                  <label style={lbl}>CNPJ/CPF</label>
+                  <input value={formVeiculo.cnpj_proprietario} onChange={e => setFormVeiculo(f => ({ ...f, cnpj_proprietario: e.target.value }))} inputMode="numeric" style={inp} />
+                </div>
+              </div>
               <label style={{ fontSize: 11, color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 3 }}>
                 KM atual (odômetro){formVeiculo.modo === 'editar' && <span style={{ fontWeight: 400 }}> · use pra corrigir um KM digitado errado</span>}
               </label>
@@ -894,8 +980,24 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
             </div>
           )}
 
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+            {[['', 'Todas'], ...basesVeiculos.map(b => [b, b]), ...(veiculos.some(v => !v.unidade_base) ? [['__sem__', 'Sem base']] : [])].map(([val, rot]) => {
+              const qtd = veiculos.filter(v => v.ativo !== false && (!val || (val === '__sem__' ? !v.unidade_base : v.unidade_base === val))).length
+              const sel = filtroBaseVeiculos === val
+              return (
+                <span key={val || 'todas'} onClick={() => setFiltroBaseVeiculos(val)}
+                  style={{ padding: '5px 10px', borderRadius: 14, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: sel ? '#7C2D12' : '#F1F5F9', color: sel ? '#fff' : '#1A2340' }}>
+                  {rot} ({qtd})
+                </span>
+              )
+            })}
+          </div>
+          <input value={buscaCadastroVeiculo} onChange={e => setBuscaCadastroVeiculo(e.target.value)} placeholder="🔎 Buscar por placa, modelo ou Renavam..." style={{ ...inp, marginBottom: 8 }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {[...veiculos].sort((a, b) => ((a.ativo === false) - (b.ativo === false)) || a.placa.localeCompare(b.placa)).map(v => {
+            {[...veiculos]
+              .filter(v => !filtroBaseVeiculos || (filtroBaseVeiculos === '__sem__' ? !v.unidade_base : v.unidade_base === filtroBaseVeiculos))
+              .filter(v => !buscaCadastroVeiculo || normalizarBusca(`${v.placa} ${v.modelo} ${v.fabricante} ${v.renavam}`).includes(normalizarBusca(buscaCadastroVeiculo)) || normalizarPlaca(v.placa).includes(normalizarPlaca(buscaCadastroVeiculo)))
+              .sort((a, b) => ((a.ativo === false) - (b.ativo === false)) || a.placa.localeCompare(b.placa)).map(v => {
               const inativo = v.ativo === false
               const emUso = veiculosEmUso[v.placa]
               return (
@@ -907,9 +1009,16 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
                       {inativo && <span style={{ fontSize: 9, fontWeight: 800, marginLeft: 6, padding: '2px 6px', borderRadius: 6, background: '#E2E8F0', color: '#475569' }}>INATIVO</span>}
                       {emUso && <span style={{ fontSize: 9, fontWeight: 800, marginLeft: 6, padding: '2px 6px', borderRadius: 6, background: '#FFF7ED', color: '#9A3412' }}>EM USO</span>}
                     </div>
-                    <div style={{ fontSize: 11, color: '#64748B' }}>{v.modelo || '—'}{v.cor ? ` · ${v.cor}` : ''} · KM {fmtKm(v.km_atual)}</div>
+                    <div style={{ fontSize: 11, color: '#64748B' }}>
+                      {[v.fabricante, v.modelo].filter(Boolean).join(' ') || '—'}
+                      {(v.ano_fabricacao || v.ano_modelo) ? ` ${v.ano_fabricacao || '?'}/${v.ano_modelo || '?'}` : ''}
+                      {v.cor ? ` · ${v.cor}` : ''} · KM {fmtKm(v.km_atual)}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#94A3B8' }}>
+                      📍 {v.unidade_base || 'sem base'}{v.status && v.status !== 'ativo' && v.status !== 'inativo' ? ` · status: ${v.status}` : ''}
+                    </div>
                   </div>
-                  <button onClick={() => { setErroVeiculo(''); setFormVeiculo({ modo: 'editar', placa: v.placa, modelo: v.modelo || '', tipo: v.tipo || 'carro', cor: v.cor || '', km_atual: v.km_atual != null ? String(v.km_atual) : '' }) }}
+                  <button onClick={() => { setErroVeiculo(''); setFormVeiculo(formVeiculoDe(v)); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
                     style={{ padding: '6px 10px', background: '#F1F5F9', color: '#1A2340', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                     Editar
                   </button>
