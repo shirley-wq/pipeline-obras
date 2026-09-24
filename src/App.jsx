@@ -3483,6 +3483,15 @@ export default function App() {
   const [filtroCenarioUF, setFiltroCenarioUF] = useState('')
   const cenarioScrollRef = useRef(null)
   const [cenarioData, setCenarioData] = useState(hojeIso())
+  // Home do líder/técnico virou 3 cards (Agenda/Frota/Meus Documentos) em vez de cair direto na
+  // lista - Agenda é um calendário do mês com o dia marcado em vermelho quando ele foi designado
+  // pra uma atividade que ainda não foi finalizada, mesmo que a data já tenha passado (antes isso
+  // simplesmente sumia da lista - Shirley, 2026-09-24, caso do Guilherme/PC 1709 com atividade de
+  // 17/09 invisível depois que a data passou). Frota e Meus Documentos ficam de placeholder por
+  // enquanto.
+  const [abaLiderHome, setAbaLiderHome] = useState('agenda')
+  const [mesAgenda, setMesAgenda] = useState(() => hojeIso().slice(0, 7))
+  const [diaAgendaSelecionado, setDiaAgendaSelecionado] = useState(null)
   const [filtroStatus, setFiltroStatus] = useState('')
   const [busca, setBusca] = useState('')
   const [filtroDe, setFiltroDe] = useState('')
@@ -7191,19 +7200,16 @@ export default function App() {
         </div>
       )}
 
-      {/* ====== ABA: ATIVIDADES PROGRAMADAS (líder de campo) - nunca mostra valor, em lugar nenhum ====== */}
+      {/* ====== HOME DO LÍDER/TÉCNICO: Agenda (calendário) + atalhos pra Frota/Meus Documentos ======
+          Shirley, 2026-09-24: em vez de cair direto numa lista, ele vê 3 cards/abas. Agenda mostra
+          um calendário do mês com o dia marcado (verde = tem atividade programada nele, vermelho =
+          tinha atividade designada e a obra ainda não foi finalizada, mesmo com a data já passada -
+          antes isso simplesmente sumia da lista assim que a data passava, caso real do Guilherme/
+          PC 1709 com atividade de 17/09 que ficou invisível). Clica no dia, aparece a lista de
+          atividades daquele dia (o mesmo card de sempre). Frota e Meus Documentos só navegam pras
+          abas que já existem e já funcionam - nunca mostra valor, em lugar nenhum. */}
       {aba === 'atividades_lider' && (papel === 'lider_campo' || papel === 'operacional') && (() => {
-        // Só entra na lista do líder o que já tem data programada de hoje pra frente - uma data
-        // passada é obra cuja visita já aconteceu (o campo não muda depois, mesmo com registro de
-        // visita posterior), não é mais "programada" (Shirley, 2026-09-04).
         const hoje = hojeIso()
-        // Clicar num card do Cenário filtra pelo dia selecionado ali (Hoje/◀/▶), igual já acontece
-        // na Pipeline normal. O Cenário conta TODO evento do dia (vistoria, movimentação, etapa de
-        // obra - eventosCenarioObra), não só a data de execução (dataAtividadeObra) - por isso,
-        // com um card selecionado, uso o próprio dia do Cenário como data de exibição, senão
-        // obras só com vistoria marcada (sem data de execução ainda) sumiam da lista mesmo
-        // aparecendo na contagem do card (Shirley, 2026-09-04).
-        const diaSelecionado = !!filtroCenarioUF && filtroCenarioUF !== 'S/UF'
         // Técnico (operacional) só vê a atividade em que ele mesmo foi designado no "Quem vai" -
         // diferente do líder, que designa equipe pros outros e por isso vê tudo da região dele
         // (Shirley, 2026-09-16: "eles não delegam", então não faz sentido mostrar a lista toda).
@@ -7213,26 +7219,105 @@ export default function App() {
           const equipe = registros[registros.length - 1]?.equipe || []
           return equipe.some(nome => nomesDeColaboradorBatem(nome, meuNomeCompleto))
         }
-        const atividades = obras
+        // SEM filtro de data aqui de propósito - quem decide o que mostrar em cada dia é a Agenda.
+        // Uma obra ainda ativa (não chegou em NF EMITIDO/CANCELADO) continua "pendente" mesmo com
+        // data no passado, e precisa aparecer marcada em vermelho, não sumir.
+        const todasAtividades = obras
           .filter(o => temVisitasDeCampo(o.rede, o.tipo) && o.status !== 'NF EMITIDO' && o.status !== 'CANCELADO')
           .filter(o => papel !== 'operacional' || designadoPraMim(o))
-          .filter(o => !filtroCenarioUF || estadoDaObra(o) === filtroCenarioUF)
-          .filter(o => !diaSelecionado || eventosCenarioObra(o, cenarioData).length > 0)
-          .map(o => ({ obra: o, data: diaSelecionado ? cenarioData : dataAtividadeObra(o) }))
-          .filter(({ data }) => diaSelecionado ? true : (!!data && data >= hoje))
-          .sort((a, b) => (a.data || '9999-99-99').localeCompare(b.data || '9999-99-99'))
+          .map(o => ({ obra: o, data: dataAtividadeObra(o) }))
+          .filter(({ data }) => !!data)
+        const porDia = {}
+        todasAtividades.forEach(({ obra, data }) => {
+          if (!porDia[data]) porDia[data] = []
+          porDia[data].push(obra)
+        })
+        const atividadesDoDia = (diaAgendaSelecionado ? (porDia[diaAgendaSelecionado] || []) : [])
+          .map(obra => ({ obra, data: diaAgendaSelecionado }))
+
+        const [anoStr, mesStr] = mesAgenda.split('-')
+        const ano = Number(anoStr), mesIdx = Number(mesStr) - 1
+        const diaSemanaInicio = new Date(ano, mesIdx, 1).getDay()
+        const diasNoMes = new Date(ano, mesIdx + 1, 0).getDate()
+        const NOMES_MES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
+        const celulas = []
+        for (let i = 0; i < diaSemanaInicio; i++) celulas.push(null)
+        for (let dia = 1; dia <= diasNoMes; dia++) celulas.push(`${anoStr}-${mesStr}-${String(dia).padStart(2, '0')}`)
+        while (celulas.length % 7 !== 0) celulas.push(null)
+
+        function mudarMes(delta) {
+          const novaData = new Date(ano, mesIdx + delta, 1)
+          setMesAgenda(`${novaData.getFullYear()}-${String(novaData.getMonth() + 1).padStart(2, '0')}`)
+          setDiaAgendaSelecionado(null)
+        }
+
         return (
           <div>
-          {blocoCenario}
-          <div style={{ padding:12 }}>
-            <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:4 }}>Atividades Programadas</div>
-            <div style={{ fontSize:12, color:'#64748B', marginBottom:14 }}>{atividades.length} atividade(s) · ordenadas por data</div>
-            {atividades.length === 0 && <div style={{ textAlign:'center', color:'#888', marginTop:40, fontSize:14 }}>Nenhuma atividade encontrada.</div>}
-            {atividades.map(({ obra, data }) => (
-              <CardAtividadeLider key={obra.id} obra={obra} data={data} usuario={usuario}
-                onSalvar={(id, campos) => setObras(prev => prev.map(o => o.id === id ? { ...o, ...campos } : o))} />
-            ))}
-          </div>
+            <div style={{ display:'flex', borderBottom:'1px solid #E0E8F0', background:'#fff' }}>
+              {[
+                { id:'agenda', label:'Agenda', onClick: () => {} },
+                { id:'frota', label:'Frota', onClick: () => setAba('frota') },
+                { id:'meusdados', label:'Meus Documentos', onClick: () => setAba('meusdados') },
+              ].map(t => (
+                <button key={t.id} onClick={t.onClick}
+                  style={{ flex:1, padding:'14px 8px', border:'none', borderBottom: t.id === 'agenda' ? '3px solid #1A2340' : '3px solid transparent',
+                    background:'#fff', color: t.id === 'agenda' ? '#1A2340' : '#94A3B8', fontWeight:700, fontSize:12, cursor:'pointer' }}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ padding:16 }}>
+              <div style={{ background:'#1A2340', borderRadius:14, padding:16 }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+                  <div style={{ color:'#fff', fontSize:14, fontWeight:700 }}>{NOMES_MES[mesIdx]} de {ano}</div>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <button onClick={() => mudarMes(-1)} style={{ border:'none', background:'rgba(255,255,255,.15)', color:'#fff', borderRadius:6, width:26, height:26, cursor:'pointer' }}>◀</button>
+                    <button onClick={() => mudarMes(1)} style={{ border:'none', background:'rgba(255,255,255,.15)', color:'#fff', borderRadius:6, width:26, height:26, cursor:'pointer' }}>▶</button>
+                  </div>
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4, marginBottom:6 }}>
+                  {['D','S','T','Q','Q','S','S'].map((d, i) => (
+                    <div key={i} style={{ textAlign:'center', color:'rgba(255,255,255,.5)', fontSize:11, fontWeight:700 }}>{d}</div>
+                  ))}
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4 }}>
+                  {celulas.map((diaIso, i) => {
+                    if (!diaIso) return <div key={i} />
+                    const numeroDia = Number(diaIso.slice(8, 10))
+                    const temAtividade = !!porDia[diaIso]
+                    const ehHoje = diaIso === hoje
+                    const atrasado = temAtividade && diaIso < hoje
+                    const selecionado = diaAgendaSelecionado === diaIso
+                    let bg = 'transparent', cor = 'rgba(255,255,255,.85)'
+                    if (temAtividade) { bg = atrasado ? '#DC2626' : '#16A34A'; cor = '#fff' }
+                    if (ehHoje) { bg = '#3B82F6'; cor = '#fff' }
+                    return (
+                      <div key={i} onClick={() => setDiaAgendaSelecionado(v => v === diaIso ? null : diaIso)}
+                        style={{ aspectRatio:'1', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'50%',
+                          background:bg, color:cor, fontSize:13, fontWeight: (temAtividade || ehHoje) ? 700 : 500, cursor:'pointer',
+                          boxSizing:'border-box', border: selecionado ? '2px solid #fff' : '2px solid transparent' }}>
+                        {numeroDia}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {diaAgendaSelecionado && (
+                <div style={{ marginTop:16 }}>
+                  <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:4 }}>
+                    Atividades em {isoToBr(diaAgendaSelecionado)}{diaAgendaSelecionado < hoje ? ' — ⚠ atrasada' : ''}
+                  </div>
+                  <div style={{ fontSize:12, color:'#64748B', marginBottom:14 }}>{atividadesDoDia.length} atividade(s)</div>
+                  {atividadesDoDia.length === 0 && <div style={{ textAlign:'center', color:'#888', marginTop:20, fontSize:14 }}>Nenhuma atividade nesse dia.</div>}
+                  {atividadesDoDia.map(({ obra, data }) => (
+                    <CardAtividadeLider key={obra.id} obra={obra} data={data} usuario={usuario}
+                      onSalvar={(id, campos) => setObras(prev => prev.map(o => o.id === id ? { ...o, ...campos } : o))} />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )
       })()}
