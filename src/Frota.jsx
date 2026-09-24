@@ -603,9 +603,20 @@ export default function Frota({ usuario, meuRH, obras, podeVerPainelGeral }) {
       else porChave.set(k, { ...l })
     })
     const linhasUnicas = [...porChave.values()]
-    for (let i = 0; i < linhasUnicas.length; i += 500) {
-      const { error } = await supabase.from('frota_pedagios_estacionamentos')
-        .upsert(linhasUnicas.slice(i, i + 500), { onConflict: 'fatura_numero,placa,data,hora', ignoreDuplicates: true })
+    // O que dessa fatura já está no banco (placa+data+hora) não é gravado de novo - a chave única
+    // do banco inclui pelo menos esses campos, então o restante nunca conflita. Busca paginada
+    // (o Supabase devolve no máximo 1000 linhas por consulta).
+    const jaNoBanco = new Set()
+    for (let de = 0; ; de += 1000) {
+      const { data: ex, error: errEx } = await supabase.from('frota_pedagios_estacionamentos')
+        .select('placa, data, hora').eq('fatura_numero', fatura).range(de, de + 999)
+      if (errEx) { setImportFatura(f => ({ ...f, salvando: false, erro: 'Erro ao conferir o que já está gravado: ' + errEx.message })); return }
+      ;(ex || []).forEach(r => jaNoBanco.add([r.placa, r.data, String(r.hora || '').slice(0, 8)].join('|')))
+      if (!ex || ex.length < 1000) break
+    }
+    const aGravar = linhasUnicas.filter(l => !jaNoBanco.has([l.placa, l.data, String(l.hora || '').slice(0, 8)].join('|')))
+    for (let i = 0; i < aGravar.length; i += 500) {
+      const { error } = await supabase.from('frota_pedagios_estacionamentos').insert(aGravar.slice(i, i + 500))
       if (error) {
         setImportFatura(f => ({ ...f, salvando: false, erro: `Erro ao gravar (parte ${i / 500 + 1}): ${error.message}. Tente importar de novo - a fatura será substituída inteira.` }))
         return
