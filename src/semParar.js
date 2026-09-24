@@ -41,8 +41,8 @@ export function parseFaturaSemParar(paginas) {
       for (let k = 0; k < it.length - 2; k++) {
         const rot = it[k].str
         const mapa = { Passagens: 'pedagio', Estacionamento: 'estacionamento', Estabelecimentos: 'estabelecimento' }
-        if (mapa[rot] && /^\d+$/.test(it[k + 1].str) && RE_VALOR.test(it[k + 2].str)) {
-          out.declarado[mapa[rot]] = { qtd: Number(it[k + 1].str), valor: valorNum(it[k + 2].str) }
+        if (mapa[rot] && /^\d{1,3}(\.\d{3})*$/.test(it[k + 1].str) && RE_VALOR.test(it[k + 2].str)) {
+          out.declarado[mapa[rot]] = { qtd: Number(it[k + 1].str.replace(/\./g, '')), valor: valorNum(it[k + 2].str) }
         }
       }
 
@@ -53,11 +53,13 @@ export function parseFaturaSemParar(paginas) {
       if (!secao && it.length >= 10 && /^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(it[0].str) && /^\d{6,}$/.test(it[1].str) && RE_VALOR.test(it[it.length - 1].str)) {
         const tk = it.map(i => i.str)
         const n = tk.length
-        out.resumo[tk[0]] = {
-          pedagio: { valor: valorNum(tk[n - 9]), qtd: Number(tk[n - 8]) },
-          estacionamento: { valor: valorNum(tk[n - 7]), qtd: Number(tk[n - 6]) },
-          estabelecimento: { valor: valorNum(tk[n - 5]), qtd: Number(tk[n - 4]) },
-        }
+        const num = x => Number(String(x).replace(/\./g, '')) || 0
+        // A mesma placa pode aparecer em mais de uma linha (troca de tag no mês) - soma.
+        const r = out.resumo[tk[0]] || { pedagio: { valor: 0, qtd: 0 }, estacionamento: { valor: 0, qtd: 0 }, estabelecimento: { valor: 0, qtd: 0 } }
+        r.pedagio.valor += valorNum(tk[n - 9]) || 0; r.pedagio.qtd += num(tk[n - 8])
+        r.estacionamento.valor += valorNum(tk[n - 7]) || 0; r.estacionamento.qtd += num(tk[n - 6])
+        r.estabelecimento.valor += valorNum(tk[n - 5]) || 0; r.estabelecimento.qtd += num(tk[n - 4])
+        out.resumo[tk[0]] = r
         continue
       }
 
