@@ -2006,6 +2006,17 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
   const registrosAnteriores = registros.slice(0, -1)
   const [salvando, setSalvando] = useState(false)
   const [salvo, setSalvo] = useState(false)
+  // Foto do local de instalação não vem mais na carga geral da lista (Shirley, 2026-09-24 - era
+  // 15MB de base64 baixados por todo mundo, obra tenha foto ou não). Busca só quando o técnico
+  // pede pra ver, uma obra por vez.
+  const [fotoLocalInstalacao, setFotoLocalInstalacao] = useState(null)
+  const [carregandoFotoLocal, setCarregandoFotoLocal] = useState(false)
+  async function verFotoLocalInstalacao() {
+    setCarregandoFotoLocal(true)
+    const { data } = await supabase.from('pipeline_obras').select('foto_local_instalacao').eq('id', obra.id).single()
+    setFotoLocalInstalacao(data?.foto_local_instalacao || '(nenhuma foto cadastrada)')
+    setCarregandoFotoLocal(false)
+  }
   // Despesa vinculada à obra (Shirley, 2026-09-16) - caso real: líder chama um terceiro (ex:
   // empresa ETC pra recomposição), e precisa poder já lançar o pedido de pagamento aqui, sem
   // depender de avisar por e-mail pro financeiro cadastrar depois. Vira uma linha de verdade em
@@ -2062,13 +2073,22 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
           🔧 Fixação: {tipoFixacaoResumo}
         </div>
       )}
-      {obra.foto_local_instalacao && (
-        <div style={{ marginBottom:10 }}>
-          <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>📷 Local de fixação do ATM</div>
-          <img src={obra.foto_local_instalacao} alt="Local de fixação do ATM"
-            style={{ maxWidth:'100%', maxHeight:220, borderRadius:8, border:'1px solid #CDD8E3', display:'block' }} />
-        </div>
-      )}
+      <div style={{ marginBottom:10 }}>
+        {fotoLocalInstalacao === null ? (
+          <button onClick={verFotoLocalInstalacao} disabled={carregandoFotoLocal}
+            style={{ padding:'6px 10px', background:'#fff', color:'#4A7FC1', border:'1px solid #CDD8E3', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer' }}>
+            {carregandoFotoLocal ? 'Carregando...' : '📷 Ver foto do local de instalação'}
+          </button>
+        ) : fotoLocalInstalacao === '(nenhuma foto cadastrada)' ? (
+          <div style={{ fontSize:11, color:'#9CA3AF' }}>📷 Nenhuma foto do local cadastrada</div>
+        ) : (
+          <>
+            <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:4 }}>📷 Local de fixação do ATM</div>
+            <img src={fotoLocalInstalacao} alt="Local de fixação do ATM"
+              style={{ maxWidth:'100%', maxHeight:220, borderRadius:8, border:'1px solid #CDD8E3', display:'block' }} />
+          </>
+        )}
+      </div>
       {registrosAnteriores.length > 0 && (
         <div style={{ marginBottom:10, background:'#F8FAFC', border:'1px solid #E0E8F0', borderRadius:8, padding:'8px 10px' }}>
           <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:700, marginBottom:4 }}>
@@ -4395,7 +4415,13 @@ export default function App() {
   // Shirley, 2026-09-21: "esse problema de lentidão não pode acontecer" - líder/técnico em campo,
   // muitas vezes em conexão ruim, baixava a tabela inteira (1000+ obras, com jsonb pesado) igual
   // ao escritório, que precisa de tudo pras abas de Financeiro/Histórico.
-  const COLUNAS_OBRAS_CAMPO = 'id,nome,tipo,rede,numero_pc,sige,local,endereco,cidade,uf,status,hora_inicio_obra_texto,data_inicio_obra_texto,data_obra_inicio,data_vistoria,data_etapa2,data_etapa3,registros_operacao_campo,ec_nome,ec_telefone,seguranca_itens,seguranca_itens_campo,barreira_dissuasao,barreira_dissuasao_campo,foto_local_instalacao,etapas_instalacao,impedimentos_instalacao,solicitacoes_alteracao,checklist_obra,lembretes,atualizado_em,atualizado_por'
+  const COLUNAS_OBRAS_CAMPO = 'id,nome,tipo,rede,numero_pc,sige,local,endereco,cidade,uf,status,hora_inicio_obra_texto,data_inicio_obra_texto,data_obra_inicio,data_vistoria,data_etapa2,data_etapa3,registros_operacao_campo,ec_nome,ec_telefone,seguranca_itens,seguranca_itens_campo,barreira_dissuasao,barreira_dissuasao_campo,etapas_instalacao,impedimentos_instalacao,solicitacoes_alteracao,checklist_obra,lembretes,atualizado_em,atualizado_por'
+  // Shirley, 2026-09-24: "a lentidão" pra TODO MUNDO (não só líder/técnico) veio de 2 colunas de
+  // imagem em base64 direto na tabela (foto_local_instalacao ~15MB, checklist_pre_obra_comprovacao_imagem
+  // ~7MB, juntas ~80% do peso da tabela inteira) sendo baixadas em toda carga da lista, mesmo só 44/28
+  // obras terem essas fotos. Essas 2 colunas agora só são buscadas sob demanda (foto_local_instalacao
+  // no CardAtividadeLider ao clicar "Ver foto", e as duas no modal de edição do escritório ao abrir).
+  const COLUNAS_OBRAS_SEM_FOTO = 'id,tipo,nome,local,inicio,termino,status,valor,sige,pedido,nf,obs,atualizado_em,atualizado_por,data_inicio,em_negociacao,checklist,bdns,bdnNumeros,data_etapa1,data_etapa2,data_etapa3,adesivos,data_art,lembrete_texto,lembrete_etapa,lembretes,data_cadastro,vencimento,vidros,divisorias,biombo_fila,resp_etapa1,resp_etapa2,resp_etapa3,itens_especiais,entregaveis,criado_por,data_vistoria,colaboradores_vistoria,data_obra_inicio,colaboradores_obra,os_tecban,endereco,cidade,uf,entregaveis_vistoria,entregaveis_na,responsavel_escritorio,auxiliar_escritorio,custos_terceirizados,despesas_pessoal,pedido_valor,pedido_os,pedido_cnpj,rede,porta_giratoria,numero_pc,ars_verificado,ec_nome,ec_telefone,seguranca_itens,barreira_dissuasao,agendamento_confirmado,agendamento_data,seguranca_itens_campo,barreira_dissuasao_campo,autorizacao_mudanca,data_inicio_obra_texto,hora_inicio_obra_texto,registros_operacao_campo,relatorio_enviado_em,relatorio_enviado_por,pedido_tecban_cnpj,pedido_tecban_nome,pedido_tecban_endereco,correcao_pedido_solicitada_em,correcao_pedido_solicitada_por,numero_operacao,cliente_acordo_fixacao,cliente_acordo_fixacao_motivo,checklist_pre_obra_uo,checklist_pre_obra_ec_responsavel,checklist_pre_obra_acesso_autorizado,checklist_pre_obra_acesso_motivo,checklist_pre_obra_local_aberto,checklist_pre_obra_local_em_obra,checklist_pre_obra_termino_previsao,checklist_pre_obra_local_inaugurado,checklist_pre_obra_inauguracao_previsao,checklist_pre_obra_local_liberado,checklist_pre_obra_local_liberado_motivo,checklist_pre_obra_barulho_autorizado,checklist_pre_obra_barulho_horario,checklist_pre_obra_alteracao_solicitada,checklist_pre_obra_nova_data,checklist_pre_obra_novo_horario,checklist_pre_obra_reprogramar_transportadora,checklist_pre_obra_comprovacao_enviada,checklist_pre_obra_comprovacao_imagem_proporcao,transporte_compareceu_horario,transporte_tinha_ajudante,transporte_danificou_piso,transporte_quantidade_danificada,transporte_teve_ocorrencia,transporte_ocorrencia_descricao,historico_edicoes,agendamento_enviado_em,agendamento_enviado_por,cancelamento_motivo,cancelamento_por,cancelamento_em,motivo_pendencia,exclusao_solicitada_em,exclusao_solicitada_por,exclusao_solicitada_motivo,checklist_pre_obra_ec_cargo,checklist_pre_obra_canal_validacao,checklist_pre_obra_restricao,checklist_pre_obra_restricao_descricao,checklist_pre_obra_exigencia_doc,checklist_pre_obra_exigencia_doc_descricao,checklist_pre_obra_alteracao_motivo,checklist_pre_obra_reprogramar_acao,checklist_pre_obra_comprovacao_disponivel,checklist_pre_obra_tipo_comprovacao,checklist_pre_obra_comprovacao_indisponivel_motivo,checklist_pre_obra_observacoes,etapas_instalacao,impedimentos_instalacao,solicitacoes_alteracao,checklist_obra'
 
   async function carregarObras(papelAtual) {
     // O Supabase/PostgREST corta em 1000 linhas por padrão - com a tabela passando de 1000 obras
@@ -4407,7 +4433,7 @@ export default function App() {
     let pagina = 0
     while (true) {
       let query = supabase.rpc('pipeline_obras_seguro')
-      if (ehCampo) query = query.select(COLUNAS_OBRAS_CAMPO)
+        .select(ehCampo ? COLUNAS_OBRAS_CAMPO : COLUNAS_OBRAS_SEM_FOTO)
       const { data, error } = await query
         .range(pagina * TAMANHO_PAGINA, pagina * TAMANHO_PAGINA + TAMANHO_PAGINA - 1)
       if (error) {
@@ -8756,6 +8782,19 @@ export default function App() {
                       <div style={{ display:'flex', gap:8 }}>
                       <button onClick={() => {
                         setModal(obra)
+                        // As 2 colunas de imagem (foto_local_instalacao, checklist_pre_obra_comprovacao_imagem)
+                        // não vêm mais na carga geral da lista (Shirley, 2026-09-24 - eram ~80% do peso da
+                        // tabela) - busca só as duas, só desta obra, ao abrir o modal de edição. Zera
+                        // primeiro pra não mostrar por um instante a foto de uma obra aberta antes.
+                        setFotoLocalInstalacao('')
+                        setChecklistComprovacaoImagem('')
+                        supabase.from('pipeline_obras')
+                          .select('foto_local_instalacao, checklist_pre_obra_comprovacao_imagem')
+                          .eq('id', obra.id).single()
+                          .then(({ data: fotosObra }) => {
+                            setFotoLocalInstalacao(fotosObra?.foto_local_instalacao || '')
+                            setChecklistComprovacaoImagem(fotosObra?.checklist_pre_obra_comprovacao_imagem || '')
+                          })
                         setNovoStatus(obra.status)
                         setNovaObs(obra.obs||'')
                         setDatas({ data_etapa1: obra.data_etapa1||'', data_etapa2: obra.data_etapa2||'', data_etapa3: obra.data_etapa3||'' })
@@ -8834,9 +8873,7 @@ export default function App() {
                         setChecklistTipoComprovacao(obra.checklist_pre_obra_tipo_comprovacao || '')
                         setChecklistComprovacaoIndisponivelMotivo(obra.checklist_pre_obra_comprovacao_indisponivel_motivo || '')
                         setChecklistObservacoes(obra.checklist_pre_obra_observacoes || '')
-                        setChecklistComprovacaoImagem(obra.checklist_pre_obra_comprovacao_imagem || '')
                         setChecklistComprovacaoImagemProporcao(obra.checklist_pre_obra_comprovacao_imagem_proporcao || 0)
-                        setFotoLocalInstalacao(obra.foto_local_instalacao || '')
                         setTransporteCompareceuHorario(obra.transporte_compareceu_horario || '')
                         setTransporteTinhaAjudante(obra.transporte_tinha_ajudante || '')
                         setTransporteDanificouPiso(obra.transporte_danificou_piso || '')
