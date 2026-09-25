@@ -6731,7 +6731,7 @@ export default function App() {
           // jeito nenhum ter acesso a valores, isso tem que blindar 100%" - técnico ganhou a
           // mesma tela em 2026-09-16, filtrada só pra atividade em que ele foi designado, já que
           // ele não delega equipe como o líder faz).
-          { id:'atividades_lider', label:'Atividades Programadas', count:null, cor:'#0F766E' },
+          { id:'atividades_lider', label:'Agenda', count:null, cor:'#0F766E' },
           { id:'frota', label:'Frota', count:null, cor:'#7C2D12' },
           { id:'meusdados', label:'Meus Documentos', count:null, cor:'#7C3AED' },
         ] : [
@@ -7286,20 +7286,9 @@ export default function App() {
 
         return (
           <div>
-            <div style={{ display:'flex', borderBottom:'1px solid #E0E8F0', background:'#fff' }}>
-              {[
-                { id:'agenda', label:'Agenda', onClick: () => {} },
-                { id:'frota', label:'Frota', onClick: () => setAba('frota') },
-                { id:'meusdados', label:'Meus Documentos', onClick: () => setAba('meusdados') },
-              ].map(t => (
-                <button key={t.id} onClick={t.onClick}
-                  style={{ flex:1, padding:'14px 8px', border:'none', borderBottom: t.id === 'agenda' ? '3px solid #1A2340' : '3px solid transparent',
-                    background:'#fff', color: t.id === 'agenda' ? '#1A2340' : '#94A3B8', fontWeight:700, fontSize:12, cursor:'pointer' }}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
-
+            {/* A navegação pra Frota/Meus Documentos já existe na barra de abas principal (mais
+                acima, "Agenda | Frota | Meus Documentos") - nada nova aqui, senão duplica (Shirley,
+                2026-09-25: viu "Frota" e "Meus Documentos" repetidos duas vezes na tela). */}
             {papel === 'lider_campo' && blocoCenario}
 
             <div style={{ padding:16 }}>
