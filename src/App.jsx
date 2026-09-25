@@ -1492,6 +1492,29 @@ function dataAtividadeObra(o) {
   const dataUltimaVisita = registros[registros.length - 1]?.data || null
   return dataUltimaVisita || dataExecucao || o.data_vistoria || null
 }
+// Cor de um dia na Agenda do líder/técnico, por status da obra (Shirley, 2026-09-25 - regra
+// combinada depois de ver o calendário rodando de verdade):
+// - status que já saiu da mão do campo (aguardando pedido/OS, elaborar RM/ART/book, emitir NF,
+//   relatório ao cliente, book de conclusão, OS aberta - nem chegou a ser agendado ainda) NÃO
+//   aparece na Agenda de jeito nenhum (nem verde, nem vermelho) - "não são importantes aparecer
+//   pros líderes e técnicos".
+// - GEROU PENDÊNCIA sempre laranja, independente da data (é sempre um problema a resolver).
+// - VISTORIA sempre verde, nunca vermelha - a visita em si já aconteceu/vai acontecer, o
+//   follow-up (checklist/book de vistoria pra Tecban) vira pendência do escritório, não do campo.
+// - AGENDAMENTO: verde se a data ainda não chegou, vermelho se já passou e não avançou de status.
+// - OPERAÇÃO EM CAMPO: verde até 1 dia de atraso (dá folga pra terminar), vermelho só depois de
+//   mais de 1 dia sem avançar pra Elaborar RM.
+// Retorna null quando o status não deve aparecer na Agenda.
+function corAtividadeAgenda(status, data, hoje) {
+  if (status === 'GEROU PENDÊNCIA') return 'laranja'
+  if (status === 'VISTORIA') return 'verde'
+  if (status === 'AGENDAMENTO') return data < hoje ? 'vermelho' : 'verde'
+  if (status === 'OPERAÇÃO EM CAMPO') {
+    const diasAtraso = Math.round((new Date(hoje) - new Date(data)) / 86400000)
+    return diasAtraso > 1 ? 'vermelho' : 'verde'
+  }
+  return null
+}
 // Eventos de uma obra pra um dia especifico do Cenario - usado tanto pra montar os cards por
 // estado quanto pra filtrar a lista de baixo quando um card e clicado (Shirley, 2026-08-19: antes o
 // clique no card so filtrava por estado, ignorando o dia selecionado, e mostrava a pipeline inteira
@@ -7202,12 +7225,14 @@ export default function App() {
 
       {/* ====== HOME DO LÍDER/TÉCNICO: Agenda (calendário) + atalhos pra Frota/Meus Documentos ======
           Shirley, 2026-09-24: em vez de cair direto numa lista, ele vê 3 cards/abas. Agenda mostra
-          um calendário do mês com o dia marcado (verde = tem atividade programada nele, vermelho =
-          tinha atividade designada e a obra ainda não foi finalizada, mesmo com a data já passada -
-          antes isso simplesmente sumia da lista assim que a data passava, caso real do Guilherme/
-          PC 1709 com atividade de 17/09 que ficou invisível). Clica no dia, aparece a lista de
-          atividades daquele dia (o mesmo card de sempre). Frota e Meus Documentos só navegam pras
-          abas que já existem e já funcionam - nunca mostra valor, em lugar nenhum. */}
+          um calendário do mês com o dia marcado. Cor por status da obra, regra combinada em
+          2026-09-25 depois de rodar a versão inicial (ver corAtividadeAgenda): verde = programada
+          ou dentro da folga, vermelho = atrasada de verdade, laranja = gerou pendência, e status
+          que já saiu da mão do campo nem aparece. Clica no dia, aparece a lista de atividades
+          daquele dia (o mesmo card de sempre). Frota e Meus Documentos só navegam pras abas que já
+          existem e já funcionam - nunca mostra valor, em lugar nenhum. O Cenário por estado volta
+          a aparecer só pro líder (o técnico "não delega", só vê o que é dele mesmo - Shirley,
+          2026-09-25). */}
       {aba === 'atividades_lider' && (papel === 'lider_campo' || papel === 'operacional') && (() => {
         const hoje = hojeIso()
         // Técnico (operacional) só vê a atividade em que ele mesmo foi designado no "Quem vai" -
@@ -7219,21 +7244,29 @@ export default function App() {
           const equipe = registros[registros.length - 1]?.equipe || []
           return equipe.some(nome => nomesDeColaboradorBatem(nome, meuNomeCompleto))
         }
-        // SEM filtro de data aqui de propósito - quem decide o que mostrar em cada dia é a Agenda.
-        // Uma obra ainda ativa (não chegou em NF EMITIDO/CANCELADO) continua "pendente" mesmo com
-        // data no passado, e precisa aparecer marcada em vermelho, não sumir.
+        // SEM filtro de data aqui de propósito - quem decide o que mostrar em cada dia é a
+        // corAtividadeAgenda, olhando o status. Só entram obras cujo status ainda é
+        // responsabilidade do campo (corAtividadeAgenda retorna null pro resto e a obra nem conta).
         const todasAtividades = obras
-          .filter(o => temVisitasDeCampo(o.rede, o.tipo) && o.status !== 'NF EMITIDO' && o.status !== 'CANCELADO')
+          .filter(o => temVisitasDeCampo(o.rede, o.tipo))
           .filter(o => papel !== 'operacional' || designadoPraMim(o))
           .map(o => ({ obra: o, data: dataAtividadeObra(o) }))
           .filter(({ data }) => !!data)
+          .map(({ obra, data }) => ({ obra, data, cor: corAtividadeAgenda(obra.status, data, hoje) }))
+          .filter(({ cor }) => !!cor)
         const porDia = {}
-        todasAtividades.forEach(({ obra, data }) => {
+        todasAtividades.forEach(({ obra, data, cor }) => {
           if (!porDia[data]) porDia[data] = []
-          porDia[data].push(obra)
+          porDia[data].push({ obra, cor })
+        })
+        // Se o dia tiver obras de mais de uma cor, a mais urgente ganha (vermelho > laranja > verde).
+        const PRIORIDADE_COR = { vermelho: 3, laranja: 2, verde: 1 }
+        const corDoDia = {}
+        Object.entries(porDia).forEach(([dia, itens]) => {
+          corDoDia[dia] = itens.reduce((pior, item) => (PRIORIDADE_COR[item.cor] > PRIORIDADE_COR[pior] ? item.cor : pior), 'verde')
         })
         const atividadesDoDia = (diaAgendaSelecionado ? (porDia[diaAgendaSelecionado] || []) : [])
-          .map(obra => ({ obra, data: diaAgendaSelecionado }))
+          .map(({ obra }) => ({ obra, data: diaAgendaSelecionado }))
 
         const [anoStr, mesStr] = mesAgenda.split('-')
         const ano = Number(anoStr), mesIdx = Number(mesStr) - 1
@@ -7267,6 +7300,8 @@ export default function App() {
               ))}
             </div>
 
+            {papel === 'lider_campo' && blocoCenario}
+
             <div style={{ padding:16 }}>
               <div style={{ background:'#1A2340', borderRadius:14, padding:16 }}>
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
@@ -7285,18 +7320,18 @@ export default function App() {
                   {celulas.map((diaIso, i) => {
                     if (!diaIso) return <div key={i} />
                     const numeroDia = Number(diaIso.slice(8, 10))
-                    const temAtividade = !!porDia[diaIso]
+                    const corEvento = corDoDia[diaIso] || null
                     const ehHoje = diaIso === hoje
-                    const atrasado = temAtividade && diaIso < hoje
                     const selecionado = diaAgendaSelecionado === diaIso
-                    let bg = 'transparent', cor = 'rgba(255,255,255,.85)'
-                    if (temAtividade) { bg = atrasado ? '#DC2626' : '#16A34A'; cor = '#fff' }
-                    if (ehHoje) { bg = '#3B82F6'; cor = '#fff' }
+                    const BG_POR_COR = { vermelho:'#DC2626', laranja:'#F97316', verde:'#16A34A' }
+                    let bg = corEvento ? BG_POR_COR[corEvento] : 'transparent'
+                    let cor = corEvento ? '#fff' : 'rgba(255,255,255,.85)'
                     return (
                       <div key={i} onClick={() => setDiaAgendaSelecionado(v => v === diaIso ? null : diaIso)}
                         style={{ aspectRatio:'1', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'50%',
-                          background:bg, color:cor, fontSize:13, fontWeight: (temAtividade || ehHoje) ? 700 : 500, cursor:'pointer',
-                          boxSizing:'border-box', border: selecionado ? '2px solid #fff' : '2px solid transparent' }}>
+                          background:bg, color:cor, fontSize:13, fontWeight: (corEvento || ehHoje) ? 700 : 500, cursor:'pointer',
+                          boxSizing:'border-box',
+                          border: selecionado ? '2px solid #fff' : ehHoje ? '2px solid #3B82F6' : '2px solid transparent' }}>
                         {numeroDia}
                       </div>
                     )
@@ -7307,7 +7342,9 @@ export default function App() {
               {diaAgendaSelecionado && (
                 <div style={{ marginTop:16 }}>
                   <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:4 }}>
-                    Atividades em {isoToBr(diaAgendaSelecionado)}{diaAgendaSelecionado < hoje ? ' — ⚠ atrasada' : ''}
+                    Atividades em {isoToBr(diaAgendaSelecionado)}
+                    {corDoDia[diaAgendaSelecionado] === 'vermelho' && ' — ⚠ atrasada'}
+                    {corDoDia[diaAgendaSelecionado] === 'laranja' && ' — ⚠ gerou pendência'}
                   </div>
                   <div style={{ fontSize:12, color:'#64748B', marginBottom:14 }}>{atividadesDoDia.length} atividade(s)</div>
                   {atividadesDoDia.length === 0 && <div style={{ textAlign:'center', color:'#888', marginTop:20, fontSize:14 }}>Nenhuma atividade nesse dia.</div>}
