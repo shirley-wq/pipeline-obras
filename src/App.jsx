@@ -534,6 +534,19 @@ function somaMeses(mesIso, n) {
   return `${novoAno}-${String(novoMes).padStart(2, '0')}`
 }
 
+// Igual a somaMeses, mas pra uma data completa (YYYY-MM-DD) - preserva o dia, puxando pro último
+// dia do mês quando ele não existir no mês de destino (ex: 31/01 + 1 mês = 28 ou 29/02). Usada nas
+// parcelas de lançamento (Shirley, 2026-09-28).
+function somaMesesData(dataIso, n) {
+  const [y, m, d] = dataIso.split('-').map(Number)
+  const total = (y * 12 + (m - 1)) + n
+  const novoAno = Math.floor(total / 12)
+  const novoMes = (total % 12) + 1
+  const ultimoDiaMes = new Date(novoAno, novoMes, 0).getDate()
+  const novoDia = Math.min(d, ultimoDiaMes)
+  return `${novoAno}-${String(novoMes).padStart(2, '0')}-${String(novoDia).padStart(2, '0')}`
+}
+
 function mesesDoAnoAteAgora(ano, dataAdmissao) {
   const mesAtual = mesAtualIso()
   const mesInicio = dataAdmissao ? dataAdmissao.slice(0, 7) : null
@@ -3794,6 +3807,11 @@ export default function App() {
   const [lancamentoPlanoContas, setLancamentoPlanoContas] = useState('')
   const [lancamentoObs, setLancamentoObs] = useState('')
   const [lancamentoSalvando, setLancamentoSalvando] = useState(false)
+  // Lançamento parcelado (Shirley, 2026-09-28) - caso real: comprar um veículo financiado e já
+  // deixar previsto no Contas a Pagar TODAS as parcelas futuras, uma por mês, em vez de lançar mês
+  // a mês na mão.
+  const [lancamentoParcelado, setLancamentoParcelado] = useState(false)
+  const [lancamentoNumParcelas, setLancamentoNumParcelas] = useState('')
   const [despesasModo, setDespesasModo] = useState('mes')
   const [despesasMes, setDespesasMes] = useState(new Date().getMonth() + 1)
   const [despesasAno, setDespesasAno] = useState(new Date().getFullYear())
@@ -4568,12 +4586,12 @@ export default function App() {
 
   async function salvarLancamentoManual() {
     if (!lancamentoFornecedor.trim() || !lancamentoValor || !lancamentoVencimento) return
+    const numParcelas = lancamentoParcelado ? (parseInt(lancamentoNumParcelas) || 0) : 1
+    if (lancamentoParcelado && numParcelas < 2) return
     setLancamentoSalvando(true)
-    const registro = {
-      codigo_sige: -Date.now(),
+    const base = {
       origem: 'manual',
       obra_id: null,
-      data_vencimento: lancamentoVencimento,
       fornecedor: lancamentoFornecedor.trim(),
       valor: Number(lancamentoValor) || 0,
       centro_custos: lancamentoCentroCusto.trim() || null,
@@ -4581,10 +4599,18 @@ export default function App() {
       empresa: lancamentoEmpresa.trim() || null,
       banco: lancamentoBanco.trim() || null,
       plano_contas: lancamentoPlanoContas.trim() || null,
-      observacoes: lancamentoObs.trim() || null,
       status_pagamento: 'pendente',
     }
-    const { error } = await supabase.from('contas_pagar').insert(registro)
+    // Parcelado (ex: financiamento de veículo) - já deixa previsto no Contas a Pagar todas as
+    // parcelas futuras de uma vez, uma por mês a partir do vencimento informado, em vez de lançar
+    // mês a mês na mão (Shirley, 2026-09-28).
+    const registros = Array.from({ length: numParcelas }, (_, i) => ({
+      ...base,
+      codigo_sige: -(Date.now() + i),
+      data_vencimento: somaMesesData(lancamentoVencimento, i),
+      observacoes: [lancamentoObs.trim() || null, numParcelas > 1 ? `Parcela ${i + 1}/${numParcelas}` : null].filter(Boolean).join(' - ') || null,
+    }))
+    const { error } = await supabase.from('contas_pagar').insert(registros)
     setLancamentoSalvando(false)
     if (!error) {
       await carregarContasPagar()
@@ -4592,6 +4618,7 @@ export default function App() {
       setLancamentoFornecedor(''); setLancamentoValor(''); setLancamentoVencimento(hojeIso())
       setLancamentoCentroCusto(''); setLancamentoGrupo(''); setLancamentoEmpresa('')
       setLancamentoBanco(''); setLancamentoPlanoContas(''); setLancamentoObs('')
+      setLancamentoParcelado(false); setLancamentoNumParcelas('')
     }
   }
 
@@ -8480,16 +8507,33 @@ export default function App() {
 
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
               <div>
-                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Valor *</label>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>{lancamentoParcelado ? 'Valor de cada parcela *' : 'Valor *'}</label>
                 <input type="number" value={lancamentoValor} onChange={e => setLancamentoValor(e.target.value)}
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
               </div>
               <div>
-                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Vencimento *</label>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>{lancamentoParcelado ? 'Vencimento da 1ª parcela *' : 'Vencimento *'}</label>
                 <input type="date" value={lancamentoVencimento} onChange={e => setLancamentoVencimento(e.target.value)}
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
               </div>
             </div>
+
+            {/* Parcelado (ex: financiamento de veículo) - já deixa previsto todas as parcelas
+                futuras de uma vez, uma por mês (Shirley, 2026-09-28). */}
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom: lancamentoParcelado ? 8 : 10 }}>
+              <input type="checkbox" id="chk-lancamento-parcelado" checked={lancamentoParcelado}
+                onChange={e => setLancamentoParcelado(e.target.checked)} style={{ width:16, height:16 }} />
+              <label htmlFor="chk-lancamento-parcelado" style={{ fontSize:12, color:'#1A2340', cursor:'pointer' }}>Parcelado (ex: financiamento) - lançar todas as parcelas de uma vez</label>
+            </div>
+            {lancamentoParcelado && (
+              <div style={{ marginBottom:10 }}>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Número de parcelas *</label>
+                <input type="number" min="2" value={lancamentoNumParcelas} onChange={e => setLancamentoNumParcelas(e.target.value)}
+                  placeholder="Ex: 24"
+                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                <div style={{ fontSize:11, color:'#64748B', marginTop:4 }}>Cria {parseInt(lancamentoNumParcelas) || 0} lançamentos, um por mês a partir do vencimento acima (mesmo fornecedor/valor em cada um).</div>
+              </div>
+            )}
 
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
               <div>
@@ -8535,9 +8579,9 @@ export default function App() {
                 style={{ flex:1, padding:10, background:'#F1F5F9', color:'#1A2340', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                 Cancelar
               </button>
-              <button onClick={salvarLancamentoManual} disabled={lancamentoSalvando || !lancamentoFornecedor.trim() || !lancamentoValor || !lancamentoVencimento}
-                style={{ flex:1, padding:10, background: (lancamentoSalvando || !lancamentoFornecedor.trim() || !lancamentoValor || !lancamentoVencimento) ? '#94A3B8' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
-                {lancamentoSalvando ? 'Salvando...' : 'Salvar lançamento'}
+              <button onClick={salvarLancamentoManual} disabled={lancamentoSalvando || !lancamentoFornecedor.trim() || !lancamentoValor || !lancamentoVencimento || (lancamentoParcelado && (parseInt(lancamentoNumParcelas) || 0) < 2)}
+                style={{ flex:1, padding:10, background: (lancamentoSalvando || !lancamentoFornecedor.trim() || !lancamentoValor || !lancamentoVencimento || (lancamentoParcelado && (parseInt(lancamentoNumParcelas) || 0) < 2)) ? '#94A3B8' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                {lancamentoSalvando ? 'Salvando...' : lancamentoParcelado ? `Salvar ${parseInt(lancamentoNumParcelas) || 0} parcelas` : 'Salvar lançamento'}
               </button>
             </div>
           </div>
