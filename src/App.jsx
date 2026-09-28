@@ -3807,6 +3807,9 @@ export default function App() {
   const [lancamentoPlanoContas, setLancamentoPlanoContas] = useState('')
   const [lancamentoObs, setLancamentoObs] = useState('')
   const [lancamentoSalvando, setLancamentoSalvando] = useState(false)
+  // Tela nunca tinha tratamento de erro - se o insert falhasse, a tela ficava aberta sem avisar
+  // nada (achado no teste do lançamento parcelado, Shirley, 2026-09-28).
+  const [lancamentoErro, setLancamentoErro] = useState('')
   // Lançamento parcelado (Shirley, 2026-09-28) - caso real: comprar um veículo financiado e já
   // deixar previsto no Contas a Pagar TODAS as parcelas futuras, uma por mês, em vez de lançar mês
   // a mês na mão.
@@ -4589,11 +4592,15 @@ export default function App() {
     const numParcelas = lancamentoParcelado ? (parseInt(lancamentoNumParcelas) || 0) : 1
     if (lancamentoParcelado && numParcelas < 2) return
     setLancamentoSalvando(true)
+    setLancamentoErro('')
+    // Aceita vírgula decimal (padrão BR) além de ponto - "100,00" virava 0 antes disso, silenciosamente
+    // (Shirley, 2026-09-28).
+    const valorNumerico = parseFloat(String(lancamentoValor).replace(',', '.')) || 0
     const base = {
       origem: 'manual',
       obra_id: null,
       fornecedor: lancamentoFornecedor.trim(),
-      valor: Number(lancamentoValor) || 0,
+      valor: valorNumerico,
       centro_custos: lancamentoCentroCusto.trim() || null,
       grupo: lancamentoGrupo.trim() || null,
       empresa: lancamentoEmpresa.trim() || null,
@@ -4612,6 +4619,10 @@ export default function App() {
     }))
     const { error } = await supabase.from('contas_pagar').insert(registros)
     setLancamentoSalvando(false)
+    if (error) {
+      console.error('Falha ao salvar lançamento manual:', error)
+      setLancamentoErro('Não foi possível salvar: ' + (error.message || 'erro desconhecido'))
+    }
     if (!error) {
       await carregarContasPagar()
       setModalLancamentoManual(false)
@@ -8249,7 +8260,7 @@ export default function App() {
             </div>
             {contasPagarSubaba === 'pagar' && (
               <div style={{ marginLeft:'auto', display:'flex', gap:8 }}>
-                <button onClick={() => setModalLancamentoManual(true)}
+                <button onClick={() => { setLancamentoErro(''); setModalLancamentoManual(true) }}
                   style={{ padding:'8px 14px', background:'#fff', color:'#0F766E', border:'1px solid #0F766E', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
                   ✏️ Lançamento manual
                 </button>
@@ -8574,6 +8585,11 @@ export default function App() {
             <textarea value={lancamentoObs} onChange={e => setLancamentoObs(e.target.value)} rows={2}
               style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:14, resize:'vertical' }} />
 
+            {lancamentoErro && (
+              <div style={{ fontSize:12, color:'#991B1B', background:'#FEF2F2', border:'1px solid #FCA5A5', borderRadius:8, padding:'8px 10px', marginBottom:10 }}>
+                {lancamentoErro}
+              </div>
+            )}
             <div style={{ display:'flex', gap:8 }}>
               <button onClick={() => setModalLancamentoManual(false)} disabled={lancamentoSalvando}
                 style={{ flex:1, padding:10, background:'#F1F5F9', color:'#1A2340', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
