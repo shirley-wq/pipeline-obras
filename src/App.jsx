@@ -8472,8 +8472,11 @@ export default function App() {
             <div style={{ fontSize:11, color:'#64748B', marginBottom:14 }}>Despesa avulsa, sem vínculo com obra — vai direto pro Contas a Pagar como pendente.</div>
 
             <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Fornecedor *</label>
-            <input value={lancamentoFornecedor} onChange={e => setLancamentoFornecedor(up(e.target.value))}
+            <input list="lista-fornecedor-lancamento" value={lancamentoFornecedor} onChange={e => setLancamentoFornecedor(up(e.target.value))}
               style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:10 }} />
+            {/* Sugestão a partir do cadastro de Fornecedores já existente - antes esse campo era o
+                único do formulário sem autocomplete (Shirley, 2026-09-28). */}
+            <datalist id="lista-fornecedor-lancamento">{fornecedores.map(f => <option key={f.id} value={f.nome_fantasia || f.razao_social || ''} />)}</datalist>
 
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
               <div>
