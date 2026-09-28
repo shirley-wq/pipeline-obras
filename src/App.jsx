@@ -6691,7 +6691,7 @@ export default function App() {
             </>)}
           </div>
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', rowGap:6, justifyContent:'flex-end' }}>
           {podeVerValores && (
             <button onClick={() => setModalNovaObra(true)}
               style={{ background:'#1A6B4A', border:'none', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', padding:'6px 12px', borderRadius:8 }}>
