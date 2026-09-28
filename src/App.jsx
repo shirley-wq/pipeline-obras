@@ -1892,47 +1892,6 @@ function FornecedorForm({ dados, setDados, onSalvar, onCancelar, onExcluir, salv
   )
 }
 
-function SeletorFornecedor({ fornecedores, texto, onChangeTexto, fornecedorId, onSelecionar, onCriarNovo }) {
-  const [aberto, setAberto] = useState(false)
-  const normaliza = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-  const termo = normaliza(texto || '')
-  const sugestoes = termo
-    ? fornecedores.filter(f => normaliza(f.nome_fantasia || f.razao_social || '').includes(termo)).slice(0, 8)
-    : []
-  return (
-    <div style={{ position:'relative' }}>
-      <input value={texto}
-        onChange={e => { onChangeTexto(up(e.target.value)); setAberto(true) }}
-        onFocus={() => setAberto(true)}
-        placeholder="Digite pra buscar um fornecedor..."
-        style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
-      {fornecedorId && (
-        <div style={{ fontSize:11, color:'#059669', marginTop:4 }}>✓ vinculado ao cadastro de fornecedores</div>
-      )}
-      {aberto && texto?.trim() && (
-        <div style={{ position:'absolute', zIndex:10, background:'#fff', width:'100%', border:'1px solid #E0E8F0', borderRadius:8, marginTop:4, maxHeight:180, overflowY:'auto', boxShadow:'0 4px 12px rgba(0,0,0,.15)' }}>
-          {sugestoes.map(f => (
-            <div key={f.id} onMouseDown={e => e.preventDefault()}
-              onClick={() => { onSelecionar(f); setAberto(false) }}
-              style={{ padding:'8px 10px', fontSize:13, color:'#1A2340', cursor:'pointer', borderBottom:'1px solid #F0F4F8' }}>
-              {f.nome_fantasia || f.razao_social}
-              {f.cnpj && <span style={{ color:'#94A3B8', fontSize:11 }}> · {f.cnpj}</span>}
-            </div>
-          ))}
-          {sugestoes.length === 0 && (
-            <div style={{ padding:'8px 10px', fontSize:12, color:'#9CA3AF' }}>Nenhum fornecedor encontrado</div>
-          )}
-          <div onMouseDown={e => e.preventDefault()}
-            onClick={() => { onCriarNovo(texto.trim()); setAberto(false) }}
-            style={{ padding:'8px 10px', fontSize:13, color:'#0369A1', cursor:'pointer', fontWeight:600, borderTop:'1px solid #F0F4F8' }}>
-            ➕ Criar novo fornecedor "{texto.trim()}"
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 function PerguntaSimNao({ numero, pergunta, valor, onChange, seguirQuando, detalheLabel, detalheValor, onChangeDetalhe, detalheTipo }) {
   return (
     <div style={{ marginBottom:10 }}>
@@ -3822,8 +3781,6 @@ export default function App() {
   // Pipeline, sem depender de importar planilha).
   const [modalLancamentoManual, setModalLancamentoManual] = useState(false)
   const [lancamentoFornecedor, setLancamentoFornecedor] = useState('')
-  const [lancamentoFornecedorId, setLancamentoFornecedorId] = useState(null)
-  const [criandoFornecedorLancamento, setCriandoFornecedorLancamento] = useState(null)
   const [lancamentoValor, setLancamentoValor] = useState('')
   const [lancamentoVencimento, setLancamentoVencimento] = useState(hojeIso())
   const [lancamentoCentroCusto, setLancamentoCentroCusto] = useState('')
@@ -3894,15 +3851,15 @@ export default function App() {
     setSalvandoFornecedor(true)
     const camposCompletos = { ...campos, atualizado_em: new Date().toISOString(), atualizado_por: usuario?.email || null }
     if (id) {
-      const { data, error } = await supabase.from('fornecedores').update(camposCompletos).eq('id', id).select().single()
-      if (!error && data) setFornecedores(prev => prev.map(f => f.id === id ? { ...f, ...data } : f).sort((a,b) => (a.nome_fantasia||'').localeCompare(b.nome_fantasia||'')))
+      const { error } = await supabase.from('fornecedores').update(camposCompletos).eq('id', id)
+      if (!error) setFornecedores(prev => prev.map(f => f.id === id ? { ...f, ...camposCompletos } : f).sort((a,b) => (a.nome_fantasia||'').localeCompare(b.nome_fantasia||'')))
       setSalvandoFornecedor(false)
-      return !error ? data : null
+      return !error
     }
     const { data, error } = await supabase.from('fornecedores').insert(camposCompletos).select().single()
     if (!error && data) setFornecedores(prev => [...prev, data].sort((a,b) => (a.nome_fantasia||'').localeCompare(b.nome_fantasia||'')))
     setSalvandoFornecedor(false)
-    return !error ? data : null
+    return !error
   }
 
   async function excluirFornecedor(id) {
@@ -4614,7 +4571,6 @@ export default function App() {
       obra_id: null,
       data_vencimento: lancamentoVencimento,
       fornecedor: lancamentoFornecedor.trim(),
-      fornecedor_id: lancamentoFornecedorId || null,
       valor: Number(lancamentoValor) || 0,
       centro_custos: lancamentoCentroCusto.trim() || null,
       grupo: lancamentoGrupo.trim() || null,
@@ -4629,8 +4585,7 @@ export default function App() {
     if (!error) {
       await carregarContasPagar()
       setModalLancamentoManual(false)
-      setLancamentoFornecedor(''); setLancamentoFornecedorId(null); setCriandoFornecedorLancamento(null)
-      setLancamentoValor(''); setLancamentoVencimento(hojeIso())
+      setLancamentoFornecedor(''); setLancamentoValor(''); setLancamentoVencimento(hojeIso())
       setLancamentoCentroCusto(''); setLancamentoGrupo(''); setLancamentoEmpresa('')
       setLancamentoBanco(''); setLancamentoPlanoContas(''); setLancamentoObs('')
     }
@@ -5096,6 +5051,47 @@ export default function App() {
     }
   }
 
+  // Motivo automático da pendência, juntando os impedimentos já registrados nas atividades do dia
+  // (se o técnico não detalhou nenhum, fica só o aviso genérico) - evita pedir a mesma informação
+  // de novo pro escritório (Shirley, 2026-09-28).
+  function motivoRegistroTexto(registro) {
+    return (registro.atividades || []).filter(a => a.impedimento && a.motivo).map(a => `${a.atividade}: ${a.motivo}`).join(' | ')
+  }
+
+  function montaMotivoPendenciaAutomatico(registro) {
+    const detalhes = motivoRegistroTexto(registro)
+    return `Pendência automática - dia ${registro.data ? isoToBr(registro.data) : '(sem data)'} marcado como não concluído pelo técnico.${detalhes ? ' ' + detalhes : ''}`
+  }
+
+  // Aviso por e-mail pro escritório quando o técnico marca "✗ Não" no dia (redesenho da Daniela
+  // Ferreira, aprovado pela Shirley em 2026-09-28, resolvendo o relato dela e da Glauce de
+  // 2026-09-25 sobre obra avançando/ficando presa sem ninguém perceber). Reaproveita o mesmo canal
+  // de e-mail já usado pra Tecban (EDGE_FUNCTION_TECBAN_URL) - só muda o destinatário.
+  async function notificarPendenciaAutomatica(obraAtual, registro, { vistoria = false } = {}) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const pc = obraAtual.numero_pc || obraAtual.sige || obraAtual.id
+      const assunto = vistoria
+        ? `Vistoria não concluída - PC ${pc} - ${obraAtual.nome} precisa de nova data`
+        : `Pendência automática - PC ${pc} - ${obraAtual.nome} precisa de reagendamento`
+      const detalhes = motivoRegistroTexto(registro)
+      const corpo = [
+        `A obra ${obraAtual.nome} (PC ${pc}, ${obraAtual.rede}/${obraAtual.tipo}) teve o dia ${registro.data ? isoToBr(registro.data) : '(sem data)'} marcado como NÃO CONCLUÍDO pelo técnico.`,
+        vistoria
+          ? 'É preciso agendar uma nova data de vistoria.'
+          : 'A obra foi movida automaticamente para "Gerou Pendência" - é preciso reagendar a próxima visita (etapa Agendamento) pra ela voltar sozinha pra "Operação em Campo" quando a nova data chegar.',
+        detalhes ? `Observações registradas: ${detalhes}` : null,
+      ].filter(Boolean).join('\n\n')
+      await fetch(EDGE_FUNCTION_TECBAN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
+        body: JSON.stringify({ to: EMAILS_ENVIO_RELATORIO.join(','), subject: assunto, body: corpo }),
+      })
+    } catch (err) {
+      console.error('Falha ao enviar aviso de pendência automática', err)
+    }
+  }
+
   async function salvarVisitaAtual(overrides = {}) {
     if (editandoVisitaIdx !== null || !modal || registrosOperacaoCampo.length === 0) return
     const s = {
@@ -5120,8 +5116,26 @@ export default function App() {
     const novaLista = registrosOperacaoCampo.map((r, i) => i === registrosOperacaoCampo.length - 1 ? registro : r)
     setRegistrosOperacaoCampo(novaLista)
     const campos = { registros_operacao_campo: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+    // Dia marcado como "✗ Não" agora pela 1ª vez nessa visita - avança sozinho pra "Gerou
+    // Pendência" (ou, se a etapa é Vistoria, fica onde está aguardando reagendar) e avisa o
+    // escritório por e-mail, sem depender de alguém notar na lista (Daniela/Glauce, relato
+    // 2026-09-25; redesenho completo aprovado pela Shirley, 2026-09-28). O retorno pra "Operação em
+    // Campo" já é coberto pelo conserto do Passo 1: quando o escritório reagendar (voltar pra
+    // Agendamento com nova data), o avanço automático/pg_cron cuida do resto sozinho.
+    const acabouDeMarcarNaoConcluido = registro.concluido === false && ultimo.concluido !== false
+    const statusOriginal = modal.status
+    if (acabouDeMarcarNaoConcluido && statusOriginal === 'OPERAÇÃO EM CAMPO') {
+      campos.status = 'GEROU PENDÊNCIA'
+      campos.motivo_pendencia = montaMotivoPendenciaAutomatico(registro)
+    }
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', modal.id)
-    if (!error) setObras(prev => prev.map(o => o.id === modal.id ? { ...o, ...campos } : o))
+    if (!error) {
+      setObras(prev => prev.map(o => o.id === modal.id ? { ...o, ...campos } : o))
+      setModal(m => m ? { ...m, ...campos } : m)
+      if (acabouDeMarcarNaoConcluido && (statusOriginal === 'OPERAÇÃO EM CAMPO' || statusOriginal === 'VISTORIA')) {
+        notificarPendenciaAutomatica({ ...modal, ...campos }, registro, { vistoria: statusOriginal === 'VISTORIA' })
+      }
+    }
   }
 
   function mudarAtividadesVisitaAtual(fn) {
@@ -8441,28 +8455,8 @@ export default function App() {
             <div style={{ fontSize:11, color:'#64748B', marginBottom:14 }}>Despesa avulsa, sem vínculo com obra — vai direto pro Contas a Pagar como pendente.</div>
 
             <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Fornecedor *</label>
-            <div style={{ marginBottom:10 }}>
-              <SeletorFornecedor
-                fornecedores={fornecedores}
-                texto={lancamentoFornecedor}
-                onChangeTexto={v => { setLancamentoFornecedor(v); setLancamentoFornecedorId(null) }}
-                fornecedorId={lancamentoFornecedorId}
-                onSelecionar={f => { setLancamentoFornecedor(f.nome_fantasia || f.razao_social || ''); setLancamentoFornecedorId(f.id) }}
-                onCriarNovo={nome => setCriandoFornecedorLancamento({ nome_fantasia: nome })} />
-              {criandoFornecedorLancamento && (
-                <FornecedorForm dados={criandoFornecedorLancamento} setDados={setCriandoFornecedorLancamento}
-                  salvando={salvandoFornecedor}
-                  onCancelar={() => setCriandoFornecedorLancamento(null)}
-                  onSalvar={async () => {
-                    const novo = await salvarFornecedor(null, criandoFornecedorLancamento)
-                    if (novo) {
-                      setLancamentoFornecedor(novo.nome_fantasia || novo.razao_social || '')
-                      setLancamentoFornecedorId(novo.id)
-                      setCriandoFornecedorLancamento(null)
-                    }
-                  }} />
-              )}
-            </div>
+            <input value={lancamentoFornecedor} onChange={e => setLancamentoFornecedor(up(e.target.value))}
+              style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:10 }} />
 
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
               <div>
@@ -8598,7 +8592,7 @@ export default function App() {
             <FornecedorForm dados={novoFornecedor} setDados={setNovoFornecedor}
               salvando={salvandoFornecedor}
               onCancelar={() => setNovoFornecedor(null)}
-              onSalvar={async () => { const novo = await salvarFornecedor(null, novoFornecedor); if (novo) setNovoFornecedor(null) }} />
+              onSalvar={async () => { const ok = await salvarFornecedor(null, novoFornecedor); if (ok) setNovoFornecedor(null) }} />
           )}
 
           {listaFiltrada.map(f => {
