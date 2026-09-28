@@ -4659,6 +4659,9 @@ export default function App() {
     if (!error) {
       await carregarContasPagar()
       setModalLancamentoManual(false)
+      // Antes fechava o modal em silêncio, sem nenhuma confirmação - Shirley não sabia se tinha
+      // salvo de verdade (2026-09-28).
+      alert(numParcelas > 1 ? `${numParcelas} parcelas lançadas com sucesso.` : 'Lançamento salvo com sucesso.')
       setLancamentoFornecedor(''); setLancamentoValor(''); setLancamentoVencimento(hojeIso())
       setLancamentoCentroCusto(''); setLancamentoGrupo(''); setLancamentoEmpresa('')
       setLancamentoBanco(''); setLancamentoPlanoContas(''); setLancamentoObs('')
