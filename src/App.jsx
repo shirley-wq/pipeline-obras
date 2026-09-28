@@ -3807,6 +3807,9 @@ export default function App() {
   const [lancamentoPlanoContas, setLancamentoPlanoContas] = useState('')
   const [lancamentoObs, setLancamentoObs] = useState('')
   const [lancamentoSalvando, setLancamentoSalvando] = useState(false)
+  // Cadastrar fornecedor novo sem sair do lançamento manual (Shirley, 2026-09-28) - antes só dava
+  // pra escolher um já existente (autocomplete) ou digitar o nome solto, sem CNPJ/categoria etc.
+  const [novoFornecedorLancamento, setNovoFornecedorLancamento] = useState(null)
   // Tela nunca tinha tratamento de erro - se o insert falhasse, a tela ficava aberta sem avisar
   // nada (achado no teste do lançamento parcelado, Shirley, 2026-09-28).
   const [lancamentoErro, setLancamentoErro] = useState('')
@@ -8269,7 +8272,7 @@ export default function App() {
             </div>
             {contasPagarSubaba === 'pagar' && (
               <div style={{ marginLeft:'auto', display:'flex', gap:8 }}>
-                <button onClick={() => { setLancamentoErro(''); setModalLancamentoManual(true) }}
+                <button onClick={() => { setLancamentoErro(''); setNovoFornecedorLancamento(null); setModalLancamentoManual(true) }}
                   style={{ padding:'8px 14px', background:'#fff', color:'#0F766E', border:'1px solid #0F766E', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
                   ✏️ Lançamento manual
                 </button>
@@ -8520,10 +8523,30 @@ export default function App() {
 
             <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Fornecedor *</label>
             <input list="lista-fornecedor-lancamento" value={lancamentoFornecedor} onChange={e => setLancamentoFornecedor(up(e.target.value))}
-              style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:10 }} />
+              style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
             {/* Sugestão a partir do cadastro de Fornecedores já existente - antes esse campo era o
                 único do formulário sem autocomplete (Shirley, 2026-09-28). */}
             <datalist id="lista-fornecedor-lancamento">{fornecedores.map(f => <option key={f.id} value={f.nome_fantasia || f.razao_social || ''} />)}</datalist>
+
+            {!novoFornecedorLancamento ? (
+              <div onClick={() => setNovoFornecedorLancamento({ nome_fantasia: lancamentoFornecedor })}
+                style={{ fontSize:11, color:'#0369A1', fontWeight:600, cursor:'pointer', marginTop:4, marginBottom:10 }}>
+                + Fornecedor não cadastrado? Cadastrar novo
+              </div>
+            ) : (
+              <div style={{ marginTop:8, marginBottom:10 }}>
+                <FornecedorForm dados={novoFornecedorLancamento} setDados={setNovoFornecedorLancamento}
+                  salvando={salvandoFornecedor}
+                  onCancelar={() => setNovoFornecedorLancamento(null)}
+                  onSalvar={async () => {
+                    const ok = await salvarFornecedor(null, novoFornecedorLancamento)
+                    if (ok) {
+                      setLancamentoFornecedor(up(novoFornecedorLancamento.nome_fantasia || ''))
+                      setNovoFornecedorLancamento(null)
+                    }
+                  }} />
+              </div>
+            )}
 
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
               <div>
