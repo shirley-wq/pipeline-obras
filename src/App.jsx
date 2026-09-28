@@ -451,6 +451,15 @@ function hojeIso() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+// codigo_sige (contas_pagar) é coluna integer (int4, limite ~2,1 bilhões) - usar -Date.now()
+// (13 dígitos, em milissegundos) sempre estourava esse limite e fazia o insert falhar (achado no
+// teste do lançamento parcelado, Shirley, 2026-09-28 - a mensagem de erro só apareceu depois de eu
+// ter adicionado tratamento de erro visível nessa tela). Segundos desde 1970 cabe no limite com
+// folga até 2038; soma um offset pra gerar vários códigos distintos numa mesma leva (parcelas).
+function gerarCodigoSigeManual(offset = 0) {
+  return -(Math.floor(Date.now() / 1000) + offset)
+}
+
 function proximaFeriasEstimativa(dataAdmissao) {
   if (!dataAdmissao) return null
   const hoje = new Date()
@@ -2064,25 +2073,33 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
   const [despesaObs, setDespesaObs] = useState('')
   const [salvandoDespesa, setSalvandoDespesa] = useState(false)
   const [despesaSalva, setDespesaSalva] = useState(false)
+  // Sem tratamento de erro nenhum antes - se o insert falhasse (ex: o mesmo estouro de codigo_sige
+  // corrigido no lançamento manual do Financeiro), a tela ficava parada sem avisar nada (achado
+  // junto, Shirley, 2026-09-28).
+  const [despesaErro, setDespesaErro] = useState('')
   async function salvarDespesaVinculada() {
     if (!despesaFornecedor.trim() || !despesaValor) return
     setSalvandoDespesa(true)
+    setDespesaErro('')
     const centroCustoSugerido = TIPOS_BDN.includes(obra.tipo) ? 'MOVIMENTAÇÃO DE ATM' : 'REFORMA'
     const registro = {
-      codigo_sige: -Date.now(),
+      codigo_sige: gerarCodigoSigeManual(),
       origem: 'manual',
       obra_id: obra.id,
       data_vencimento: despesaVencimento || null,
       fornecedor: despesaFornecedor.trim(),
       centro_custos: centroCustoSugerido,
       rede: obra.rede || null,
-      valor: Number(despesaValor) || 0,
+      valor: parseFloat(String(despesaValor).replace(',', '.')) || 0,
       observacoes: despesaObs.trim() || null,
       status_pagamento: 'pendente',
     }
     const { error } = await supabase.from('contas_pagar').insert(registro)
     setSalvandoDespesa(false)
-    if (!error) {
+    if (error) {
+      console.error('Falha ao salvar despesa vinculada:', error)
+      setDespesaErro('Não foi possível salvar: ' + (error.message || 'erro desconhecido'))
+    } else {
       setDespesaSalva(true)
       setDespesaFornecedor(''); setDespesaValor(''); setDespesaObs('')
       setTimeout(() => { setDespesaSalva(false); setMostrarDespesa(false) }, 2000)
@@ -2230,6 +2247,9 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
             </div>
             <textarea value={despesaObs} onChange={e => setDespesaObs(e.target.value)} placeholder="O que foi feito (opcional)" rows={2}
               style={{ width:'100%', padding:'8px 10px', border:'1px solid #FED7AA', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8, resize:'vertical' }} />
+            {despesaErro && (
+              <div style={{ fontSize:11, color:'#991B1B', background:'#FEF2F2', border:'1px solid #FCA5A5', borderRadius:6, padding:'6px 8px', marginBottom:8 }}>{despesaErro}</div>
+            )}
             <button onClick={salvarDespesaVinculada} disabled={salvandoDespesa || !despesaFornecedor.trim() || !despesaValor}
               style={{ width:'100%', padding:9, background: (salvandoDespesa || !despesaFornecedor.trim() || !despesaValor) ? '#ccc' : '#9A3412', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
               {salvandoDespesa ? 'Salvando...' : despesaSalva ? '✓ Enviado pro Contas a Pagar' : 'Salvar despesa'}
@@ -3675,6 +3695,7 @@ export default function App() {
   const [despesaObraObs, setDespesaObraObs] = useState('')
   const [salvandoDespesaObra, setSalvandoDespesaObra] = useState(false)
   const [despesaObraSalva, setDespesaObraSalva] = useState(false)
+  const [despesaObraErro, setDespesaObraErro] = useState('')
   const [despesasPessoal, setDespesasPessoal] = useState([])
   const [novaDespesaData, setNovaDespesaData] = useState('')
   const [novaDespesaCategoria, setNovaDespesaCategoria] = useState('Hospedagem')
@@ -4625,7 +4646,7 @@ export default function App() {
     // mês a mês na mão (Shirley, 2026-09-28).
     const registros = Array.from({ length: numParcelas }, (_, i) => ({
       ...base,
-      codigo_sige: -(Date.now() + i),
+      codigo_sige: gerarCodigoSigeManual(i),
       data_vencimento: somaMesesData(lancamentoVencimento, i),
       observacoes: [lancamentoObs.trim() || null, numParcelas > 1 ? `Parcela ${i + 1}/${numParcelas}` : null].filter(Boolean).join(' - ') || null,
     }))
@@ -5948,22 +5969,26 @@ export default function App() {
   async function salvarDespesaVinculadaObra() {
     if (!modal || !despesaObraFornecedor.trim() || !despesaObraValor) return
     setSalvandoDespesaObra(true)
+    setDespesaObraErro('')
     const centroCustoSugerido = TIPOS_BDN.includes(modal.tipo) ? 'MOVIMENTAÇÃO DE ATM' : 'REFORMA'
     const registro = {
-      codigo_sige: -Date.now(),
+      codigo_sige: gerarCodigoSigeManual(),
       origem: 'manual',
       obra_id: modal.id,
       data_vencimento: despesaObraVencimento || null,
       fornecedor: despesaObraFornecedor.trim(),
       centro_custos: centroCustoSugerido,
       rede: modal.rede || null,
-      valor: Number(despesaObraValor) || 0,
+      valor: parseFloat(String(despesaObraValor).replace(',', '.')) || 0,
       observacoes: despesaObraObs.trim() || null,
       status_pagamento: 'pendente',
     }
     const { error } = await supabase.from('contas_pagar').insert(registro)
     setSalvandoDespesaObra(false)
-    if (!error) {
+    if (error) {
+      console.error('Falha ao salvar despesa vinculada à obra:', error)
+      setDespesaObraErro('Não foi possível salvar: ' + (error.message || 'erro desconhecido'))
+    } else {
       setDespesaObraSalva(true)
       setDespesaObraFornecedor(''); setDespesaObraValor(''); setDespesaObraObs('')
       await carregarContasPagar()
@@ -10818,6 +10843,9 @@ export default function App() {
               </div>
               <textarea value={despesaObraObs} onChange={e => setDespesaObraObs(e.target.value)} placeholder="O que foi feito (opcional)" rows={2}
                 style={{ width:'100%', padding:'8px 10px', border:'1px solid #FED7AA', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:8, resize:'vertical' }} />
+              {despesaObraErro && (
+                <div style={{ fontSize:11, color:'#991B1B', background:'#FEF2F2', border:'1px solid #FCA5A5', borderRadius:6, padding:'6px 8px', marginBottom:8 }}>{despesaObraErro}</div>
+              )}
               <button onClick={salvarDespesaVinculadaObra} disabled={salvandoDespesaObra || !despesaObraFornecedor.trim() || !despesaObraValor}
                 style={{ width:'100%', padding:9, background: (salvandoDespesaObra || !despesaObraFornecedor.trim() || !despesaObraValor) ? '#ccc' : '#9A3412', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
                 {salvandoDespesaObra ? 'Salvando...' : despesaObraSalva ? '✓ Enviado pro Contas a Pagar' : 'Salvar despesa'}
