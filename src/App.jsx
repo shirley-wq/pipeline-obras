@@ -5085,7 +5085,9 @@ export default function App() {
       await fetch(EDGE_FUNCTION_TECBAN_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
-        body: JSON.stringify({ to: EMAILS_ENVIO_RELATORIO.join(','), subject: assunto, body: corpo }),
+        // to/cc no mesmo padrão dos outros envios internos (to = endereço único, cc = lista) -
+        // evita depender de o "to" aceitar vários endereços separados por vírgula.
+        body: JSON.stringify({ to: EMAIL_CC_OPERACAO_GRUPOPG, cc: EMAILS_ENVIO_RELATORIO.join(','), subject: assunto, body: corpo }),
       })
     } catch (err) {
       console.error('Falha ao enviar aviso de pendência automática', err)
