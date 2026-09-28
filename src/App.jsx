@@ -3811,6 +3811,9 @@ export default function App() {
   // Busca por fornecedor no Contas a Pagar (Shirley, 2026-09-28) - a busca por vencimento já
   // existia no modo "Período" (data início/fim), só faltava essa.
   const [contasPagarBuscaFornecedor, setContasPagarBuscaFornecedor] = useState('')
+  // Detalhamento por categoria/centro de custo/grupo escondido por padrão, só abre se pedir
+  // (Shirley, 2026-09-28 - achou que aparecia demais na tela sem precisar).
+  const [contasPagarMostrarQuebras, setContasPagarMostrarQuebras] = useState(false)
   const [modalImportarContasPagar, setModalImportarContasPagar] = useState(false)
   const [contasPagarArquivo, setContasPagarArquivo] = useState(null)
   const [contasPagarProcessando, setContasPagarProcessando] = useState(false)
@@ -8450,7 +8453,13 @@ export default function App() {
                 )
               })()}
 
-              {[
+              <div onClick={() => setContasPagarMostrarQuebras(v => !v)}
+                style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:'10px 14px', marginBottom:14, cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ fontSize:12, fontWeight:700, color:'#1A2340' }}>Detalhamento por categoria / centro de custo / grupo</span>
+                <span style={{ fontSize:12, color:'#4A7FC1', fontWeight:600 }}>{contasPagarMostrarQuebras ? '▲ Esconder' : '▼ Mostrar'}</span>
+              </div>
+
+              {contasPagarMostrarQuebras && [
                 { titulo: 'Por categoria (plano de contas)', lista: contasPagarPorCategoriaLista },
                 { titulo: 'Por centro de custo', lista: contasPagarPorCentroCustoLista },
                 { titulo: 'Por grupo', lista: contasPagarPorGrupoLista },
