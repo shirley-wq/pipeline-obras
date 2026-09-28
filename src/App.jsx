@@ -4587,10 +4587,19 @@ export default function App() {
     setContasPagarProcessando(false)
   }
 
+  // Todo campo é obrigatório, exceto Observações (Shirley, 2026-09-28) - eram os campos livres/
+  // opcionais (Centro de Custo, Grupo, Empresa, Banco, Plano de Contas) que ficavam em branco e
+  // geravam o monte de lançamento sem classificação que a gente achou no levantamento.
+  function lancamentoFaltaCampoObrigatorio() {
+    return !lancamentoFornecedor.trim() || !lancamentoValor || !lancamentoVencimento
+      || !lancamentoCentroCusto.trim() || !lancamentoGrupo.trim() || !lancamentoEmpresa.trim()
+      || !lancamentoBanco.trim() || !lancamentoPlanoContas.trim()
+      || (lancamentoParcelado && (parseInt(lancamentoNumParcelas) || 0) < 2)
+  }
+
   async function salvarLancamentoManual() {
-    if (!lancamentoFornecedor.trim() || !lancamentoValor || !lancamentoVencimento) return
+    if (lancamentoFaltaCampoObrigatorio()) return
     const numParcelas = lancamentoParcelado ? (parseInt(lancamentoNumParcelas) || 0) : 1
-    if (lancamentoParcelado && numParcelas < 2) return
     setLancamentoSalvando(true)
     setLancamentoErro('')
     // Aceita vírgula decimal (padrão BR) além de ponto - "100,00" virava 0 antes disso, silenciosamente
@@ -8548,13 +8557,13 @@ export default function App() {
 
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
               <div>
-                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Centro de Custo</label>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Centro de Custo *</label>
                 <input list="lista-centro-custo" value={lancamentoCentroCusto} onChange={e => setLancamentoCentroCusto(up(e.target.value))}
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                 <datalist id="lista-centro-custo">{centrosCustoContasPagar.map(v => <option key={v} value={v} />)}</datalist>
               </div>
               <div>
-                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Grupo</label>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Grupo *</label>
                 <input list="lista-grupo" value={lancamentoGrupo} onChange={e => setLancamentoGrupo(up(e.target.value))}
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                 <datalist id="lista-grupo">{gruposContasPagar.map(v => <option key={v} value={v} />)}</datalist>
@@ -8563,20 +8572,20 @@ export default function App() {
 
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
               <div>
-                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Empresa</label>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Empresa *</label>
                 <input list="lista-empresa" value={lancamentoEmpresa} onChange={e => setLancamentoEmpresa(up(e.target.value))}
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                 <datalist id="lista-empresa">{empresasContasPagar.map(v => <option key={v} value={v} />)}</datalist>
               </div>
               <div>
-                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Banco</label>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Banco *</label>
                 <input list="lista-banco" value={lancamentoBanco} onChange={e => setLancamentoBanco(up(e.target.value))}
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                 <datalist id="lista-banco">{bancosContasPagar.map(v => <option key={v} value={v} />)}</datalist>
               </div>
             </div>
 
-            <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Plano de Contas</label>
+            <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Plano de Contas *</label>
             <input list="lista-plano-contas" value={lancamentoPlanoContas} onChange={e => setLancamentoPlanoContas(up(e.target.value))}
               style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:10 }} />
             <datalist id="lista-plano-contas">{planosContaContasPagar.map(v => <option key={v} value={v} />)}</datalist>
@@ -8595,8 +8604,8 @@ export default function App() {
                 style={{ flex:1, padding:10, background:'#F1F5F9', color:'#1A2340', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                 Cancelar
               </button>
-              <button onClick={salvarLancamentoManual} disabled={lancamentoSalvando || !lancamentoFornecedor.trim() || !lancamentoValor || !lancamentoVencimento || (lancamentoParcelado && (parseInt(lancamentoNumParcelas) || 0) < 2)}
-                style={{ flex:1, padding:10, background: (lancamentoSalvando || !lancamentoFornecedor.trim() || !lancamentoValor || !lancamentoVencimento || (lancamentoParcelado && (parseInt(lancamentoNumParcelas) || 0) < 2)) ? '#94A3B8' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+              <button onClick={salvarLancamentoManual} disabled={lancamentoSalvando || lancamentoFaltaCampoObrigatorio()}
+                style={{ flex:1, padding:10, background: (lancamentoSalvando || lancamentoFaltaCampoObrigatorio()) ? '#94A3B8' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                 {lancamentoSalvando ? 'Salvando...' : lancamentoParcelado ? `Salvar ${parseInt(lancamentoNumParcelas) || 0} parcelas` : 'Salvar lançamento'}
               </button>
             </div>
