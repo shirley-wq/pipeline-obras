@@ -3821,6 +3821,9 @@ export default function App() {
   // estamos exportando do SIGE" - precisa de um jeito de lançar uma despesa avulsa direto no
   // Pipeline, sem depender de importar planilha).
   const [modalLancamentoManual, setModalLancamentoManual] = useState(false)
+  // Editar um lançamento já existente (Shirley, 2026-09-28) - reaproveita o mesmo modal e os mesmos
+  // campos do "Novo lançamento manual", só troca insert por update quando tem um id aqui.
+  const [editandoLancamentoId, setEditandoLancamentoId] = useState(null)
   const [lancamentoFornecedor, setLancamentoFornecedor] = useState('')
   const [lancamentoValor, setLancamentoValor] = useState('')
   const [lancamentoVencimento, setLancamentoVencimento] = useState(hojeIso())
@@ -4633,8 +4636,6 @@ export default function App() {
     // (Shirley, 2026-09-28).
     const valorNumerico = parseFloat(String(lancamentoValor).replace(',', '.')) || 0
     const base = {
-      origem: 'manual',
-      obra_id: null,
       fornecedor: lancamentoFornecedor.trim(),
       valor: valorNumerico,
       centro_custos: lancamentoCentroCusto.trim() || null,
@@ -4642,18 +4643,25 @@ export default function App() {
       empresa: lancamentoEmpresa.trim() || null,
       banco: lancamentoBanco.trim() || null,
       plano_contas: lancamentoPlanoContas.trim() || null,
-      status_pagamento: 'pendente',
     }
-    // Parcelado (ex: financiamento de veículo) - já deixa previsto no Contas a Pagar todas as
-    // parcelas futuras de uma vez, uma por mês a partir do vencimento informado, em vez de lançar
-    // mês a mês na mão (Shirley, 2026-09-28).
-    const registros = Array.from({ length: numParcelas }, (_, i) => ({
-      ...base,
-      codigo_sige: gerarCodigoSigeManual(i),
-      data_vencimento: somaMesesData(lancamentoVencimento, i),
-      observacoes: [lancamentoObs.trim() || null, numParcelas > 1 ? `Parcela ${i + 1}/${numParcelas}` : null].filter(Boolean).join(' - ') || null,
-    }))
-    const { error } = await supabase.from('contas_pagar').insert(registros)
+    // Editando um lançamento já existente - update simples, sem mexer em codigo_sige/origem/status
+    // (Shirley, 2026-09-28).
+    const { error } = editandoLancamentoId
+      ? await supabase.from('contas_pagar').update({ ...base, data_vencimento: lancamentoVencimento, observacoes: lancamentoObs.trim() || null }).eq('id', editandoLancamentoId)
+      : await supabase.from('contas_pagar').insert(
+          // Parcelado (ex: financiamento de veículo) - já deixa previsto no Contas a Pagar todas as
+          // parcelas futuras de uma vez, uma por mês a partir do vencimento informado, em vez de
+          // lançar mês a mês na mão (Shirley, 2026-09-28).
+          Array.from({ length: numParcelas }, (_, i) => ({
+            ...base,
+            origem: 'manual',
+            obra_id: null,
+            status_pagamento: 'pendente',
+            codigo_sige: gerarCodigoSigeManual(i),
+            data_vencimento: somaMesesData(lancamentoVencimento, i),
+            observacoes: [lancamentoObs.trim() || null, numParcelas > 1 ? `Parcela ${i + 1}/${numParcelas}` : null].filter(Boolean).join(' - ') || null,
+          }))
+        )
     setLancamentoSalvando(false)
     if (error) {
       console.error('Falha ao salvar lançamento manual:', error)
@@ -4664,7 +4672,8 @@ export default function App() {
       setModalLancamentoManual(false)
       // Antes fechava o modal em silêncio, sem nenhuma confirmação - Shirley não sabia se tinha
       // salvo de verdade (2026-09-28).
-      alert(numParcelas > 1 ? `${numParcelas} parcelas lançadas com sucesso.` : 'Lançamento salvo com sucesso.')
+      alert(editandoLancamentoId ? 'Lançamento atualizado com sucesso.' : numParcelas > 1 ? `${numParcelas} parcelas lançadas com sucesso.` : 'Lançamento salvo com sucesso.')
+      setEditandoLancamentoId(null)
       setLancamentoFornecedor(''); setLancamentoValor(''); setLancamentoVencimento(hojeIso())
       setLancamentoCentroCusto(''); setLancamentoGrupo(''); setLancamentoEmpresa('')
       setLancamentoBanco(''); setLancamentoPlanoContas(''); setLancamentoObs('')
@@ -8462,6 +8471,21 @@ export default function App() {
                       <div style={{ fontSize:13, fontWeight:700, color: cor }}>{fmt(c.valor)}</div>
                       <div style={{ fontSize:10, fontWeight:700, color: cor }}>{label}</div>
                       <div style={{ display:'flex', gap:8, marginTop:4, justifyContent:'flex-end' }}>
+                        <button onClick={() => {
+                          setEditandoLancamentoId(c.id)
+                          setLancamentoFornecedor(c.fornecedor || '')
+                          setLancamentoValor(c.valor != null ? String(c.valor) : '')
+                          setLancamentoVencimento(c.data_vencimento || hojeIso())
+                          setLancamentoCentroCusto(c.centro_custos || '')
+                          setLancamentoGrupo(c.grupo || '')
+                          setLancamentoEmpresa(c.empresa || '')
+                          setLancamentoBanco(c.banco || '')
+                          setLancamentoPlanoContas(c.plano_contas || '')
+                          setLancamentoObs(c.observacoes || '')
+                          setLancamentoParcelado(false); setLancamentoNumParcelas('')
+                          setLancamentoErro(''); setNovoFornecedorLancamento(null)
+                          setModalLancamentoManual(true)
+                        }} style={{ fontSize:10, fontWeight:700, color:'#4A7FC1', background:'none', border:'none', cursor:'pointer', padding:0 }}>✏️ Editar</button>
                         {status === 'pendente' && (
                           <button onClick={() => atualizarStatusPagamentoContasPagar(c.id, 'pago_pendente_conciliacao')}
                             style={{ fontSize:10, fontWeight:700, color:'#0F766E', background:'none', border:'none', cursor:'pointer', padding:0 }}>Marcar como pago</button>
@@ -8550,11 +8574,11 @@ export default function App() {
       })()}
 
       {modalLancamentoManual && (
-        <div onClick={e => { if (e.target === e.currentTarget && !lancamentoSalvando) setModalLancamentoManual(false) }}
+        <div onClick={e => { if (e.target === e.currentTarget && !lancamentoSalvando) { setModalLancamentoManual(false); setEditandoLancamentoId(null) } }}
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}>
           <div style={{ background:'#fff', borderRadius:14, padding:20, maxWidth:420, width:'100%', maxHeight:'85vh', overflowY:'auto' }}>
-            <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:12 }}>✏️ Novo lançamento manual</div>
-            <div style={{ fontSize:11, color:'#64748B', marginBottom:14 }}>Despesa avulsa, sem vínculo com obra — vai direto pro Contas a Pagar como pendente.</div>
+            <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:12 }}>{editandoLancamentoId ? '✏️ Editar lançamento' : '✏️ Novo lançamento manual'}</div>
+            <div style={{ fontSize:11, color:'#64748B', marginBottom:14 }}>{editandoLancamentoId ? 'Alterando um lançamento já existente do Contas a Pagar.' : 'Despesa avulsa, sem vínculo com obra — vai direto pro Contas a Pagar como pendente.'}</div>
 
             <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Fornecedor *</label>
             <input list="lista-fornecedor-lancamento" value={lancamentoFornecedor} onChange={e => setLancamentoFornecedor(up(e.target.value))}
@@ -8597,20 +8621,25 @@ export default function App() {
             </div>
 
             {/* Parcelado (ex: financiamento de veículo) - já deixa previsto todas as parcelas
-                futuras de uma vez, uma por mês (Shirley, 2026-09-28). */}
-            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom: lancamentoParcelado ? 8 : 10 }}>
-              <input type="checkbox" id="chk-lancamento-parcelado" checked={lancamentoParcelado}
-                onChange={e => setLancamentoParcelado(e.target.checked)} style={{ width:16, height:16 }} />
-              <label htmlFor="chk-lancamento-parcelado" style={{ fontSize:12, color:'#1A2340', cursor:'pointer' }}>Parcelado (ex: financiamento) - lançar todas as parcelas de uma vez</label>
-            </div>
-            {lancamentoParcelado && (
-              <div style={{ marginBottom:10 }}>
-                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Número de parcelas *</label>
-                <input type="number" min="2" value={lancamentoNumParcelas} onChange={e => setLancamentoNumParcelas(e.target.value)}
-                  placeholder="Ex: 24"
-                  style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
-                <div style={{ fontSize:11, color:'#64748B', marginTop:4 }}>Cria {parseInt(lancamentoNumParcelas) || 0} lançamentos, um por mês a partir do vencimento acima (mesmo fornecedor/valor em cada um).</div>
-              </div>
+                futuras de uma vez, uma por mês (Shirley, 2026-09-28). Não faz sentido editando um
+                lançamento que já existe - esconde nesse caso. */}
+            {!editandoLancamentoId && (
+              <>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom: lancamentoParcelado ? 8 : 10 }}>
+                  <input type="checkbox" id="chk-lancamento-parcelado" checked={lancamentoParcelado}
+                    onChange={e => setLancamentoParcelado(e.target.checked)} style={{ width:16, height:16 }} />
+                  <label htmlFor="chk-lancamento-parcelado" style={{ fontSize:12, color:'#1A2340', cursor:'pointer' }}>Parcelado (ex: financiamento) - lançar todas as parcelas de uma vez</label>
+                </div>
+                {lancamentoParcelado && (
+                  <div style={{ marginBottom:10 }}>
+                    <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Número de parcelas *</label>
+                    <input type="number" min="2" value={lancamentoNumParcelas} onChange={e => setLancamentoNumParcelas(e.target.value)}
+                      placeholder="Ex: 24"
+                      style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
+                    <div style={{ fontSize:11, color:'#64748B', marginTop:4 }}>Cria {parseInt(lancamentoNumParcelas) || 0} lançamentos, um por mês a partir do vencimento acima (mesmo fornecedor/valor em cada um).</div>
+                  </div>
+                )}
+              </>
             )}
 
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
@@ -8658,13 +8687,13 @@ export default function App() {
               </div>
             )}
             <div style={{ display:'flex', gap:8 }}>
-              <button onClick={() => setModalLancamentoManual(false)} disabled={lancamentoSalvando}
+              <button onClick={() => { setModalLancamentoManual(false); setEditandoLancamentoId(null) }} disabled={lancamentoSalvando}
                 style={{ flex:1, padding:10, background:'#F1F5F9', color:'#1A2340', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                 Cancelar
               </button>
               <button onClick={salvarLancamentoManual} disabled={lancamentoSalvando || lancamentoFaltaCampoObrigatorio()}
                 style={{ flex:1, padding:10, background: (lancamentoSalvando || lancamentoFaltaCampoObrigatorio()) ? '#94A3B8' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
-                {lancamentoSalvando ? 'Salvando...' : lancamentoParcelado ? `Salvar ${parseInt(lancamentoNumParcelas) || 0} parcelas` : 'Salvar lançamento'}
+                {lancamentoSalvando ? 'Salvando...' : editandoLancamentoId ? 'Salvar alterações' : lancamentoParcelado ? `Salvar ${parseInt(lancamentoNumParcelas) || 0} parcelas` : 'Salvar lançamento'}
               </button>
             </div>
           </div>
