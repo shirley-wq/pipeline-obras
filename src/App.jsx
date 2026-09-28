@@ -5557,9 +5557,13 @@ export default function App() {
       statusFinal = etapas[1] || statusFinal
     }
     // Data de obra preenchida numa movimentação ainda em "Agendamento" - avança sozinho pra
-    // "Operação em Campo", sem precisar clicar manual (Shirley, 2026-08-20).
+    // "Operação em Campo", sem precisar clicar manual (Shirley, 2026-08-20). Só avança se a data
+    // já chegou (hoje ou passado) - antes avançava com qualquer data futura preenchida, fazendo a
+    // obra aparecer como "em campo" antes da hora (Daniela/Glauce, relato 2026-09-25). Obras com
+    // data futura ficam em Agendamento até o dia chegar - a rotina automática no banco
+    // (pg_cron) cuida de virar sozinho quando ninguém abrir o Pipeline naquele dia.
     const dataDeObraPreenchida = temTelaOperacaoCampo(modal.rede, modal.tipo) ? paraIsoDataObraTexto(dataInicioObraTexto) : dataObra.inicio
-    if (novoStatus === 'AGENDAMENTO' && TIPOS_BDN.includes(modal.tipo) && dataDeObraPreenchida) {
+    if (novoStatus === 'AGENDAMENTO' && TIPOS_BDN.includes(modal.tipo) && dataDeObraPreenchida && dataDeObraPreenchida <= hojeIso()) {
       const etapas = getEtapas(modal.rede, modal.tipo)
       const idxAgendamento = etapas.indexOf('AGENDAMENTO')
       statusFinal = (idxAgendamento >= 0 && etapas[idxAgendamento + 1]) ? etapas[idxAgendamento + 1] : statusFinal
