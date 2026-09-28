@@ -6327,10 +6327,13 @@ export default function App() {
   })
   const despesasPorObraLista = Object.values(despesasPorObraMap).sort((a, b) => b.total - a.total)
 
-  // Contas a Pagar - filtro pelo mesmo período (mês/ano) usado na tela.
+  // Contas a Pagar - filtro pelo mesmo período (mês/ano) usado na tela. "Hoje" (Shirley, 2026-09-28,
+  // pedindo um dashboard tipo SIGE: o que vence hoje e o que já está pago) ignora mês/ano/período.
   const contasPagarFiltradas = contasPagar.filter(c => {
     if (!c.data_vencimento) return false
-    if (contasPagarModo === 'periodo') {
+    if (contasPagarModo === 'hoje') {
+      if (c.data_vencimento !== hojeIso()) return false
+    } else if (contasPagarModo === 'periodo') {
       if (contasPagarDataInicio && c.data_vencimento < contasPagarDataInicio) return false
       if (contasPagarDataFim && c.data_vencimento > contasPagarDataFim) return false
       if (!contasPagarDataInicio && !contasPagarDataFim) return false
@@ -8303,9 +8306,11 @@ export default function App() {
         return (
         <div style={{ padding:12 }}>
           <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
-            <div style={{ flex:1, minWidth:220, background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:12, padding:'12px 16px' }}>
+            <div onClick={() => { setContasPagarSubaba('pagar'); setContasPagarModo('hoje') }}
+              style={{ flex:1, minWidth:220, background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:12, padding:'12px 16px', cursor:'pointer' }}>
               <div style={{ fontSize:11, color:'#991B1B', fontWeight:700, textTransform:'uppercase' }}>Vence hoje (a pagar)</div>
               <div style={{ fontSize:19, fontWeight:700, color:'#991B1B', marginTop:4 }}>{fmt(totalContasPagarVencemHoje)} <span style={{ fontSize:12, fontWeight:600 }}>· {contasPagarVencemHoje.length} conta(s)</span></div>
+              <div style={{ fontSize:10, color:'#991B1B', marginTop:2, textDecoration:'underline' }}>ver lançamentos de hoje →</div>
             </div>
             <div style={{ flex:1, minWidth:220, background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:12, padding:'12px 16px' }}>
               <div style={{ fontSize:11, color:'#065F46', fontWeight:700, textTransform:'uppercase' }}>Faturado hoje (a receber)</div>
@@ -8317,7 +8322,7 @@ export default function App() {
             <div style={{ display:'flex', border:'1px solid #CDD8E3', borderRadius:8, overflow:'hidden' }}>
               <button onClick={() => setContasPagarSubaba('pagar')}
                 style={{ padding:'8px 16px', border:'none', background: contasPagarSubaba==='pagar' ? '#B91C1C' : '#fff', color: contasPagarSubaba==='pagar' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>💸 Contas a Pagar</button>
-              <button onClick={() => setContasPagarSubaba('receber')}
+              <button onClick={() => { setContasPagarSubaba('receber'); if (contasPagarModo === 'hoje') setContasPagarModo('mes') }}
                 style={{ padding:'8px 16px', border:'none', background: contasPagarSubaba==='receber' ? '#065F46' : '#fff', color: contasPagarSubaba==='receber' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>💰 Contas a Receber</button>
             </div>
             {contasPagarSubaba === 'pagar' && (
@@ -8336,6 +8341,10 @@ export default function App() {
 
           <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:'10px 14px', marginBottom:14, display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
             <div style={{ display:'flex', border:'1px solid #CDD8E3', borderRadius:8, overflow:'hidden' }}>
+              {contasPagarSubaba === 'pagar' && (
+                <button onClick={() => setContasPagarModo('hoje')}
+                  style={{ padding:'7px 14px', border:'none', background: contasPagarModo==='hoje' ? '#B91C1C' : '#fff', color: contasPagarModo==='hoje' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>📅 Hoje</button>
+              )}
               <button onClick={() => setContasPagarModo('mes')}
                 style={{ padding:'7px 14px', border:'none', background: contasPagarModo==='mes' ? '#0F766E' : '#fff', color: contasPagarModo==='mes' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>Mês</button>
               <button onClick={() => setContasPagarModo('ano')}
@@ -8349,7 +8358,7 @@ export default function App() {
                 {MESES_FILTRO.map((m,i) => <option key={m} value={i+1}>{m}</option>)}
               </select>
             )}
-            {contasPagarModo === 'periodo' ? (
+            {contasPagarModo === 'periodo' && (
               <>
                 <input type="date" value={contasPagarDataInicio} onChange={e => setContasPagarDataInicio(e.target.value)}
                   style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }} />
@@ -8357,11 +8366,15 @@ export default function App() {
                 <input type="date" value={contasPagarDataFim} onChange={e => setContasPagarDataFim(e.target.value)}
                   style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }} />
               </>
-            ) : (
+            )}
+            {(contasPagarModo === 'mes' || contasPagarModo === 'ano') && (
               <select value={contasPagarAno} onChange={e => setContasPagarAno(Number(e.target.value))}
                 style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
                 {anosDisponiveis.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
+            )}
+            {contasPagarModo === 'hoje' && (
+              <div style={{ fontSize:12, color:'#64748B', fontWeight:600 }}>{isoToBr(hojeIso())}</div>
             )}
             {contasPagarSubaba === 'pagar' && (
               <>
@@ -8415,7 +8428,7 @@ export default function App() {
                 </div>
               </div>
 
-              {contasPagarSparkline.some(p => p.total > 0) && (() => {
+              {contasPagarModo !== 'hoje' && contasPagarSparkline.some(p => p.total > 0) && (() => {
                 const w = 100, h = 28
                 const n = contasPagarSparkline.length
                 const max = Math.max(...contasPagarSparkline.map(p => p.total), 1)
@@ -8463,9 +8476,9 @@ export default function App() {
               ))}
 
               <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14 }}>
-                <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:10 }}>Lançamentos do período</div>
+                <div style={{ fontSize:12, fontWeight:700, color:'#1A2340', marginBottom:10 }}>{contasPagarModo === 'hoje' ? `Lançamentos com vencimento hoje (${isoToBr(hojeIso())})` : 'Lançamentos do período'}</div>
                 {contasPagarModo === 'periodo' && (!contasPagarDataInicio || !contasPagarDataFim) && <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'20px 0' }}>Escolha a data de início e fim do período.</div>}
-                {(contasPagarModo !== 'periodo' || (contasPagarDataInicio && contasPagarDataFim)) && contasPagarFiltradas.length === 0 && <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'20px 0' }}>Nenhum lançamento nesse período — importe um relatório do SIGE pra começar.</div>}
+                {(contasPagarModo !== 'periodo' || (contasPagarDataInicio && contasPagarDataFim)) && contasPagarFiltradas.length === 0 && <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'20px 0' }}>{contasPagarModo === 'hoje' ? 'Nenhum lançamento vence hoje.' : 'Nenhum lançamento nesse período — importe um relatório do SIGE pra começar.'}</div>}
                 {contasPagarFiltradas.map(c => {
                   const status = c.status_pagamento || 'pendente'
                   const cor = status === 'conciliado' ? '#065F46' : status === 'pago_pendente_conciliacao' ? '#92400E' : '#B91C1C'
