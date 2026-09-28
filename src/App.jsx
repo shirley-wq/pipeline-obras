@@ -3808,6 +3808,9 @@ export default function App() {
   const [contasPagarFiltroStatus, setContasPagarFiltroStatus] = useState('')
   const [contasPagarFiltroCentroCusto, setContasPagarFiltroCentroCusto] = useState('')
   const [contasPagarFiltroGrupo, setContasPagarFiltroGrupo] = useState('')
+  // Busca por fornecedor no Contas a Pagar (Shirley, 2026-09-28) - a busca por vencimento já
+  // existia no modo "Período" (data início/fim), só faltava essa.
+  const [contasPagarBuscaFornecedor, setContasPagarBuscaFornecedor] = useState('')
   const [modalImportarContasPagar, setModalImportarContasPagar] = useState(false)
   const [contasPagarArquivo, setContasPagarArquivo] = useState(null)
   const [contasPagarProcessando, setContasPagarProcessando] = useState(false)
@@ -6323,6 +6326,7 @@ export default function App() {
     if (contasPagarFiltroStatus && (c.status_pagamento || 'pendente') !== contasPagarFiltroStatus) return false
     if (contasPagarFiltroCentroCusto && c.centro_custos !== contasPagarFiltroCentroCusto) return false
     if (contasPagarFiltroGrupo && c.grupo !== contasPagarFiltroGrupo) return false
+    if (contasPagarBuscaFornecedor && !normalizarBusca(c.fornecedor).includes(normalizarBusca(contasPagarBuscaFornecedor))) return false
     return true
   }).sort((a, b) => (a.data_vencimento || '').localeCompare(b.data_vencimento || ''))
   const totalContasPagarPendente = contasPagarFiltradas.filter(c => (c.status_pagamento || 'pendente') === 'pendente').reduce((s, c) => s + Number(c.valor || 0), 0)
@@ -8343,6 +8347,9 @@ export default function App() {
             )}
             {contasPagarSubaba === 'pagar' && (
               <>
+                <input value={contasPagarBuscaFornecedor} onChange={e => setContasPagarBuscaFornecedor(e.target.value)}
+                  placeholder="🔎 Buscar fornecedor"
+                  style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff', minWidth:160 }} />
                 <select value={contasPagarFiltroEmpresa} onChange={e => setContasPagarFiltroEmpresa(e.target.value)}
                   style={{ padding:'7px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:12, color:'#1A2340', background:'#fff' }}>
                   <option value="">Todas empresas</option>
