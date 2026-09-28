@@ -3618,6 +3618,10 @@ export default function App() {
   const [novoRegistroTerceirizadoTexto, setNovoRegistroTerceirizadoTexto] = useState('')
   const [novoRegistroAtividades, setNovoRegistroAtividades] = useState({})
   const [novoRegistroConcluido, setNovoRegistroConcluido] = useState(null)
+  // Motivo obrigatório de "✗ Não" (dia não concluído) - vai no e-mail automático pro escritório,
+  // pra elas saberem como conduzir sem precisar ligar pro técnico perguntando o que aconteceu
+  // (Shirley, 2026-09-28).
+  const [novoRegistroMotivoNaoConcluido, setNovoRegistroMotivoNaoConcluido] = useState('')
   const [editandoVisitaIdx, setEditandoVisitaIdx] = useState(null)
   // Medição de transporte pedida pela Shirley (2026-09-03) - preenchida antes de gerar o relatório
   // ao cliente, pra todas as atividades que passam por essa tela (não só o checklist do Banco24Horas).
@@ -5040,6 +5044,7 @@ export default function App() {
       ;(registro.atividades || []).forEach(a => { atividadesMap[a.atividade] = { ...a } })
       setNovoRegistroAtividades(atividadesMap)
       setNovoRegistroConcluido(registro.concluido ?? null)
+      setNovoRegistroMotivoNaoConcluido(registro.motivo_nao_concluido || '')
     } else {
       setNovoRegistroData('')
       setNovoRegistroHora('')
@@ -5048,6 +5053,7 @@ export default function App() {
       setNovoRegistroTerceirizadoTexto('')
       setNovoRegistroAtividades({})
       setNovoRegistroConcluido(null)
+      setNovoRegistroMotivoNaoConcluido('')
     }
   }
 
@@ -5060,7 +5066,8 @@ export default function App() {
 
   function montaMotivoPendenciaAutomatico(registro) {
     const detalhes = motivoRegistroTexto(registro)
-    return `Pendência automática - dia ${registro.data ? isoToBr(registro.data) : '(sem data)'} marcado como não concluído pelo técnico.${detalhes ? ' ' + detalhes : ''}`
+    const motivoTecnico = (registro.motivo_nao_concluido || '').trim()
+    return `Pendência automática - dia ${registro.data ? isoToBr(registro.data) : '(sem data)'} marcado como não concluído pelo técnico.${motivoTecnico ? ' Motivo informado: ' + motivoTecnico : ''}${detalhes ? ' ' + detalhes : ''}`
   }
 
   // Aviso por e-mail pro escritório quando o técnico marca "✗ Não" no dia (redesenho da Daniela
@@ -5075,12 +5082,14 @@ export default function App() {
         ? `Vistoria não concluída - PC ${pc} - ${obraAtual.nome} precisa de nova data`
         : `Pendência automática - PC ${pc} - ${obraAtual.nome} precisa de reagendamento`
       const detalhes = motivoRegistroTexto(registro)
+      const motivoTecnico = (registro.motivo_nao_concluido || '').trim()
       const corpo = [
         `A obra ${obraAtual.nome} (PC ${pc}, ${obraAtual.rede}/${obraAtual.tipo}) teve o dia ${registro.data ? isoToBr(registro.data) : '(sem data)'} marcado como NÃO CONCLUÍDO pelo técnico.`,
+        motivoTecnico ? `O que aconteceu (informado pelo técnico): ${motivoTecnico}` : null,
         vistoria
           ? 'É preciso agendar uma nova data de vistoria.'
           : 'A obra foi movida automaticamente para "Gerou Pendência" - é preciso reagendar a próxima visita (etapa Agendamento) pra ela voltar sozinha pra "Operação em Campo" quando a nova data chegar.',
-        detalhes ? `Observações registradas: ${detalhes}` : null,
+        detalhes ? `Observações adicionais das atividades: ${detalhes}` : null,
       ].filter(Boolean).join('\n\n')
       await fetch(EDGE_FUNCTION_TECBAN_URL, {
         method: 'POST',
@@ -5098,8 +5107,13 @@ export default function App() {
     if (editandoVisitaIdx !== null || !modal || registrosOperacaoCampo.length === 0) return
     const s = {
       equipe: novoRegistroEquipe, terceirizado: novoRegistroTerceirizado, terceirizadoTexto: novoRegistroTerceirizadoTexto,
-      data: novoRegistroData, hora: novoRegistroHora, atividades: novoRegistroAtividades, concluido: novoRegistroConcluido, ...overrides,
+      data: novoRegistroData, hora: novoRegistroHora, atividades: novoRegistroAtividades, concluido: novoRegistroConcluido,
+      motivoNaoConcluido: novoRegistroMotivoNaoConcluido, ...overrides,
     }
+    // "✗ Não" só é gravado de verdade com um motivo preenchido (Shirley, 2026-09-28) - o clique no
+    // toggle só muda a seleção visual; quem persiste concluido:false é o botão "Confirmar" logo
+    // abaixo do campo de motivo, já com o texto pronto pro e-mail automático.
+    if (s.concluido === false && !(s.motivoNaoConcluido || '').trim()) return
     const equipe = [...s.equipe, ...(s.terceirizado ? [TERCEIRIZADO_PREFIXO + (s.terceirizadoTexto.trim() || '(não informado)')] : [])]
     const atividades = Object.entries(s.atividades).map(([atividade, d]) => ({
       atividade, feita: d.feita === true || d.feita === false ? d.feita : null, impedimento: !!d.impedimento, motivo: d.impedimento ? (d.motivo || '') : '',
@@ -5113,7 +5127,8 @@ export default function App() {
     const ultimo = registrosOperacaoCampo[registrosOperacaoCampo.length - 1] || {}
     const registro = {
       data: s.data || (paraIsoDataObraTexto(dataInicioObraTexto) || null), hora: s.hora || null, equipe, atividades,
-      concluido: s.concluido ?? null, status_enviado_em: ultimo.status_enviado_em || null, status_enviado_por: ultimo.status_enviado_por || null,
+      concluido: s.concluido ?? null, motivo_nao_concluido: s.concluido === false ? (s.motivoNaoConcluido || '').trim() : null,
+      status_enviado_em: ultimo.status_enviado_em || null, status_enviado_por: ultimo.status_enviado_por || null,
     }
     const novaLista = registrosOperacaoCampo.map((r, i) => i === registrosOperacaoCampo.length - 1 ? registro : r)
     setRegistrosOperacaoCampo(novaLista)
@@ -5149,7 +5164,7 @@ export default function App() {
   }
 
   async function criarNovaVisita(dataOverride) {
-    const novoRegistro = { data: dataOverride || paraIsoDataObraTexto(dataInicioObraTexto) || null, hora: null, equipe: [], atividades: [], concluido: null, status_enviado_em: null, status_enviado_por: null }
+    const novoRegistro = { data: dataOverride || paraIsoDataObraTexto(dataInicioObraTexto) || null, hora: null, equipe: [], atividades: [], concluido: null, motivo_nao_concluido: null, status_enviado_em: null, status_enviado_por: null }
     const novaLista = [...registrosOperacaoCampo, novoRegistro]
     setRegistrosOperacaoCampo(novaLista)
     setEditandoVisitaIdx(null)
@@ -9962,6 +9977,7 @@ export default function App() {
                             ;(r.atividades || []).forEach(a => { atividadesMap[a.atividade] = { ...a } })
                             setNovoRegistroAtividades(atividadesMap)
                             setNovoRegistroConcluido(r.concluido ?? null)
+                            setNovoRegistroMotivoNaoConcluido(r.motivo_nao_concluido || '')
                           }} style={{ fontSize:11, color:'#2D3A8C', cursor:'pointer', fontWeight:600 }}>Editar</span>
                           <span onClick={() => {
                             setRegistrosOperacaoCampo(prev => prev.filter((_, i) => i !== idx))
@@ -9969,6 +9985,11 @@ export default function App() {
                           }} style={{ fontSize:11, color:'#DC2626', cursor:'pointer', fontWeight:600 }}>Remover</span>
                         </div>
                       </div>
+                      {r.concluido === false && r.motivo_nao_concluido && (
+                        <div style={{ marginTop:4, fontSize:11, color:'#991B1B', background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:6, padding:'4px 8px' }}>
+                          Motivo: {r.motivo_nao_concluido}
+                        </div>
+                      )}
                       <div style={{ marginTop:6, display:'flex', flexDirection:'column', gap:4 }}>
                         {(r.atividades||[]).map((a, ai) => (
                           <div key={ai} style={{ fontSize:12, color: a.feita === true ? '#065F46' : a.feita === false ? '#991B1B' : '#92400E' }}>
@@ -10169,7 +10190,9 @@ export default function App() {
                       const antigo = registrosOperacaoCampo[editandoVisitaIdx] || {}
                       const registro = {
                         data: dataVisita || null, hora: novoRegistroHora || null, equipe, atividades,
-                        concluido: novoRegistroConcluido ?? null, status_enviado_em: antigo.status_enviado_em || null, status_enviado_por: antigo.status_enviado_por || null,
+                        concluido: novoRegistroConcluido ?? null,
+                        motivo_nao_concluido: novoRegistroConcluido === false ? (novoRegistroMotivoNaoConcluido || '').trim() : null,
+                        status_enviado_em: antigo.status_enviado_em || null, status_enviado_por: antigo.status_enviado_por || null,
                       }
                       const novaLista = registrosOperacaoCampo.map((r, i) => i === editandoVisitaIdx ? registro : r)
                       setRegistrosOperacaoCampo(novaLista)
@@ -10189,12 +10212,35 @@ export default function App() {
                     <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:6 }}>A atividade do dia foi concluída?</div>
                     <div style={{ display:'flex', gap:8, marginBottom:8 }}>
                       {[{ v:true, l:'✓ Sim' }, { v:false, l:'✗ Não' }].map(op => (
-                        <span key={String(op.v)} onClick={() => { setNovoRegistroConcluido(op.v); salvarVisitaAtual({ concluido: op.v }) }}
+                        <span key={String(op.v)} onClick={() => {
+                          setNovoRegistroConcluido(op.v)
+                          // "Sim" salva na hora, igual sempre foi. "Não" só fica selecionado
+                          // visualmente aqui - quem persiste de verdade é o botão "Confirmar" logo
+                          // abaixo, exigindo motivo primeiro (Shirley, 2026-09-28: o e-mail
+                          // automático pro escritório precisa vir com o motivo, senão elas não
+                          // sabem como conduzir a pendência).
+                          if (op.v === true) { setNovoRegistroMotivoNaoConcluido(''); salvarVisitaAtual({ concluido: true, motivoNaoConcluido: '' }) }
+                        }}
                           style={{ fontSize:11, fontWeight:700, padding:'4px 10px', borderRadius:6, cursor:'pointer', background: novoRegistroConcluido === op.v ? (op.v ? '#D1FAE5' : '#FEE2E2') : '#F1F5F9', color: novoRegistroConcluido === op.v ? (op.v ? '#065F46' : '#991B1B') : '#64748B' }}>
                           {op.l}
                         </span>
                       ))}
                     </div>
+
+                    {novoRegistroConcluido === false && (
+                      <div style={{ marginBottom:8, padding:10, background:'#FEF2F2', border:'1px solid #FCA5A5', borderRadius:10 }}>
+                        <label style={{ fontSize:11, color:'#991B1B', fontWeight:600, display:'block', marginBottom:3 }}>O que aconteceu? (obrigatório - vai no e-mail pro escritório) *</label>
+                        <textarea value={novoRegistroMotivoNaoConcluido} rows={2}
+                          onChange={e => setNovoRegistroMotivoNaoConcluido(e.target.value)}
+                          placeholder="Ex: cliente não deixou entrar, faltou peça, deu problema no equipamento..."
+                          style={{ width:'100%', padding:'10px', border:'1px solid #FCA5A5', borderRadius:8, fontSize:13, resize:'none', boxSizing:'border-box', color:'#1A2340', marginBottom:6 }} />
+                        <button onClick={() => salvarVisitaAtual({ concluido: false, motivoNaoConcluido: novoRegistroMotivoNaoConcluido })}
+                          disabled={!novoRegistroMotivoNaoConcluido.trim()}
+                          style={{ width:'100%', padding:8, background: !novoRegistroMotivoNaoConcluido.trim() ? '#ccc' : '#991B1B', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor: !novoRegistroMotivoNaoConcluido.trim() ? 'default' : 'pointer' }}>
+                          {registrosOperacaoCampo[registrosOperacaoCampo.length - 1]?.concluido === false ? '✓ Motivo registrado' : 'Confirmar "Não concluído" e avisar o escritório'}
+                        </button>
+                      </div>
+                    )}
 
                     {registrosOperacaoCampo[registrosOperacaoCampo.length - 1]?.status_enviado_em && (
                       <div style={{ fontSize:11, color:'#64748B', marginBottom:8 }}>
