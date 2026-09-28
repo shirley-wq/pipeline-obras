@@ -4600,6 +4600,16 @@ export default function App() {
         }
         const existente = existentesPorCodigo[codigo]
         if (existente) {
+          // Reimportar NUNCA sobrescreve os campos de classificação (centro de custo, grupo, plano
+          // de contas, banco, empresa) de um lançamento que já existe no Pipeline - esses podem já
+          // ter sido corrigidos à mão (pente-fino de 2026-09-23) e o SIGE continua com o valor
+          // antigo/errado. Só entram frescos do SIGE pra lançamento NOVO (achado antes de rodar uma
+          // nova importação, Shirley, 2026-09-28).
+          registro.centro_custos = existente.centro_custos
+          registro.grupo = existente.grupo
+          registro.plano_contas = existente.plano_contas
+          registro.banco = existente.banco
+          registro.empresa = existente.empresa
           // Reimportar nunca retrocede um status que já foi avançado manualmente no Pipeline (pago ou
           // conciliado) - só deixa o SIGE "alcançar" pendente -> pago quando ele passa a marcar quitado.
           const statusAtual = existente.status_pagamento || (existente.foi_quitado ? 'pago_pendente_conciliacao' : 'pendente')
