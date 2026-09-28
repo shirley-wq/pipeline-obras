@@ -4713,6 +4713,15 @@ export default function App() {
     if (!error) setContasPagar(prev => prev.map(c => c.id === id ? { ...c, status_pagamento: novoStatus } : c))
   }
 
+  // Excluir lançamento do Contas a Pagar (Shirley, 2026-09-28) - não existia nenhum jeito de
+  // apagar, só de mudar o status. Confirmação antes, igual excluirFornecedor - é irreversível.
+  async function excluirLancamentoContasPagar(id, fornecedor) {
+    if (!window.confirm(`Excluir o lançamento de "${fornecedor || '(sem fornecedor)'}"? Essa ação não pode ser desfeita.`)) return
+    const { error } = await supabase.from('contas_pagar').delete().eq('id', id)
+    if (!error) setContasPagar(prev => prev.filter(c => c.id !== id))
+    else { console.error('Falha ao excluir lançamento:', error); alert('Não foi possível excluir: ' + (error.message || 'erro desconhecido')) }
+  }
+
   async function importarDadosIniciais() {
     setImportando(true)
     const { error } = await supabase.from('pipeline_obras').insert(OBRAS_INICIAIS)
@@ -8486,6 +8495,8 @@ export default function App() {
                           setLancamentoErro(''); setNovoFornecedorLancamento(null)
                           setModalLancamentoManual(true)
                         }} style={{ fontSize:10, fontWeight:700, color:'#4A7FC1', background:'none', border:'none', cursor:'pointer', padding:0 }}>✏️ Editar</button>
+                        <button onClick={() => excluirLancamentoContasPagar(c.id, c.fornecedor)}
+                          style={{ fontSize:10, fontWeight:700, color:'#DC2626', background:'none', border:'none', cursor:'pointer', padding:0 }}>🗑 Excluir</button>
                         {status === 'pendente' && (
                           <button onClick={() => atualizarStatusPagamentoContasPagar(c.id, 'pago_pendente_conciliacao')}
                             style={{ fontSize:10, fontWeight:700, color:'#0F766E', background:'none', border:'none', cursor:'pointer', padding:0 }}>Marcar como pago</button>
