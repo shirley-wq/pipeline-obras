@@ -3548,6 +3548,10 @@ export default function App() {
   const [abaLiderHome, setAbaLiderHome] = useState('agenda')
   const [mesAgenda, setMesAgenda] = useState(() => hojeIso().slice(0, 7))
   const [diaAgendaSelecionado, setDiaAgendaSelecionado] = useState(null)
+  // Líder (Leandro, Aguinaldo, Daniel, Gabriel) via UF de todo o Brasil misturada no dia - clicar
+  // no dia agora pede pra escolher a UF também, pra abrir só as obras daquele estado naquele dia
+  // (Shirley, 2026-09-28).
+  const [agendaUfSelecionada, setAgendaUfSelecionada] = useState(null)
   const [filtroStatus, setFiltroStatus] = useState('')
   const [busca, setBusca] = useState('')
   const [filtroDe, setFiltroDe] = useState('')
@@ -7461,7 +7465,13 @@ export default function App() {
         Object.entries(porDia).forEach(([dia, itens]) => {
           corDoDia[dia] = itens.reduce((pior, item) => (PRIORIDADE_COR[item.cor] > PRIORIDADE_COR[pior] ? item.cor : pior), 'verde')
         })
-        const atividadesDoDia = (diaAgendaSelecionado ? (porDia[diaAgendaSelecionado] || []) : [])
+        const itensDoDiaTodasUfs = (diaAgendaSelecionado ? (porDia[diaAgendaSelecionado] || []) : [])
+          .map(({ obra, cor }) => ({ obra, cor, uf: estadoDaObra(obra) }))
+        // UFs presentes naquele dia - líder escolhe uma antes de ver a lista, em vez de tomar todo
+        // o Brasil misturado (Shirley, 2026-09-28). Se só tiver 1 UF, não tem o que escolher.
+        const ufsDoDia = [...new Set(itensDoDiaTodasUfs.map(i => i.uf))].sort()
+        const atividadesDoDia = itensDoDiaTodasUfs
+          .filter(({ uf: ufItem }) => ufsDoDia.length <= 1 || ufItem === agendaUfSelecionada)
           .map(({ obra }) => ({ obra, data: diaAgendaSelecionado }))
 
         const [anoStr, mesStr] = mesAgenda.split('-')
@@ -7478,6 +7488,7 @@ export default function App() {
           const novaData = new Date(ano, mesIdx + delta, 1)
           setMesAgenda(`${novaData.getFullYear()}-${String(novaData.getMonth() + 1).padStart(2, '0')}`)
           setDiaAgendaSelecionado(null)
+          setAgendaUfSelecionada(null)
         }
 
         return (
@@ -7512,7 +7523,7 @@ export default function App() {
                     let bg = corEvento ? BG_POR_COR[corEvento] : 'transparent'
                     let cor = corEvento ? '#fff' : 'rgba(255,255,255,.85)'
                     return (
-                      <div key={i} onClick={() => setDiaAgendaSelecionado(v => v === diaIso ? null : diaIso)}
+                      <div key={i} onClick={() => { setDiaAgendaSelecionado(v => v === diaIso ? null : diaIso); setAgendaUfSelecionada(null) }}
                         style={{ aspectRatio:'1', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'50%',
                           background:bg, color:cor, fontSize:13, fontWeight: (corEvento || ehHoje) ? 700 : 500, cursor:'pointer',
                           boxSizing:'border-box',
@@ -7531,12 +7542,35 @@ export default function App() {
                     {corDoDia[diaAgendaSelecionado] === 'vermelho' && ' — ⚠ atrasada'}
                     {corDoDia[diaAgendaSelecionado] === 'laranja' && ' — ⚠ gerou pendência'}
                   </div>
-                  <div style={{ fontSize:12, color:'#64748B', marginBottom:14 }}>{atividadesDoDia.length} atividade(s)</div>
-                  {atividadesDoDia.length === 0 && <div style={{ textAlign:'center', color:'#888', marginTop:20, fontSize:14 }}>Nenhuma atividade nesse dia.</div>}
-                  {atividadesDoDia.map(({ obra, data }) => (
-                    <CardAtividadeLider key={obra.id} obra={obra} data={data} usuario={usuario}
-                      onSalvar={(id, campos) => setObras(prev => prev.map(o => o.id === id ? { ...o, ...campos } : o))} />
-                  ))}
+
+                  {ufsDoDia.length > 1 && (
+                    <div style={{ marginBottom:12 }}>
+                      <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:6 }}>Esse dia tem obra em mais de um estado - escolha qual UF ver:</div>
+                      <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                        {ufsDoDia.map(ufItem => (
+                          <span key={ufItem} onClick={() => setAgendaUfSelecionada(ufItem)}
+                            style={{ fontSize:12, fontWeight:700, padding:'5px 12px', borderRadius:8, cursor:'pointer',
+                              background: agendaUfSelecionada === ufItem ? '#2D3A8C' : '#F1F5F9',
+                              color: agendaUfSelecionada === ufItem ? '#fff' : '#1A2340' }}>
+                            {ufItem}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {ufsDoDia.length <= 1 || agendaUfSelecionada ? (
+                    <>
+                      <div style={{ fontSize:12, color:'#64748B', marginBottom:14 }}>{atividadesDoDia.length} atividade(s)</div>
+                      {atividadesDoDia.length === 0 && <div style={{ textAlign:'center', color:'#888', marginTop:20, fontSize:14 }}>Nenhuma atividade nesse dia.</div>}
+                      {atividadesDoDia.map(({ obra, data }) => (
+                        <CardAtividadeLider key={obra.id} obra={obra} data={data} usuario={usuario}
+                          onSalvar={(id, campos) => setObras(prev => prev.map(o => o.id === id ? { ...o, ...campos } : o))} />
+                      ))}
+                    </>
+                  ) : (
+                    <div style={{ textAlign:'center', color:'#888', marginTop:12, fontSize:13 }}>Escolha uma UF acima pra ver as atividades.</div>
+                  )}
                 </div>
               )}
             </div>
