@@ -5790,15 +5790,18 @@ export default function App() {
       alert('Descreva o motivo da pendência (equipamento, infra, etc.) antes de salvar.')
       return
     }
-    // Ninguém consegue selecionar manualmente "Operação em Campo" com a data ainda no futuro -
-    // antes só o avanço AUTOMÁTICO tinha essa checagem (Passo 1, 2026-09-28), e só pras obras de
-    // Movimentação BDN; o clique manual na régua ainda deixava passar, em QUALQUER tipo de obra
-    // (achado nos casos da PC 27570 - Movimentação BDN - e ITAPURA-SP/SANTA MERCEDES-SP -
-    // Descaracterização -, todos com data futura salva manualmente em Operação em Campo,
-    // 2026-09-29). Agora vale pra toda família de régua, não só BDN.
+    // Ninguém consegue selecionar manualmente "Operação em Campo" sem data preenchida ou com a data
+    // ainda no futuro - antes só o avanço AUTOMÁTICO tinha checagem de data (Passo 1, 2026-09-28), e
+    // só pras obras de Movimentação BDN; o clique manual na régua ainda deixava passar, em QUALQUER
+    // tipo de obra (achado nos casos da PC 27570/ITAPURA-SP/SANTA MERCEDES-SP, data futura; e do
+    // Forum Madureira/Prime São Lucas, SEM data nenhuma preenchida - aí o calendário usava a data de
+    // uma visita antiga qualquer pra decidir onde mostrar, ficando "atrasado pra sempre", 2026-09-29).
+    // Agora vale pra toda família de régua, não só BDN.
     const dataDeObraPreenchida = temTelaOperacaoCampo(modal.rede, modal.tipo) ? paraIsoDataObraTexto(dataInicioObraTexto) : dataObra.inicio
-    if (novoStatus === 'OPERAÇÃO EM CAMPO' && dataDeObraPreenchida && dataDeObraPreenchida > hojeIso()) {
-      alert(`A data de início dessa obra ainda é ${isoToBr(dataDeObraPreenchida)} (no futuro) - não dá pra marcar "Operação em Campo" antes do dia chegar. Deixa numa etapa anterior que o sistema avança sozinho (ou você mesmo avança na mão) quando o dia chegar.`)
+    if (novoStatus === 'OPERAÇÃO EM CAMPO' && (!dataDeObraPreenchida || dataDeObraPreenchida > hojeIso())) {
+      alert(dataDeObraPreenchida
+        ? `A data de início dessa obra ainda é ${isoToBr(dataDeObraPreenchida)} (no futuro) - não dá pra marcar "Operação em Campo" antes do dia chegar. Deixa numa etapa anterior que o sistema avança sozinho (ou você mesmo avança na mão) quando o dia chegar.`
+        : 'Preencha a data de início da obra antes de marcar "Operação em Campo" - sem data, não dá pra saber se o dia já chegou.')
       return
     }
     if (editDados.pedido && !confirmaSemPedidoDuplicado({
