@@ -1306,6 +1306,11 @@ function ReguaEtapasUN({ obra }) {
 
 const ETAPAS_DESC = [
   'VISTORIA',
+  // Confirma que a vistoria de fato aconteceu (evidência: documento de Ocorrência do CF/Tecban
+  // chegando na pasta do ponto no Drive) antes de seguir pro book - separado de "VISTORIA" (que só
+  // significa "ainda não foi") pra não sumir a obra da Agenda do líder/técnico achando que ela já
+  // era responsabilidade do escritório sem confirmação nenhuma (Shirley, 2026-09-29).
+  'VISTORIA REALIZADA',
   'ELABORAR BOOK',
   'OPERAÇÃO EM CAMPO',
   'ELABORAR ART',
@@ -1332,14 +1337,17 @@ const ETAPAS_ATM_B24H = ['OS ABERTA', 'AGENDAMENTO', 'OPERAÇÃO EM CAMPO', 'GER
 // Banestes, diferente de Banco24Horas/Agibank/Crefisa, TEM fase de vistoria própria antes do
 // agendamento (Shirley, 2026-09-11) - mesma régua do B24H com "VISTORIA" inserido logo após "OS
 // ABERTA", igual ao padrão já usado pra Bradesco.
-const ETAPAS_ATM_BANESTES = ['OS ABERTA', 'VISTORIA', 'AGENDAMENTO', 'OPERAÇÃO EM CAMPO', 'GEROU PENDÊNCIA', 'RELATÓRIO AO CLIENTE', 'BOOK FOTOGRÁFICO', 'ELABORAR RM', 'RM ENVIADA', 'AGUARDANDO PEDIDO DA TECBAN', 'EMITIR NF', 'NF EMITIDO']
+// "VISTORIA REALIZADA" (Shirley, 2026-09-29): confirma que a vistoria aconteceu de verdade (evidência
+// no Drive) antes de virar Agendamento - some da Agenda do líder/técnico (deixa de ter cor, igual as
+// etapas de escritório) e vira responsabilidade do escritório agendar.
+const ETAPAS_ATM_BANESTES = ['OS ABERTA', 'VISTORIA', 'VISTORIA REALIZADA', 'AGENDAMENTO', 'OPERAÇÃO EM CAMPO', 'GEROU PENDÊNCIA', 'RELATÓRIO AO CLIENTE', 'BOOK FOTOGRÁFICO', 'ELABORAR RM', 'RM ENVIADA', 'AGUARDANDO PEDIDO DA TECBAN', 'EMITIR NF', 'NF EMITIDO']
 
 // Movimentação de BDN (caixa eletrônico) na Bradesco - mesma família de tipos do ATM, mas processo
 // diferente do Banco24Horas: a OS oficial da Bradesco demora e só chega DEPOIS da operação (trava
 // antes de elaborar a RM), e ainda tem uma 2ª espera (o "pedido") depois da RM, antes de faturar.
 // Vistoria e operação em campo cada uma tem seu próprio book de checklist. Vale pra instalação,
 // desativação, substituição e remanejamento de BDN - todos o mesmo processo (alinhado 2026-08-07).
-const ETAPAS_BDN_BRADESCO = ['OS ABERTA', 'VISTORIA', 'AGENDAMENTO', 'OPERAÇÃO EM CAMPO', 'GEROU PENDÊNCIA', 'AGUARDANDO OS', 'ELABORAR RM', 'RM ENVIADA', 'AGUARDANDO PEDIDO', 'EMITIR NF', 'NF EMITIDO']
+const ETAPAS_BDN_BRADESCO = ['OS ABERTA', 'VISTORIA', 'VISTORIA REALIZADA', 'AGENDAMENTO', 'OPERAÇÃO EM CAMPO', 'GEROU PENDÊNCIA', 'AGUARDANDO OS', 'ELABORAR RM', 'RM ENVIADA', 'AGUARDANDO PEDIDO', 'EMITIR NF', 'NF EMITIDO']
 // Tipos de obra que são "movimentação de BDN" (não confundir com TRANSF UN/DESC PA, que são a
 // transformação da agência em si - podem coexistir na mesma agência, com OS/contrato separados).
 const TIPOS_BDN = ['INSTALAÇÃO ATM', 'DESATIVAÇÃO ATM', 'SUBSTITUIÇÃO ATM', 'REMANEJAMENTO ATM', 'SINALIZAÇÃO ATM', 'MANUTENÇÃO ATM', 'PINTURA ATM']
