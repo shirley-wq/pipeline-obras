@@ -5259,9 +5259,15 @@ export default function App() {
     // 2026-09-25; redesenho completo aprovado pela Shirley, 2026-09-28). O retorno pra "Operação em
     // Campo" já é coberto pelo conserto do Passo 1: quando o escritório reagendar (voltar pra
     // Agendamento com nova data), o avanço automático/pg_cron cuida do resto sozinho.
-    const acabouDeMarcarNaoConcluido = registro.concluido === false && ultimo.concluido !== false
+    // Antes só disparava se detectasse a "transição" pra não-concluído (comparando com o valor
+    // salvo anterior) - frágil demais: se alguém clicasse Não/Sim/Não de novo durante o mesmo
+    // preenchimento, a 2ª vez não contava como "acabou de marcar" e a automação não disparava
+    // (achado no teste da Shop do Carmo, Daniela salvou "Não" e nada mudou, 2026-09-29). Agora basta
+    // estar marcando não-concluído enquanto a obra ainda está em "Operação em Campo"/"Vistoria" - já
+    // se autolimita sozinho, porque depois da 1ª vez o status muda e para de bater essa condição.
+    const marcandoNaoConcluido = registro.concluido === false
     const statusOriginal = modal.status
-    if (acabouDeMarcarNaoConcluido && statusOriginal === 'OPERAÇÃO EM CAMPO') {
+    if (marcandoNaoConcluido && statusOriginal === 'OPERAÇÃO EM CAMPO') {
       campos.status = 'GEROU PENDÊNCIA'
       campos.motivo_pendencia = montaMotivoPendenciaAutomatico(registro)
     }
@@ -5269,7 +5275,7 @@ export default function App() {
     if (!error) {
       setObras(prev => prev.map(o => o.id === modal.id ? { ...o, ...campos } : o))
       setModal(m => m ? { ...m, ...campos } : m)
-      if (acabouDeMarcarNaoConcluido && (statusOriginal === 'OPERAÇÃO EM CAMPO' || statusOriginal === 'VISTORIA')) {
+      if (marcandoNaoConcluido && (statusOriginal === 'OPERAÇÃO EM CAMPO' || statusOriginal === 'VISTORIA')) {
         notificarPendenciaAutomatica({ ...modal, ...campos }, registro, { vistoria: statusOriginal === 'VISTORIA' })
       }
     }
@@ -5713,6 +5719,15 @@ export default function App() {
       alert('Descreva o motivo da pendência (equipamento, infra, etc.) antes de salvar.')
       return
     }
+    // Ninguém consegue selecionar manualmente "Operação em Campo" com a data ainda no futuro -
+    // antes só o avanço AUTOMÁTICO tinha essa checagem (Passo 1, 2026-09-28); o clique manual na
+    // régua ainda deixava passar (achado no caso da PC 27570, Anderson salvou manualmente com a
+    // data de início em 23/10 ainda no futuro, 2026-09-29).
+    const dataDeObraPreenchida = temTelaOperacaoCampo(modal.rede, modal.tipo) ? paraIsoDataObraTexto(dataInicioObraTexto) : dataObra.inicio
+    if (novoStatus === 'OPERAÇÃO EM CAMPO' && TIPOS_BDN.includes(modal.tipo) && dataDeObraPreenchida && dataDeObraPreenchida > hojeIso()) {
+      alert(`A data de início dessa obra ainda é ${isoToBr(dataDeObraPreenchida)} (no futuro) - não dá pra marcar "Operação em Campo" antes do dia chegar. Deixa em "Agendamento" que o sistema avança sozinho na data certa.`)
+      return
+    }
     if (editDados.pedido && !confirmaSemPedidoDuplicado({
       id: modal.id,
       os_tecban: editDados.os_tecban || modal.os_tecban,
@@ -5758,7 +5773,7 @@ export default function App() {
     // obra aparecer como "em campo" antes da hora (Daniela/Glauce, relato 2026-09-25). Obras com
     // data futura ficam em Agendamento até o dia chegar - a rotina automática no banco
     // (pg_cron) cuida de virar sozinho quando ninguém abrir o Pipeline naquele dia.
-    const dataDeObraPreenchida = temTelaOperacaoCampo(modal.rede, modal.tipo) ? paraIsoDataObraTexto(dataInicioObraTexto) : dataObra.inicio
+    // (dataDeObraPreenchida já calculada lá em cima, junto do bloqueio de clique manual.)
     if (novoStatus === 'AGENDAMENTO' && TIPOS_BDN.includes(modal.tipo) && dataDeObraPreenchida && dataDeObraPreenchida <= hojeIso()) {
       const etapas = getEtapas(modal.rede, modal.tipo)
       const idxAgendamento = etapas.indexOf('AGENDAMENTO')
