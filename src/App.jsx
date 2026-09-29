@@ -7547,6 +7547,11 @@ export default function App() {
           .filter(o => temVisitasDeCampo(o.rede, o.tipo))
           .filter(o => papel !== 'operacional' || designadoPraMim(o))
           .map(o => ({ obra: o, data: dataAtividadeObra(o) }))
+          // Agenda é só pra pendência e obra futura - o que já foi resolvido não aparece ali
+          // (Shirley, 2026-09-29). Vistoria sem data nova marcada, só com uma visita antiga já
+          // passada (a que originou a correção), não é nem pendência nem obra futura - some do
+          // calendário até alguém marcar uma data de verdade.
+          .filter(({ obra, data }) => !(obra.status === 'VISTORIA' && data < hoje))
           .filter(({ data }) => !!data)
           .map(({ obra, data }) => ({ obra, data, cor: corAtividadeAgenda(obra.status, data, hoje) }))
           .filter(({ cor }) => !!cor)
