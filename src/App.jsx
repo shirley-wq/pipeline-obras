@@ -5791,12 +5791,14 @@ export default function App() {
       return
     }
     // Ninguém consegue selecionar manualmente "Operação em Campo" com a data ainda no futuro -
-    // antes só o avanço AUTOMÁTICO tinha essa checagem (Passo 1, 2026-09-28); o clique manual na
-    // régua ainda deixava passar (achado no caso da PC 27570, Anderson salvou manualmente com a
-    // data de início em 23/10 ainda no futuro, 2026-09-29).
+    // antes só o avanço AUTOMÁTICO tinha essa checagem (Passo 1, 2026-09-28), e só pras obras de
+    // Movimentação BDN; o clique manual na régua ainda deixava passar, em QUALQUER tipo de obra
+    // (achado nos casos da PC 27570 - Movimentação BDN - e ITAPURA-SP/SANTA MERCEDES-SP -
+    // Descaracterização -, todos com data futura salva manualmente em Operação em Campo,
+    // 2026-09-29). Agora vale pra toda família de régua, não só BDN.
     const dataDeObraPreenchida = temTelaOperacaoCampo(modal.rede, modal.tipo) ? paraIsoDataObraTexto(dataInicioObraTexto) : dataObra.inicio
-    if (novoStatus === 'OPERAÇÃO EM CAMPO' && TIPOS_BDN.includes(modal.tipo) && dataDeObraPreenchida && dataDeObraPreenchida > hojeIso()) {
-      alert(`A data de início dessa obra ainda é ${isoToBr(dataDeObraPreenchida)} (no futuro) - não dá pra marcar "Operação em Campo" antes do dia chegar. Deixa em "Agendamento" que o sistema avança sozinho na data certa.`)
+    if (novoStatus === 'OPERAÇÃO EM CAMPO' && dataDeObraPreenchida && dataDeObraPreenchida > hojeIso()) {
+      alert(`A data de início dessa obra ainda é ${isoToBr(dataDeObraPreenchida)} (no futuro) - não dá pra marcar "Operação em Campo" antes do dia chegar. Deixa numa etapa anterior que o sistema avança sozinho (ou você mesmo avança na mão) quando o dia chegar.`)
       return
     }
     if (editDados.pedido && !confirmaSemPedidoDuplicado({
