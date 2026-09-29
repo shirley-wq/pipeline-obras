@@ -2019,6 +2019,55 @@ function SeletorEquipe({ titulo, selecionados, onChangeSelecionados, terceirizad
 
 // Card da tela do líder de campo - propositalmente nunca referencia obra.valor em lugar nenhum
 // (blindagem por ausência, não por condição - Shirley, 2026-09-04). Só designa "quem vai" na
+// Motivo automático da pendência, juntando os impedimentos já registrados nas atividades do dia
+// (se o técnico não detalhou nenhum, fica só o aviso genérico) - evita pedir a mesma informação
+// de novo pro escritório (Shirley, 2026-09-28). Fica no nível do módulo (não só dentro do App) pra
+// o card do líder na Agenda (CardAtividadeLider) também poder chamar, não só o modal grande do
+// escritório - achado que o líder não tinha NENHUM jeito de marcar "não concluído" pela Agenda,
+// só o escritório via modal completo (Shirley, 2026-09-29).
+function motivoRegistroTexto(registro) {
+  return (registro.atividades || []).filter(a => a.impedimento && a.motivo).map(a => `${a.atividade}: ${a.motivo}`).join(' | ')
+}
+
+function montaMotivoPendenciaAutomatico(registro) {
+  const detalhes = motivoRegistroTexto(registro)
+  const motivoTecnico = (registro.motivo_nao_concluido || '').trim()
+  return `Pendência automática - dia ${registro.data ? isoToBr(registro.data) : '(sem data)'} marcado como não concluído pelo técnico.${motivoTecnico ? ' Motivo informado: ' + motivoTecnico : ''}${detalhes ? ' ' + detalhes : ''}`
+}
+
+// Aviso por e-mail pro escritório quando o técnico marca "✗ Não" no dia (redesenho da Daniela
+// Ferreira, aprovado pela Shirley em 2026-09-28, resolvendo o relato dela e da Glauce de
+// 2026-09-25 sobre obra avançando/ficando presa sem ninguém perceber). Reaproveita o mesmo canal
+// de e-mail já usado pra Tecban (EDGE_FUNCTION_TECBAN_URL) - só muda o destinatário.
+async function notificarPendenciaAutomatica(obraAtual, registro, { vistoria = false } = {}) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const pc = obraAtual.numero_pc || obraAtual.sige || obraAtual.id
+    const assunto = vistoria
+      ? `Vistoria não concluída - PC ${pc} - ${obraAtual.nome} precisa de nova data`
+      : `Pendência automática - PC ${pc} - ${obraAtual.nome} precisa de reagendamento`
+    const detalhes = motivoRegistroTexto(registro)
+    const motivoTecnico = (registro.motivo_nao_concluido || '').trim()
+    const corpo = [
+      `A obra ${obraAtual.nome} (PC ${pc}, ${obraAtual.rede}/${obraAtual.tipo}) teve o dia ${registro.data ? isoToBr(registro.data) : '(sem data)'} marcado como NÃO CONCLUÍDO pelo técnico.`,
+      motivoTecnico ? `O que aconteceu (informado pelo técnico): ${motivoTecnico}` : null,
+      vistoria
+        ? 'É preciso agendar uma nova data de vistoria.'
+        : 'A obra foi movida automaticamente para "Gerou Pendência" - é preciso reagendar a próxima visita (etapa Agendamento) pra ela voltar sozinha pra "Operação em Campo" quando a nova data chegar.',
+      detalhes ? `Observações adicionais das atividades: ${detalhes}` : null,
+    ].filter(Boolean).join('\n\n')
+    await fetch(EDGE_FUNCTION_TECBAN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
+      // to/cc no mesmo padrão dos outros envios internos (to = endereço único, cc = lista) -
+      // evita depender de o "to" aceitar vários endereços separados por vírgula.
+      body: JSON.stringify({ to: EMAIL_CC_OPERACAO_GRUPOPG, cc: EMAILS_ENVIO_RELATORIO.join(','), subject: assunto, body: corpo }),
+    })
+  } catch (err) {
+    console.error('Falha ao enviar aviso de pendência automática', err)
+  }
+}
+
 // atividade, editando a equipe do último item de registros_operacao_campo (mesmo campo que a
 // tela do escritório usa em "Dia da obra" - Shirley, 2026-09-08). Veículo fica pra quando a
 // Frota migrar pro Supabase.
@@ -2059,6 +2108,35 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
   const registrosAnteriores = registros.slice(0, -1)
   const [salvando, setSalvando] = useState(false)
   const [salvo, setSalvo] = useState(false)
+  // "A atividade do dia foi concluída?" - antes só existia no modal grande do escritório; o líder
+  // não tinha esse controle na Agenda de jeito nenhum, então a pendência automática (Passo 2,
+  // 2026-09-28) nunca disparava por essa tela (achado no teste da Shop do Carmo, Shirley,
+  // 2026-09-29). Replica a mesma automação aqui.
+  const [concluido, setConcluido] = useState(ultimoRegistro?.concluido ?? null)
+  const [motivoNaoConcluido, setMotivoNaoConcluido] = useState(ultimoRegistro?.motivo_nao_concluido || '')
+  const [salvandoConcluido, setSalvandoConcluido] = useState(false)
+  async function salvarConclusaoDia(concluidoNovo, motivo) {
+    if (!ultimoRegistro) return
+    if (concluidoNovo === false && !(motivo || '').trim()) return
+    setSalvandoConcluido(true)
+    const novoUltimo = { ...ultimoRegistro, concluido: concluidoNovo, motivo_nao_concluido: concluidoNovo === false ? (motivo || '').trim() : null }
+    const novaLista = registros.map((r, i) => i === registros.length - 1 ? novoUltimo : r)
+    const campos = { registros_operacao_campo: novaLista, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+    const marcandoNaoConcluido = concluidoNovo === false
+    const statusOriginal = obra.status
+    if (marcandoNaoConcluido && statusOriginal === 'OPERAÇÃO EM CAMPO') {
+      campos.status = 'GEROU PENDÊNCIA'
+      campos.motivo_pendencia = montaMotivoPendenciaAutomatico(novoUltimo)
+    }
+    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
+    setSalvandoConcluido(false)
+    if (!error) {
+      onSalvar(obra.id, campos)
+      if (marcandoNaoConcluido && (statusOriginal === 'OPERAÇÃO EM CAMPO' || statusOriginal === 'VISTORIA')) {
+        notificarPendenciaAutomatica({ ...obra, ...campos }, novoUltimo, { vistoria: statusOriginal === 'VISTORIA' })
+      }
+    }
+  }
   // Foto do local de instalação não vem mais na carga geral da lista (Shirley, 2026-09-24 - era
   // 15MB de base64 baixados por todo mundo, obra tenha foto ou não). Busca só quando o técnico
   // pede pra ver, uma obra por vez.
@@ -2169,6 +2247,36 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
       ) : (
         <div style={{ fontSize:12, color:'#9A3412', background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:8, padding:'8px 10px' }}>
           ⏳ Aguardando o escritório abrir uma visita pra você designar a equipe.
+        </div>
+      )}
+      {ultimoRegistro && (
+        <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #E0E8F0' }}>
+          <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:6 }}>A atividade do dia foi concluída?</div>
+          <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+            {[{ v:true, l:'✓ Sim' }, { v:false, l:'✗ Não' }].map(op => (
+              <span key={String(op.v)} onClick={() => {
+                setConcluido(op.v)
+                if (op.v === true) { setMotivoNaoConcluido(''); salvarConclusaoDia(true, '') }
+              }}
+                style={{ fontSize:11, fontWeight:700, padding:'4px 10px', borderRadius:6, cursor:'pointer', background: concluido === op.v ? (op.v ? '#D1FAE5' : '#FEE2E2') : '#F1F5F9', color: concluido === op.v ? (op.v ? '#065F46' : '#991B1B') : '#64748B' }}>
+                {op.l}
+              </span>
+            ))}
+          </div>
+          {concluido === false && (
+            <div style={{ padding:10, background:'#FEF2F2', border:'1px solid #FCA5A5', borderRadius:10 }}>
+              <label style={{ fontSize:11, color:'#991B1B', fontWeight:600, display:'block', marginBottom:3 }}>O que aconteceu? (obrigatório - vai no e-mail pro escritório) *</label>
+              <textarea value={motivoNaoConcluido} rows={2}
+                onChange={e => setMotivoNaoConcluido(e.target.value)}
+                placeholder="Ex: cliente não deixou entrar, faltou peça, deu problema no equipamento..."
+                style={{ width:'100%', padding:'10px', border:'1px solid #FCA5A5', borderRadius:8, fontSize:13, resize:'none', boxSizing:'border-box', color:'#1A2340', marginBottom:6 }} />
+              <button onClick={() => salvarConclusaoDia(false, motivoNaoConcluido)}
+                disabled={!motivoNaoConcluido.trim() || salvandoConcluido}
+                style={{ width:'100%', padding:8, background: (!motivoNaoConcluido.trim() || salvandoConcluido) ? '#ccc' : '#991B1B', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor: (!motivoNaoConcluido.trim() || salvandoConcluido) ? 'default' : 'pointer' }}>
+                {salvandoConcluido ? 'Salvando...' : 'Confirmar "Não concluído" e avisar o escritório'}
+              </button>
+            </div>
+          )}
         </div>
       )}
       {temArs && (
@@ -5174,52 +5282,6 @@ export default function App() {
       setNovoRegistroAtividades({})
       setNovoRegistroConcluido(null)
       setNovoRegistroMotivoNaoConcluido('')
-    }
-  }
-
-  // Motivo automático da pendência, juntando os impedimentos já registrados nas atividades do dia
-  // (se o técnico não detalhou nenhum, fica só o aviso genérico) - evita pedir a mesma informação
-  // de novo pro escritório (Shirley, 2026-09-28).
-  function motivoRegistroTexto(registro) {
-    return (registro.atividades || []).filter(a => a.impedimento && a.motivo).map(a => `${a.atividade}: ${a.motivo}`).join(' | ')
-  }
-
-  function montaMotivoPendenciaAutomatico(registro) {
-    const detalhes = motivoRegistroTexto(registro)
-    const motivoTecnico = (registro.motivo_nao_concluido || '').trim()
-    return `Pendência automática - dia ${registro.data ? isoToBr(registro.data) : '(sem data)'} marcado como não concluído pelo técnico.${motivoTecnico ? ' Motivo informado: ' + motivoTecnico : ''}${detalhes ? ' ' + detalhes : ''}`
-  }
-
-  // Aviso por e-mail pro escritório quando o técnico marca "✗ Não" no dia (redesenho da Daniela
-  // Ferreira, aprovado pela Shirley em 2026-09-28, resolvendo o relato dela e da Glauce de
-  // 2026-09-25 sobre obra avançando/ficando presa sem ninguém perceber). Reaproveita o mesmo canal
-  // de e-mail já usado pra Tecban (EDGE_FUNCTION_TECBAN_URL) - só muda o destinatário.
-  async function notificarPendenciaAutomatica(obraAtual, registro, { vistoria = false } = {}) {
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const pc = obraAtual.numero_pc || obraAtual.sige || obraAtual.id
-      const assunto = vistoria
-        ? `Vistoria não concluída - PC ${pc} - ${obraAtual.nome} precisa de nova data`
-        : `Pendência automática - PC ${pc} - ${obraAtual.nome} precisa de reagendamento`
-      const detalhes = motivoRegistroTexto(registro)
-      const motivoTecnico = (registro.motivo_nao_concluido || '').trim()
-      const corpo = [
-        `A obra ${obraAtual.nome} (PC ${pc}, ${obraAtual.rede}/${obraAtual.tipo}) teve o dia ${registro.data ? isoToBr(registro.data) : '(sem data)'} marcado como NÃO CONCLUÍDO pelo técnico.`,
-        motivoTecnico ? `O que aconteceu (informado pelo técnico): ${motivoTecnico}` : null,
-        vistoria
-          ? 'É preciso agendar uma nova data de vistoria.'
-          : 'A obra foi movida automaticamente para "Gerou Pendência" - é preciso reagendar a próxima visita (etapa Agendamento) pra ela voltar sozinha pra "Operação em Campo" quando a nova data chegar.',
-        detalhes ? `Observações adicionais das atividades: ${detalhes}` : null,
-      ].filter(Boolean).join('\n\n')
-      await fetch(EDGE_FUNCTION_TECBAN_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
-        // to/cc no mesmo padrão dos outros envios internos (to = endereço único, cc = lista) -
-        // evita depender de o "to" aceitar vários endereços separados por vírgula.
-        body: JSON.stringify({ to: EMAIL_CC_OPERACAO_GRUPOPG, cc: EMAILS_ENVIO_RELATORIO.join(','), subject: assunto, body: corpo }),
-      })
-    } catch (err) {
-      console.error('Falha ao enviar aviso de pendência automática', err)
     }
   }
 
