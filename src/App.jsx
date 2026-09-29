@@ -2108,12 +2108,16 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
   const registrosAnteriores = registros.slice(0, -1)
   const [salvando, setSalvando] = useState(false)
   const [salvo, setSalvo] = useState(false)
+  // Impedimentos já registrados no checklist daquele dia (ex: "Recomposição de piso" marcada com
+  // motivo "equipe deve retornar...") - existiam gravados mas não apareciam em lugar nenhum pro
+  // líder, que tinha que redigitar do zero (achado no teste da Shop do Carmo, Shirley, 2026-09-29).
+  const impedimentosRegistrados = [...new Set((ultimoRegistro?.atividades || []).filter(a => a.impedimento && a.motivo).map(a => a.motivo))]
   // "A atividade do dia foi concluída?" - antes só existia no modal grande do escritório; o líder
   // não tinha esse controle na Agenda de jeito nenhum, então a pendência automática (Passo 2,
   // 2026-09-28) nunca disparava por essa tela (achado no teste da Shop do Carmo, Shirley,
   // 2026-09-29). Replica a mesma automação aqui.
   const [concluido, setConcluido] = useState(ultimoRegistro?.concluido ?? null)
-  const [motivoNaoConcluido, setMotivoNaoConcluido] = useState(ultimoRegistro?.motivo_nao_concluido || '')
+  const [motivoNaoConcluido, setMotivoNaoConcluido] = useState(ultimoRegistro?.motivo_nao_concluido || impedimentosRegistrados.join(' | ') || '')
   const [salvandoConcluido, setSalvandoConcluido] = useState(false)
   async function salvarConclusaoDia(concluidoNovo, motivo) {
     if (!ultimoRegistro) return
@@ -2251,6 +2255,11 @@ function CardAtividadeLider({ obra, data, onSalvar, usuario }) {
       )}
       {ultimoRegistro && (
         <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #E0E8F0' }}>
+          {impedimentosRegistrados.length > 0 && (
+            <div style={{ fontSize:12, color:'#9A3412', background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:8, padding:'8px 10px', marginBottom:10 }}>
+              ⚠ Impedimento registrado no checklist: {impedimentosRegistrados.join(' | ')}
+            </div>
+          )}
           <div style={{ fontSize:11, color:'#4A7FC1', fontWeight:600, marginBottom:6 }}>A atividade do dia foi concluída?</div>
           <div style={{ display:'flex', gap:8, marginBottom:8 }}>
             {[{ v:true, l:'✓ Sim' }, { v:false, l:'✗ Não' }].map(op => (
