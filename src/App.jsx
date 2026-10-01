@@ -3863,6 +3863,14 @@ export default function App() {
   const [fornecedorAberto, setFornecedorAberto] = useState(null)
   const [novoFornecedor, setNovoFornecedor] = useState(null)
   const [salvandoFornecedor, setSalvandoFornecedor] = useState(false)
+  // Cadastro de clientes (Shirley, 2026-10-01) - mesmo modelo do cadastro de Fornecedores, usado
+  // no autocomplete do campo "Cliente / Origem" no lancamento manual de Receita.
+  const [clientes, setClientes] = useState([])
+  const [buscaCliente, setBuscaCliente] = useState('')
+  const [clienteAberto, setClienteAberto] = useState(null)
+  const [novoCliente, setNovoCliente] = useState(null)
+  const [salvandoCliente, setSalvandoCliente] = useState(false)
+  const [novoClienteLancamento, setNovoClienteLancamento] = useState(null)
   const [emailsLogin, setEmailsLogin] = useState([])
   const [perfisLogin, setPerfisLogin] = useState([])
   const [meuRH, setMeuRH] = useState(null)
@@ -4040,6 +4048,10 @@ export default function App() {
     if (usuario) supabase.from('fornecedores').select('*').order('nome_fantasia').then(({ data }) => setFornecedores(data || []))
   }, [usuario])
 
+  useEffect(() => {
+    if (usuario) supabase.from('clientes').select('*').order('nome_fantasia').then(({ data }) => setClientes(data || []))
+  }, [usuario])
+
   async function salvarFornecedor(id, campos) {
     setSalvandoFornecedor(true)
     const camposCompletos = { ...campos, atualizado_em: new Date().toISOString(), atualizado_por: usuario?.email || null }
@@ -4059,6 +4071,27 @@ export default function App() {
     if (!window.confirm('Excluir este fornecedor?')) return
     const { error } = await supabase.from('fornecedores').delete().eq('id', id)
     if (!error) { setFornecedores(prev => prev.filter(f => f.id !== id)); setFornecedorAberto(null) }
+  }
+
+  async function salvarCliente(id, campos) {
+    setSalvandoCliente(true)
+    const camposCompletos = { ...campos, atualizado_em: new Date().toISOString(), atualizado_por: usuario?.email || null }
+    if (id) {
+      const { error } = await supabase.from('clientes').update(camposCompletos).eq('id', id)
+      if (!error) setClientes(prev => prev.map(c => c.id === id ? { ...c, ...camposCompletos } : c).sort((a,b) => (a.nome_fantasia||'').localeCompare(b.nome_fantasia||'')))
+      setSalvandoCliente(false)
+      return !error
+    }
+    const { data, error } = await supabase.from('clientes').insert(camposCompletos).select().single()
+    if (!error && data) setClientes(prev => [...prev, data].sort((a,b) => (a.nome_fantasia||'').localeCompare(b.nome_fantasia||'')))
+    setSalvandoCliente(false)
+    return !error
+  }
+
+  async function excluirCliente(id) {
+    if (!window.confirm('Excluir este cliente?')) return
+    const { error } = await supabase.from('clientes').delete().eq('id', id)
+    if (!error) { setClientes(prev => prev.filter(c => c.id !== id)); setClienteAberto(null) }
   }
   function buscarIssPorCnpj(cnpj) {
     const digitos = soDigitosCnpj(cnpj)
@@ -7074,6 +7107,7 @@ export default function App() {
           ...(EMAILS_CUSTOS_DESPESAS.includes(usuario?.email) ? [{ id:'despesas', label:'Despesas', count:null, cor:'#B91C1C' }] : []),
           ...(EMAILS_CUSTOS_DESPESAS.includes(usuario?.email) ? [{ id:'financeiro', label:'Financeiro', count:null, cor:'#0F766E' }] : []),
           ...(podeVerValores ? [{ id:'fornecedores', label:'Fornecedores', count: fornecedores.length, cor:'#0369A1' }] : []),
+          ...(podeVerValores ? [{ id:'clientes', label:'Clientes', count: clientes.length, cor:'#065F46' }] : []),
         ]).map(a => (
           <button key={a.id} onClick={() => setAba(a.id)}
             style={{ flex:1, padding:'12px 8px', border:'none', borderBottom: aba===a.id ? `3px solid ${a.cor||'#2D3A8C'}` : '3px solid transparent',
@@ -8506,7 +8540,7 @@ export default function App() {
                 style={{ padding:'8px 16px', border:'none', background: contasPagarSubaba==='receber' ? '#065F46' : '#fff', color: contasPagarSubaba==='receber' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>💰 Contas a Receber</button>
             </div>
             <div style={{ marginLeft:'auto', display:'flex', gap:8 }}>
-              <button onClick={() => { setLancamentoErro(''); setNovoFornecedorLancamento(null); setModalEscolherTipoLancamento(true) }}
+              <button onClick={() => { setLancamentoErro(''); setNovoFornecedorLancamento(null); setNovoClienteLancamento(null); setModalEscolherTipoLancamento(true) }}
                 style={{ padding:'8px 14px', background:'#fff', color:'#0F766E', border:'1px solid #0F766E', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
                 ✏️ Lançamento manual
               </button>
@@ -8692,7 +8726,7 @@ export default function App() {
                           setLancamentoPlanoContas(c.plano_contas || '')
                           setLancamentoObs(c.observacoes || '')
                           setLancamentoParcelado(false); setLancamentoNumParcelas('')
-                          setLancamentoErro(''); setNovoFornecedorLancamento(null)
+                          setLancamentoErro(''); setNovoFornecedorLancamento(null); setNovoClienteLancamento(null)
                           setModalLancamentoManual(true)
                         }} style={{ fontSize:10, fontWeight:700, color:'#4A7FC1', background:'none', border:'none', cursor:'pointer', padding:0 }}>✏️ Editar</button>
                         <button onClick={() => excluirLancamentoContasPagar(c.id, c.fornecedor)}
@@ -8796,7 +8830,7 @@ export default function App() {
                               setLancamentoPlanoContas(o.plano_contas || '')
                               setLancamentoObs(o.observacoes || '')
                               setLancamentoParcelado(false); setLancamentoNumParcelas('')
-                              setLancamentoErro(''); setNovoFornecedorLancamento(null)
+                              setLancamentoErro(''); setNovoFornecedorLancamento(null); setNovoClienteLancamento(null)
                               setModalLancamentoManual(true)
                             }} style={{ fontSize:10, fontWeight:700, color:'#4A7FC1', background:'none', border:'none', cursor:'pointer', padding:0 }}>✏️ Editar</button>
                             <button onClick={() => excluirLancamentoContasPagar(o.id, o.fornecedor)}
@@ -8873,7 +8907,7 @@ export default function App() {
             </div>
 
             <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>{lancamentoTipo === 'receita' ? 'Cliente / Origem *' : 'Fornecedor *'}</label>
-            <input list={lancamentoTipo === 'receita' ? undefined : 'lista-fornecedor-lancamento'} value={lancamentoFornecedor} onChange={e => setLancamentoFornecedor(up(e.target.value))}
+            <input list={lancamentoTipo === 'receita' ? 'lista-cliente-lancamento' : 'lista-fornecedor-lancamento'} value={lancamentoFornecedor} onChange={e => setLancamentoFornecedor(up(e.target.value))}
               style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
             {lancamentoTipo === 'despesa' && (
               <>
@@ -8902,7 +8936,36 @@ export default function App() {
                 )}
               </>
             )}
-            {lancamentoTipo === 'receita' && <div style={{ marginBottom:10 }} />}
+            {lancamentoTipo === 'receita' && (
+              <>
+                {/* Sugestao combinando o cadastro de Clientes com os CNPJs da Tecban por municipio
+                    (mesma lista usada no calculo de ISS da tela de faturamento) - Shirley, 2026-10-01. */}
+                <datalist id="lista-cliente-lancamento">
+                  {clientes.map(c => <option key={c.id} value={[c.nome_fantasia || c.razao_social, c.cnpj].filter(Boolean).join(' - ')} />)}
+                  {tecbanCnpjIss.map(t => <option key={t.cnpj_digitos} value={`TECBAN${t.municipio ? ' - ' + t.municipio : ''} - ${t.cnpj}`} />)}
+                </datalist>
+
+                {!novoClienteLancamento ? (
+                  <div onClick={() => setNovoClienteLancamento({ nome_fantasia: lancamentoFornecedor })}
+                    style={{ fontSize:11, color:'#0369A1', fontWeight:600, cursor:'pointer', marginTop:4, marginBottom:10 }}>
+                    + Cliente não cadastrado? Cadastrar novo
+                  </div>
+                ) : (
+                  <div style={{ marginTop:8, marginBottom:10 }}>
+                    <FornecedorForm dados={novoClienteLancamento} setDados={setNovoClienteLancamento}
+                      salvando={salvandoCliente}
+                      onCancelar={() => setNovoClienteLancamento(null)}
+                      onSalvar={async () => {
+                        const ok = await salvarCliente(null, novoClienteLancamento)
+                        if (ok) {
+                          setLancamentoFornecedor(up(novoClienteLancamento.nome_fantasia || ''))
+                          setNovoClienteLancamento(null)
+                        }
+                      }} />
+                  </div>
+                )}
+              </>
+            )}
 
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
               <div>
@@ -9095,6 +9158,63 @@ export default function App() {
             )
           })}
           {listaFiltrada.length === 0 && <div style={{ textAlign:'center', color:'#888', marginTop:40, fontSize:14 }}>Nenhum fornecedor encontrado.</div>}
+        </div>
+        )
+      })()}
+
+      {aba === 'clientes' && podeVerValores && (() => {
+        const listaFiltrada = clientes.filter(c => {
+          if (!buscaCliente) return true
+          const termo = normalizarBusca(buscaCliente)
+          const campos = normalizarBusca([c.nome_fantasia, c.razao_social, c.cnpj, c.categoria, c.produto_servico].filter(Boolean).join(' '))
+          return campos.includes(termo)
+        })
+        return (
+        <div style={{ padding:12 }}>
+          <div style={{ display:'flex', gap:8, marginBottom:10, alignItems:'center', flexWrap:'wrap' }}>
+            <input value={buscaCliente} onChange={e=>setBuscaCliente(e.target.value)} placeholder="🔎 Buscar por nome, CNPJ, categoria..."
+              style={{ flex:1, minWidth:220, padding:'9px 12px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340' }} />
+            <button onClick={() => { setNovoCliente({}); setClienteAberto(null) }}
+              style={{ padding:'9px 16px', background:'#065F46', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+              + Novo cliente
+            </button>
+          </div>
+          <div style={{ fontSize:12, color:'#64748B', marginBottom:10 }}>{listaFiltrada.length} cliente(s)</div>
+
+          {novoCliente && (
+            <FornecedorForm dados={novoCliente} setDados={setNovoCliente}
+              salvando={salvandoCliente}
+              onCancelar={() => setNovoCliente(null)}
+              onSalvar={async () => { const ok = await salvarCliente(null, novoCliente); if (ok) setNovoCliente(null) }} />
+          )}
+
+          {listaFiltrada.map(c => {
+            const aberto = clienteAberto === c.id
+            return (
+              <div key={c.id} style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, marginBottom:8, overflow:'hidden' }}>
+                <div onClick={() => setClienteAberto(aberto ? null : c.id)} style={{ padding:'12px 14px', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 }}>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:'#1A2340' }}>{c.nome_fantasia || '(sem nome)'}</div>
+                    <div style={{ fontSize:11, color:'#64748B', marginTop:2 }}>{[c.categoria, c.cnpj].filter(Boolean).join(' · ') || '—'}</div>
+                  </div>
+                  <span style={{ fontSize:12, color:'#94A3B8', flexShrink:0 }}>{aberto ? '▲' : '▼'}</span>
+                </div>
+                {aberto && (
+                  <div style={{ padding:'0 14px 14px' }}>
+                    <FornecedorForm dados={c} setDados={upd => setClientes(prev => prev.map(x => x.id === c.id ? { ...x, ...(typeof upd === 'function' ? upd(x) : upd) } : x))}
+                      salvando={salvandoCliente}
+                      onSalvar={() => salvarCliente(c.id, {
+                        nome_fantasia: c.nome_fantasia || null, razao_social: c.razao_social || null, cnpj: c.cnpj || null,
+                        categoria: c.categoria || null, produto_servico: c.produto_servico || null, telefone: c.telefone || null,
+                        email: c.email || null, endereco: c.endereco || null, cep: c.cep || null, observacoes: c.observacoes || null,
+                      })}
+                      onExcluir={() => excluirCliente(c.id)} />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {listaFiltrada.length === 0 && <div style={{ textAlign:'center', color:'#888', marginTop:40, fontSize:14 }}>Nenhum cliente encontrado.</div>}
         </div>
         )
       })()}
