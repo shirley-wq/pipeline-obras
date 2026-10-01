@@ -322,7 +322,7 @@ function confirmaSemPedidoDuplicado(obra, todasObras) {
 // tomador são os mesmos.
 const MAX_SERVICOS_POR_GRUPO_FATURAMENTO = 15
 const TEXTO_DESOBRIGACAO_INSS_OBRA_CIVIL = 'DESOBRIGAÇÃO DE RETENÇÃO PARA PREVIDENCIA SOCIAL DE ACORDO COM ARTIGO 149 INCISO II DA IN RFB 971/09 A EMPRESA SE OBRIGA A ENTREGAR OS DOCUMENTOS E INFORMAÇÕES RELACIONADAS NO ARTIGO 163, INCISO I DA IN971/09'
-function agruparParaFaturamento(obrasProntas) {
+function agruparParaFaturamento(obrasProntas, tecbanCnpjIss) {
   const porChave = {}
   obrasProntas.forEach(o => {
     const ufObra = uf(o.local).toUpperCase()
@@ -337,6 +337,11 @@ function agruparParaFaturamento(obrasProntas) {
   Object.entries(porChave).forEach(([chave, lista]) => {
     const [cnpjFornecedor, cnpjTomador, ehBDNTexto] = chave.split('|')
     const ehBDN = ehBDNTexto === 'true'
+    // Endereço "oficial" cadastrado por CNPJ tomador (ver salvarEnderecoTomador) tem prioridade
+    // sobre o campo digitado por obra na conferência do pedido - esse último é texto livre
+    // re-digitado a cada pedido e um erro de digitação contaminava a NF do grupo inteiro
+    // (Aline, 2026-10-01).
+    const cadastroTomador = (tecbanCnpjIss || []).find(r => r.cnpj_digitos === soDigitosCnpj(cnpjTomador))
     for (let i = 0; i < lista.length; i += MAX_SERVICOS_POR_GRUPO_FATURAMENTO) {
       const fatia = lista.slice(i, i + MAX_SERVICOS_POR_GRUPO_FATURAMENTO)
       grupos.push({
@@ -345,7 +350,7 @@ function agruparParaFaturamento(obrasProntas) {
         cnpjTomador,
         ehBDN,
         nomeTecban: fatia[0].pedido_tecban_nome || '',
-        enderecoTomador: fatia[0].pedido_tecban_endereco || '',
+        enderecoTomador: cadastroTomador?.endereco || fatia[0].pedido_tecban_endereco || '',
         obras: fatia,
         total: fatia.reduce((s, o) => s + (Number(o.valor) || 0), 0),
       })
@@ -356,10 +361,11 @@ function agruparParaFaturamento(obrasProntas) {
 
 // Texto pronto pra colar no corpo da NF no site da prefeitura (Shirley, 2026-08-26) - sem endereço
 // da obra: o endereço do tomador usado ali é sempre o endereço "padrão" da unidade (o mesmo que sai
-// impresso no pedido, em "Dados para Faturamento"), não o endereço físico da obra - por isso vem do
-// campo pedido_tecban_endereco (capturado na conferência do pedido), não da obra em si. Todas as
-// obras de um grupo compartilham o mesmo CNPJ tomador, então o endereço também é o mesmo pro grupo
-// inteiro - usa o do primeiro serviço da lista.
+// impresso no pedido, em "Dados para Faturamento"), não o endereço físico da obra. Vem do cadastro
+// por CNPJ (tecban_cnpj_iss.endereco, ver salvarEnderecoTomador) quando cadastrado; senão cai pro
+// campo pedido_tecban_endereco digitado na conferência do pedido (texto livre, re-digitado a cada
+// pedido - fonte do erro que motivou o cadastro central, Aline, 2026-10-01). Todas as obras de um
+// grupo compartilham o mesmo CNPJ tomador, então o endereço também é o mesmo pro grupo inteiro.
 function montaTextoNF(g, vencimentoIso) {
   const endereco = g.enderecoTomador || '(endereço do tomador não informado na conferência do pedido)'
   const pedidos = g.obras.map(o => o.pedido || '(sem pedido)').join(', ')
@@ -4133,6 +4139,24 @@ export default function App() {
       if (!error) setTecbanCnpjIss(prev => [...prev, novo])
     }
   }
+  // Endereço "oficial" do tomador por CNPJ, pra não depender mais do campo pedido_tecban_endereco
+  // digitado por obra (Aline, 2026-10-01: um endereço errado digitado uma vez contaminava o texto
+  // da NF de todo o grupo daquele CNPJ). Mesmo padrão/tabela da alíquota de ISS.
+  async function salvarEnderecoTomador(cnpj, novoEndereco) {
+    const digitos = soDigitosCnpj(cnpj)
+    if (!digitos) return
+    const endereco = novoEndereco.trim() || null
+    const existente = tecbanCnpjIss.find(r => r.cnpj_digitos === digitos)
+    const campos = { endereco, atualizado_em: new Date().toISOString(), atualizado_por: usuario.email }
+    if (existente) {
+      const { error } = await supabase.from('tecban_cnpj_iss').update(campos).eq('cnpj_digitos', digitos)
+      if (!error) setTecbanCnpjIss(prev => prev.map(r => r.cnpj_digitos === digitos ? { ...r, ...campos } : r))
+    } else {
+      const novo = { cnpj_digitos: digitos, cnpj, ...campos }
+      const { error } = await supabase.from('tecban_cnpj_iss').insert(novo)
+      if (!error) setTecbanCnpjIss(prev => [...prev, novo])
+    }
+  }
 
   useEffect(() => {
     if (!usuario) { setPapel(null); return }
@@ -7278,7 +7302,7 @@ export default function App() {
                 const obrasProntas = obrasFaturarFiltradas.filter(o => conferePedidoObra(o).completo)
                 const idsProntas = new Set(obrasProntas.map(o => o.id))
                 const obrasOutras = obrasFaturarFiltradas.filter(o => !conferePedidoObra(o).precisaCorrecao && !idsProntas.has(o.id))
-                const grupos = agruparParaFaturamento(obrasProntas)
+                const grupos = agruparParaFaturamento(obrasProntas, tecbanCnpjIss)
                 return (
                   <>
                     {obrasCorrecao.map(o => {
@@ -7375,13 +7399,21 @@ export default function App() {
                           {g.cnpjTomador && (() => {
                             const issInfo = buscarIssPorCnpj(g.cnpjTomador)
                             return (
-                              <div style={{ fontSize:11, color:'#475569', margin:'0 0 10px', display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-                                Tomador (Tecban): <b>{g.cnpjTomador}</b>{issInfo?.municipio ? ` · ${issInfo.municipio}` : ''} · ISS:
-                                <input type="number" step="0.01" defaultValue={issInfo?.aliquota ?? ''} placeholder="não informado"
-                                  onBlur={e => salvarAliquotaIss(g.cnpjTomador, e.target.value)}
-                                  style={{ width:70, padding:'3px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:11, color:'#1A2340' }} />
-                                %
-                              </div>
+                              <>
+                                <div style={{ fontSize:11, color:'#475569', margin:'0 0 6px', display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+                                  Tomador (Tecban): <b>{g.cnpjTomador}</b>{issInfo?.municipio ? ` · ${issInfo.municipio}` : ''} · ISS:
+                                  <input type="number" step="0.01" defaultValue={issInfo?.aliquota ?? ''} placeholder="não informado"
+                                    onBlur={e => salvarAliquotaIss(g.cnpjTomador, e.target.value)}
+                                    style={{ width:70, padding:'3px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:11, color:'#1A2340' }} />
+                                  %
+                                </div>
+                                <div style={{ fontSize:11, color:'#475569', margin:'0 0 10px', display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+                                  Endereço do tomador (usado no texto da NF):
+                                  <input type="text" defaultValue={issInfo?.endereco ?? ''} placeholder="não cadastrado"
+                                    onBlur={e => salvarEnderecoTomador(g.cnpjTomador, e.target.value)}
+                                    style={{ flex:'1 1 280px', minWidth:220, padding:'3px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:11, color:'#1A2340' }} />
+                                </div>
+                              </>
                             )
                           })()}
                           <div style={{ background:'#F8FAFC', borderRadius:8, padding:'6px 10px', marginBottom:10 }}>
