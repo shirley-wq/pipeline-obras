@@ -3983,6 +3983,14 @@ export default function App() {
   const [lancamentoTipo, setLancamentoTipo] = useState('despesa')
   const [modalEscolherTipoLancamento, setModalEscolherTipoLancamento] = useState(false)
   const [contasReceberManual, setContasReceberManual] = useState([])
+  // Valor líquido da NF (Shirley, 2026-10-01) - NF emitida entra em Contas a Receber com o valor
+  // cheio (campo `valor` da obra, usado tambem em outros lugares do Pipeline); a Aline ajusta esse
+  // valor manualmente com os descontos (INSS/ISS) conforme a planilha que a Tecban manda por
+  // e-mail. Guarda esse ajuste num campo SEPARADO (`valor_liquido_nf`), editável aqui, sem nunca
+  // sobrescrever o `valor` original da obra.
+  const [editandoValorLiquidoId, setEditandoValorLiquidoId] = useState(null)
+  const [valorLiquidoEditando, setValorLiquidoEditando] = useState('')
+  const [salvandoValorLiquido, setSalvandoValorLiquido] = useState(false)
   // Tela nunca tinha tratamento de erro - se o insert falhasse, a tela ficava aberta sem avisar
   // nada (achado no teste do lançamento parcelado, Shirley, 2026-09-28).
   const [lancamentoErro, setLancamentoErro] = useState('')
@@ -6590,6 +6598,32 @@ export default function App() {
     if (contasReceberDataRef === 'emissao') return emissao
     return o.vencimento || emissao
   }
+  // Valor líquido quando existir (NF emitida com desconto já aplicado), senão o valor cheio -
+  // lançamento manual de receita já guarda o valor certo direto em `valor` (Shirley, 2026-10-01).
+  function valorReceber(o) {
+    if (o._origem === 'manual') return Number(o.valor || 0)
+    return Number(o.valor_liquido_nf ?? o.valor ?? 0)
+  }
+  async function salvarValorLiquidoNf(obra, valorNumerico, origem) {
+    setSalvandoValorLiquido(true)
+    const campos = {
+      valor_liquido_nf: valorNumerico,
+      valor_liquido_nf_origem: origem || 'manual',
+      valor_liquido_nf_atualizado_em: new Date().toISOString(),
+      valor_liquido_nf_atualizado_por: usuario?.email || null,
+    }
+    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
+    if (error) { alert('Erro ao salvar valor líquido: ' + error.message); setSalvandoValorLiquido(false); return }
+    setObras(prev => prev.map(o => o.id === obra.id ? { ...o, ...campos } : o))
+    setSalvandoValorLiquido(false)
+    setEditandoValorLiquidoId(null)
+  }
+  async function limparValorLiquidoNf(obra) {
+    if (!window.confirm('Voltar a usar o valor cheio (sem desconto) pra essa NF?')) return
+    const campos = { valor_liquido_nf: null, valor_liquido_nf_origem: null, valor_liquido_nf_atualizado_em: null, valor_liquido_nf_atualizado_por: null }
+    const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
+    if (!error) setObras(prev => prev.map(o => o.id === obra.id ? { ...o, ...campos } : o))
+  }
   // Receita manual (Shirley, 2026-10-01) entra na mesma lista das NFs emitidas pela obra - usa
   // `_origem: 'manual'` pra diferenciar na hora de renderizar/editar/excluir cada linha.
   const contasReceberManualMapeadas = contasReceberManual.map(c => ({ ...c, _origem: 'manual' }))
@@ -6606,24 +6640,24 @@ export default function App() {
     if (contasPagarModo === 'ano') return ano === contasPagarAno
     return ano === contasPagarAno && mes === contasPagarMes
   }).sort((a, b) => dataReferenciaReceber(a).localeCompare(dataReferenciaReceber(b)))
-  const totalContasReceberPeriodo = contasReceberFiltradas.reduce((s, o) => s + Number(o.valor || 0), 0)
+  const totalContasReceberPeriodo = contasReceberFiltradas.reduce((s, o) => s + valorReceber(o), 0)
   // "Faturado hoje" continua so NF emitida pela obra (nao mistura receita manual) - e uma metrica
   // especifica de faturamento, nao de "dinheiro entrando hoje" no geral.
   const contasReceberFaturadasHoje = obras.filter(o => o.status === 'NF EMITIDO' && dataReferenciaReceber(o) === dataHojeIso)
-  const totalContasReceberFaturadasHoje = contasReceberFaturadasHoje.reduce((s, o) => s + Number(o.valor || 0), 0)
+  const totalContasReceberFaturadasHoje = contasReceberFaturadasHoje.reduce((s, o) => s + valorReceber(o), 0)
 
   // Mesma linha fininha do Contas a Pagar, agora com o faturado por dia/mês em Contas a Receber
   // (Shirley, 2026-09-04), também pela data de vencimento.
   const contasReceberSparkline = (() => {
     if (contasPagarModo === 'ano') {
       const porMes = Array(12).fill(0)
-      contasReceberFiltradas.forEach(o => { porMes[Number(dataReferenciaReceber(o).slice(5, 7)) - 1] += Number(o.valor || 0) })
+      contasReceberFiltradas.forEach(o => { porMes[Number(dataReferenciaReceber(o).slice(5, 7)) - 1] += valorReceber(o) })
       return porMes.map((total, i) => ({ label: String(i + 1).padStart(2, '0'), total }))
     }
     if (contasPagarModo === 'periodo') {
       if (!contasPagarDataInicio || !contasPagarDataFim) return []
       const porDiaMap = {}
-      contasReceberFiltradas.forEach(o => { const iso = dataReferenciaReceber(o); porDiaMap[iso] = (porDiaMap[iso] || 0) + Number(o.valor || 0) })
+      contasReceberFiltradas.forEach(o => { const iso = dataReferenciaReceber(o); porDiaMap[iso] = (porDiaMap[iso] || 0) + valorReceber(o) })
       const dias = []
       for (let d = new Date(contasPagarDataInicio + 'T00:00:00'); d <= new Date(contasPagarDataFim + 'T00:00:00'); d.setDate(d.getDate() + 1)) {
         dias.push(d.toISOString().slice(0, 10))
@@ -6634,7 +6668,7 @@ export default function App() {
     const porDia = Array(diasNoMes).fill(0)
     contasReceberFiltradas.forEach(o => {
       const dia = new Date(o.atualizado_em).getDate()
-      if (dia >= 1 && dia <= diasNoMes) porDia[dia - 1] += Number(o.valor || 0)
+      if (dia >= 1 && dia <= diasNoMes) porDia[dia - 1] += valorReceber(o)
     })
     return porDia.map((total, i) => ({ label: String(i + 1).padStart(2, '0'), total }))
   })()
@@ -8863,7 +8897,36 @@ export default function App() {
                         <div style={{ fontSize:13, fontWeight:600, color:'#1A2340' }}>{o.nome}</div>
                         <div style={{ fontSize:11, color:'#64748B' }}>{contasReceberDataRef === 'emissao' ? 'Emissão' : 'Vencimento'} {isoToBr(dataReferenciaReceber(o))} · {o.local || '—'}{o.nf ? ` · NF ${o.nf}` : ''}</div>
                       </div>
-                      <div style={{ fontSize:13, fontWeight:700, color:'#065F46', flexShrink:0 }}>{fmt(o.valor)}</div>
+                      <div style={{ textAlign:'right', flexShrink:0 }}>
+                        {editandoValorLiquidoId === o.id ? (
+                          <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                            <input autoFocus type="text" inputMode="decimal" value={valorLiquidoEditando}
+                              onChange={e => setValorLiquidoEditando(e.target.value)}
+                              style={{ width:90, padding:'4px 6px', border:'1px solid #CDD8E3', borderRadius:6, fontSize:12, textAlign:'right' }} />
+                            <button disabled={salvandoValorLiquido} onClick={() => {
+                              const num = parseFloat(String(valorLiquidoEditando).replace(',', '.'))
+                              if (isNaN(num)) { alert('Valor inválido.'); return }
+                              salvarValorLiquidoNf(o, num, 'manual')
+                            }} style={{ fontSize:14, color:'#065F46', background:'none', border:'none', cursor:'pointer', padding:0 }}>✓</button>
+                            <button onClick={() => setEditandoValorLiquidoId(null)} style={{ fontSize:14, color:'#94A3B8', background:'none', border:'none', cursor:'pointer', padding:0 }}>✕</button>
+                          </div>
+                        ) : (
+                          <>
+                            <div style={{ fontSize:13, fontWeight:700, color:'#065F46' }}>{fmt(valorReceber(o))}</div>
+                            {o.valor_liquido_nf != null && Number(o.valor_liquido_nf) !== Number(o.valor) && (
+                              <div style={{ fontSize:10, color:'#94A3B8', textDecoration:'line-through' }}>{fmt(o.valor)}</div>
+                            )}
+                            <div style={{ display:'flex', gap:6, justifyContent:'flex-end', marginTop:2 }}>
+                              <button onClick={() => { setEditandoValorLiquidoId(o.id); setValorLiquidoEditando(String(o.valor_liquido_nf ?? o.valor ?? '')) }}
+                                style={{ fontSize:10, fontWeight:700, color:'#4A7FC1', background:'none', border:'none', cursor:'pointer', padding:0 }}>✏️ valor líquido</button>
+                              {o.valor_liquido_nf != null && (
+                                <button onClick={() => limparValorLiquidoNf(o)}
+                                  style={{ fontSize:10, color:'#94A3B8', background:'none', border:'none', cursor:'pointer', padding:0 }}>usar valor cheio</button>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   )
                 })}
