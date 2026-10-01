@@ -3969,6 +3969,12 @@ export default function App() {
   // Cadastrar fornecedor novo sem sair do lançamento manual (Shirley, 2026-09-28) - antes só dava
   // pra escolher um já existente (autocomplete) ou digitar o nome solto, sem CNPJ/categoria etc.
   const [novoFornecedorLancamento, setNovoFornecedorLancamento] = useState(null)
+  // Lancamento manual agora cobre tambem Receita, nao so Despesa (Shirley, 2026-10-01) - antes de
+  // abrir o formulario, pergunta qual dos dois e, e usa o mesmo formulario/tabela pra ambos (campo
+  // novo `tipo` em contas_pagar), so trocando os rotulos e pra onde a lista mostra o lancamento.
+  const [lancamentoTipo, setLancamentoTipo] = useState('despesa')
+  const [modalEscolherTipoLancamento, setModalEscolherTipoLancamento] = useState(false)
+  const [contasReceberManual, setContasReceberManual] = useState([])
   // Tela nunca tinha tratamento de erro - se o insert falhasse, a tela ficava aberta sem avisar
   // nada (achado no teste do lançamento parcelado, Shirley, 2026-09-28).
   const [lancamentoErro, setLancamentoErro] = useState('')
@@ -4019,7 +4025,7 @@ export default function App() {
   }
 
   useEffect(() => { if (usuario && papel !== null) carregarObras(papel) }, [usuario, papel])
-  useEffect(() => { if (usuario && EMAILS_CUSTOS_DESPESAS.includes(usuario.email)) carregarContasPagar() }, [usuario])
+  useEffect(() => { if (usuario && EMAILS_CUSTOS_DESPESAS.includes(usuario.email)) { carregarContasPagar(); carregarContasReceberManual() } }, [usuario])
   // Alíquota de ISS por CNPJ do tomador (Shirley/Aline, 2026-09-09) - vem da planilha própria deles
   // (ALIQUOTA ISS, aba FORNECEDOR: 1 CNPJ da Tecban por município/filial), não da base oficial
   // genérica - carregada uma vez e usada na tela de faturamento (ver buscarIssPorCnpj). O valor é
@@ -4673,7 +4679,10 @@ export default function App() {
     let todas = []
     let pagina = 0
     while (true) {
-      const { data, error } = await supabase.from('contas_pagar').select('*')
+      // tipo='despesa' (Shirley, 2026-10-01) - essa tabela agora guarda despesa e receita; aqui
+      // continua so despesa, pra nao mudar em nada os totais/listas do Contas a Pagar que ja
+      // existiam. Receita manual e carregada a parte, em carregarContasReceberManual().
+      const { data, error } = await supabase.from('contas_pagar').select('*').eq('tipo', 'despesa')
         .range(pagina * TAMANHO_PAGINA, pagina * TAMANHO_PAGINA + TAMANHO_PAGINA - 1)
       if (error) {
         console.error('Erro ao carregar contas a pagar:', error)
@@ -4684,6 +4693,15 @@ export default function App() {
       pagina++
     }
     setContasPagar(todas)
+  }
+
+  // Receita avulsa lancada manualmente em Financeiro (Shirley, 2026-10-01) - mesma tabela/campos
+  // do Contas a Pagar, so filtrando tipo='receita'; mostrada dentro de Contas a Receber, somada
+  // as NFs emitidas que ja vinham das obras.
+  async function carregarContasReceberManual() {
+    const { data, error } = await supabase.from('contas_pagar').select('*').eq('tipo', 'receita')
+    if (error) { console.error('Erro ao carregar contas a receber (manual):', error); return }
+    setContasReceberManual(data || [])
   }
 
   // Lê o relatório do SIGE (mesmo formato que a Shirley já vem exportando, com as colunas "É
@@ -4778,6 +4796,7 @@ export default function App() {
     // (Shirley, 2026-09-28).
     const valorNumerico = parseFloat(String(lancamentoValor).replace(',', '.')) || 0
     const base = {
+      tipo: lancamentoTipo,
       fornecedor: lancamentoFornecedor.trim(),
       valor: valorNumerico,
       centro_custos: lancamentoCentroCusto.trim() || null,
@@ -4811,11 +4830,13 @@ export default function App() {
     }
     if (!error) {
       await carregarContasPagar()
+      await carregarContasReceberManual()
       setModalLancamentoManual(false)
       // Antes fechava o modal em silêncio, sem nenhuma confirmação - Shirley não sabia se tinha
       // salvo de verdade (2026-09-28).
       alert(editandoLancamentoId ? 'Lançamento atualizado com sucesso.' : numParcelas > 1 ? `${numParcelas} parcelas lançadas com sucesso.` : 'Lançamento salvo com sucesso.')
       setEditandoLancamentoId(null)
+      setLancamentoTipo('despesa')
       setLancamentoFornecedor(''); setLancamentoValor(''); setLancamentoVencimento(hojeIso())
       setLancamentoCentroCusto(''); setLancamentoGrupo(''); setLancamentoEmpresa('')
       setLancamentoBanco(''); setLancamentoPlanoContas(''); setLancamentoObs('')
@@ -4852,7 +4873,10 @@ export default function App() {
   // conciliação importando o extrato bancário; por enquanto o "conciliado" também é manual.
   async function atualizarStatusPagamentoContasPagar(id, novoStatus) {
     const { error } = await supabase.from('contas_pagar').update({ status_pagamento: novoStatus }).eq('id', id)
-    if (!error) setContasPagar(prev => prev.map(c => c.id === id ? { ...c, status_pagamento: novoStatus } : c))
+    if (!error) {
+      setContasPagar(prev => prev.map(c => c.id === id ? { ...c, status_pagamento: novoStatus } : c))
+      setContasReceberManual(prev => prev.map(c => c.id === id ? { ...c, status_pagamento: novoStatus } : c))
+    }
   }
 
   // Excluir lançamento do Contas a Pagar (Shirley, 2026-09-28) - não existia nenhum jeito de
@@ -4860,7 +4884,7 @@ export default function App() {
   async function excluirLancamentoContasPagar(id, fornecedor) {
     if (!window.confirm(`Excluir o lançamento de "${fornecedor || '(sem fornecedor)'}"? Essa ação não pode ser desfeita.`)) return
     const { error } = await supabase.from('contas_pagar').delete().eq('id', id)
-    if (!error) setContasPagar(prev => prev.filter(c => c.id !== id))
+    if (!error) { setContasPagar(prev => prev.filter(c => c.id !== id)); setContasReceberManual(prev => prev.filter(c => c.id !== id)) }
     else { console.error('Falha ao excluir lançamento:', error); alert('Não foi possível excluir: ' + (error.message || 'erro desconhecido')) }
   }
 
@@ -6527,12 +6551,15 @@ export default function App() {
   // antigas sem `vencimento` preenchido caem no fallback da data de emissão quando o modo é
   // "vencimento", pra não sumirem da lista.
   function dataReferenciaReceber(o) {
+    if (o._origem === 'manual') return o.data_vencimento || null
     const emissao = o.atualizado_em ? o.atualizado_em.slice(0, 10) : null
     if (contasReceberDataRef === 'emissao') return emissao
     return o.vencimento || emissao
   }
-  const contasReceberFiltradas = obras.filter(o => {
-    if (o.status !== 'NF EMITIDO') return false
+  // Receita manual (Shirley, 2026-10-01) entra na mesma lista das NFs emitidas pela obra - usa
+  // `_origem: 'manual'` pra diferenciar na hora de renderizar/editar/excluir cada linha.
+  const contasReceberManualMapeadas = contasReceberManual.map(c => ({ ...c, _origem: 'manual' }))
+  const contasReceberFiltradas = [...obras.filter(o => o.status === 'NF EMITIDO'), ...contasReceberManualMapeadas].filter(o => {
     const dataRef = dataReferenciaReceber(o)
     if (!dataRef) return false
     if (contasPagarModo === 'periodo') {
@@ -6546,6 +6573,8 @@ export default function App() {
     return ano === contasPagarAno && mes === contasPagarMes
   }).sort((a, b) => dataReferenciaReceber(a).localeCompare(dataReferenciaReceber(b)))
   const totalContasReceberPeriodo = contasReceberFiltradas.reduce((s, o) => s + Number(o.valor || 0), 0)
+  // "Faturado hoje" continua so NF emitida pela obra (nao mistura receita manual) - e uma metrica
+  // especifica de faturamento, nao de "dinheiro entrando hoje" no geral.
   const contasReceberFaturadasHoje = obras.filter(o => o.status === 'NF EMITIDO' && dataReferenciaReceber(o) === dataHojeIso)
   const totalContasReceberFaturadasHoje = contasReceberFaturadasHoje.reduce((s, o) => s + Number(o.valor || 0), 0)
 
@@ -8476,18 +8505,18 @@ export default function App() {
               <button onClick={() => { setContasPagarSubaba('receber'); if (contasPagarModo === 'hoje') setContasPagarModo('mes') }}
                 style={{ padding:'8px 16px', border:'none', background: contasPagarSubaba==='receber' ? '#065F46' : '#fff', color: contasPagarSubaba==='receber' ? '#fff' : '#1A2340', fontSize:12, fontWeight:700, cursor:'pointer' }}>💰 Contas a Receber</button>
             </div>
-            {contasPagarSubaba === 'pagar' && (
-              <div style={{ marginLeft:'auto', display:'flex', gap:8 }}>
-                <button onClick={() => { setLancamentoErro(''); setNovoFornecedorLancamento(null); setModalLancamentoManual(true) }}
-                  style={{ padding:'8px 14px', background:'#fff', color:'#0F766E', border:'1px solid #0F766E', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                  ✏️ Lançamento manual
-                </button>
+            <div style={{ marginLeft:'auto', display:'flex', gap:8 }}>
+              <button onClick={() => { setLancamentoErro(''); setNovoFornecedorLancamento(null); setModalEscolherTipoLancamento(true) }}
+                style={{ padding:'8px 14px', background:'#fff', color:'#0F766E', border:'1px solid #0F766E', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                ✏️ Lançamento manual
+              </button>
+              {contasPagarSubaba === 'pagar' && (
                 <button onClick={() => { setModalImportarContasPagar(true); setContasPagarErro(''); setContasPagarArquivo(null); setContasPagarPreview(null) }}
                   style={{ padding:'8px 14px', background:'#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
                   📥 Importar do SIGE
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:'10px 14px', marginBottom:14, display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
@@ -8652,6 +8681,7 @@ export default function App() {
                       <div style={{ display:'flex', gap:8, marginTop:4, justifyContent:'flex-end' }}>
                         <button onClick={() => {
                           setEditandoLancamentoId(c.id)
+                          setLancamentoTipo(c.tipo || 'despesa')
                           setLancamentoFornecedor(c.fornecedor || '')
                           setLancamentoValor(c.valor != null ? String(c.valor) : '')
                           setLancamentoVencimento(c.data_vencimento || hojeIso())
@@ -8707,7 +8737,7 @@ export default function App() {
                   <div style={{ fontSize:24, fontWeight:700, color:'#fff', marginTop:4 }}>{fmt(totalContasReceberPeriodo)}</div>
                 </div>
                 <div style={{ flex:1, minWidth:160, background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:'16px 18px' }}>
-                  <div style={{ fontSize:11, color:'#64748B', fontWeight:600, textTransform:'uppercase' }}>NF(s) emitida(s)</div>
+                  <div style={{ fontSize:11, color:'#64748B', fontWeight:600, textTransform:'uppercase' }}>Lançamento(s)</div>
                   <div style={{ fontSize:24, fontWeight:700, color:'#1A2340', marginTop:4 }}>{contasReceberFiltradas.length}</div>
                 </div>
               </div>
@@ -8734,19 +8764,74 @@ export default function App() {
                 )
               })()}
 
-              <div style={{ fontSize:11, color:'#64748B', marginBottom:10 }}>Vem direto das obras com NF emitida no Pipeline (aba Histórico) — não precisa importar nada aqui.</div>
+              <div style={{ fontSize:11, color:'#64748B', marginBottom:10 }}>Vem das obras com NF emitida no Pipeline (aba Histórico) + lançamentos manuais de receita feitos aqui.</div>
               <div style={{ background:'#fff', border:'1px solid #E0E8F0', borderRadius:12, padding:14 }}>
                 {contasPagarModo === 'periodo' && (!contasPagarDataInicio || !contasPagarDataFim) && <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'20px 0' }}>Escolha a data de início e fim do período.</div>}
-                {(contasPagarModo !== 'periodo' || (contasPagarDataInicio && contasPagarDataFim)) && contasReceberFiltradas.length === 0 && <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'20px 0' }}>Nenhuma NF emitida nesse período</div>}
-                {contasReceberFiltradas.map(o => (
-                  <div key={o.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, borderBottom:'1px solid #F1F5F9', padding:'8px 0' }}>
-                    <div>
-                      <div style={{ fontSize:13, fontWeight:600, color:'#1A2340' }}>{o.nome}</div>
-                      <div style={{ fontSize:11, color:'#64748B' }}>{contasReceberDataRef === 'emissao' ? 'Emissão' : 'Vencimento'} {isoToBr(dataReferenciaReceber(o))} · {o.local || '—'}{o.nf ? ` · NF ${o.nf}` : ''}</div>
+                {(contasPagarModo !== 'periodo' || (contasPagarDataInicio && contasPagarDataFim)) && contasReceberFiltradas.length === 0 && <div style={{ textAlign:'center', color:'#888', fontSize:13, padding:'20px 0' }}>Nenhum lançamento nesse período</div>}
+                {contasReceberFiltradas.map(o => {
+                  if (o._origem === 'manual') {
+                    const status = o.status_pagamento || 'pendente'
+                    const cor = status === 'conciliado' ? '#065F46' : status === 'pago_pendente_conciliacao' ? '#92400E' : '#B91C1C'
+                    const label = status === 'conciliado' ? 'Conciliado' : status === 'pago_pendente_conciliacao' ? 'Recebido — aguard. conciliação' : 'Pendente'
+                    return (
+                      <div key={`manual-${o.id}`} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, borderBottom:'1px solid #F1F5F9', padding:'8px 0' }}>
+                        <div>
+                          <div style={{ fontSize:13, fontWeight:600, color:'#1A2340' }}>{o.fornecedor || '(sem cliente/origem)'} <span style={{ fontSize:9, fontWeight:700, color:'#065F46', background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:4, padding:'1px 5px', marginLeft:4 }}>MANUAL</span></div>
+                          <div style={{ fontSize:11, color:'#64748B' }}>{isoToBr(o.data_vencimento)} · {o.plano_contas || '—'} · {o.centro_custos || '—'} · {o.grupo || '—'} · {o.empresa || '—'}{o.banco ? ` · ${o.banco}` : ''}</div>
+                        </div>
+                        <div style={{ textAlign:'right', flexShrink:0 }}>
+                          <div style={{ fontSize:13, fontWeight:700, color: cor }}>{fmt(o.valor)}</div>
+                          <div style={{ fontSize:10, fontWeight:700, color: cor }}>{label}</div>
+                          <div style={{ display:'flex', gap:8, marginTop:4, justifyContent:'flex-end' }}>
+                            <button onClick={() => {
+                              setEditandoLancamentoId(o.id)
+                              setLancamentoTipo('receita')
+                              setLancamentoFornecedor(o.fornecedor || '')
+                              setLancamentoValor(o.valor != null ? String(o.valor) : '')
+                              setLancamentoVencimento(o.data_vencimento || hojeIso())
+                              setLancamentoCentroCusto(o.centro_custos || '')
+                              setLancamentoGrupo(o.grupo || '')
+                              setLancamentoEmpresa(o.empresa || '')
+                              setLancamentoBanco(o.banco || '')
+                              setLancamentoPlanoContas(o.plano_contas || '')
+                              setLancamentoObs(o.observacoes || '')
+                              setLancamentoParcelado(false); setLancamentoNumParcelas('')
+                              setLancamentoErro(''); setNovoFornecedorLancamento(null)
+                              setModalLancamentoManual(true)
+                            }} style={{ fontSize:10, fontWeight:700, color:'#4A7FC1', background:'none', border:'none', cursor:'pointer', padding:0 }}>✏️ Editar</button>
+                            <button onClick={() => excluirLancamentoContasPagar(o.id, o.fornecedor)}
+                              style={{ fontSize:10, fontWeight:700, color:'#DC2626', background:'none', border:'none', cursor:'pointer', padding:0 }}>🗑 Excluir</button>
+                            {status === 'pendente' && (
+                              <button onClick={() => atualizarStatusPagamentoContasPagar(o.id, 'pago_pendente_conciliacao')}
+                                style={{ fontSize:10, fontWeight:700, color:'#0F766E', background:'none', border:'none', cursor:'pointer', padding:0 }}>Marcar como recebido</button>
+                            )}
+                            {status === 'pago_pendente_conciliacao' && (
+                              <>
+                                <button onClick={() => atualizarStatusPagamentoContasPagar(o.id, 'conciliado')}
+                                  style={{ fontSize:10, fontWeight:700, color:'#0F766E', background:'none', border:'none', cursor:'pointer', padding:0 }}>Marcar conciliado</button>
+                                <button onClick={() => atualizarStatusPagamentoContasPagar(o.id, 'pendente')}
+                                  style={{ fontSize:10, color:'#94A3B8', background:'none', border:'none', cursor:'pointer', padding:0 }}>desfazer</button>
+                              </>
+                            )}
+                            {status === 'conciliado' && (
+                              <button onClick={() => atualizarStatusPagamentoContasPagar(o.id, 'pago_pendente_conciliacao')}
+                                style={{ fontSize:10, color:'#94A3B8', background:'none', border:'none', cursor:'pointer', padding:0 }}>desfazer</button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  }
+                  return (
+                    <div key={o.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, borderBottom:'1px solid #F1F5F9', padding:'8px 0' }}>
+                      <div>
+                        <div style={{ fontSize:13, fontWeight:600, color:'#1A2340' }}>{o.nome}</div>
+                        <div style={{ fontSize:11, color:'#64748B' }}>{contasReceberDataRef === 'emissao' ? 'Emissão' : 'Vencimento'} {isoToBr(dataReferenciaReceber(o))} · {o.local || '—'}{o.nf ? ` · NF ${o.nf}` : ''}</div>
+                      </div>
+                      <div style={{ fontSize:13, fontWeight:700, color:'#065F46', flexShrink:0 }}>{fmt(o.valor)}</div>
                     </div>
-                    <div style={{ fontSize:13, fontWeight:700, color:'#065F46', flexShrink:0 }}>{fmt(o.valor)}</div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </>
           )}
@@ -8754,39 +8839,70 @@ export default function App() {
         )
       })()}
 
+      {modalEscolherTipoLancamento && (
+        <div onClick={e => { if (e.target === e.currentTarget) setModalEscolherTipoLancamento(false) }}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}>
+          <div style={{ background:'#fff', borderRadius:14, padding:20, maxWidth:360, width:'100%' }}>
+            <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:4 }}>Novo lançamento manual</div>
+            <div style={{ fontSize:12, color:'#64748B', marginBottom:16 }}>É uma despesa ou uma receita?</div>
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={() => { setLancamentoTipo('despesa'); setModalEscolherTipoLancamento(false); setModalLancamentoManual(true) }}
+                style={{ flex:1, padding:'16px 10px', background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:10, color:'#991B1B', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+                💸 Despesa
+              </button>
+              <button onClick={() => { setLancamentoTipo('receita'); setModalEscolherTipoLancamento(false); setModalLancamentoManual(true) }}
+                style={{ flex:1, padding:'16px 10px', background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:10, color:'#065F46', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+                💰 Receita
+              </button>
+            </div>
+            <button onClick={() => setModalEscolherTipoLancamento(false)}
+              style={{ width:'100%', marginTop:14, padding:8, background:'none', border:'none', color:'#64748B', fontSize:12, cursor:'pointer' }}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
       {modalLancamentoManual && (
-        <div onClick={e => { if (e.target === e.currentTarget && !lancamentoSalvando) { setModalLancamentoManual(false); setEditandoLancamentoId(null) } }}
+        <div onClick={e => { if (e.target === e.currentTarget && !lancamentoSalvando) { setModalLancamentoManual(false); setEditandoLancamentoId(null); setLancamentoTipo('despesa') } }}
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}>
           <div style={{ background:'#fff', borderRadius:14, padding:20, maxWidth:420, width:'100%', maxHeight:'85vh', overflowY:'auto' }}>
-            <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:12 }}>{editandoLancamentoId ? '✏️ Editar lançamento' : '✏️ Novo lançamento manual'}</div>
-            <div style={{ fontSize:11, color:'#64748B', marginBottom:14 }}>{editandoLancamentoId ? 'Alterando um lançamento já existente do Contas a Pagar.' : 'Despesa avulsa, sem vínculo com obra — vai direto pro Contas a Pagar como pendente.'}</div>
+            <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:12 }}>{editandoLancamentoId ? '✏️ Editar lançamento' : (lancamentoTipo === 'receita' ? '✏️ Nova receita manual' : '✏️ Novo lançamento manual')}</div>
+            <div style={{ fontSize:11, color:'#64748B', marginBottom:14 }}>
+              {editandoLancamentoId
+                ? (lancamentoTipo === 'receita' ? 'Alterando um lançamento já existente do Contas a Receber.' : 'Alterando um lançamento já existente do Contas a Pagar.')
+                : (lancamentoTipo === 'receita' ? 'Receita avulsa, sem vínculo com obra — vai direto pro Contas a Receber como pendente.' : 'Despesa avulsa, sem vínculo com obra — vai direto pro Contas a Pagar como pendente.')}
+            </div>
 
-            <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Fornecedor *</label>
-            <input list="lista-fornecedor-lancamento" value={lancamentoFornecedor} onChange={e => setLancamentoFornecedor(up(e.target.value))}
+            <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>{lancamentoTipo === 'receita' ? 'Cliente / Origem *' : 'Fornecedor *'}</label>
+            <input list={lancamentoTipo === 'receita' ? undefined : 'lista-fornecedor-lancamento'} value={lancamentoFornecedor} onChange={e => setLancamentoFornecedor(up(e.target.value))}
               style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
-            {/* Sugestão a partir do cadastro de Fornecedores já existente - antes esse campo era o
-                único do formulário sem autocomplete (Shirley, 2026-09-28). */}
-            <datalist id="lista-fornecedor-lancamento">{fornecedores.map(f => <option key={f.id} value={f.nome_fantasia || f.razao_social || ''} />)}</datalist>
+            {lancamentoTipo === 'despesa' && (
+              <>
+                {/* Sugestão a partir do cadastro de Fornecedores já existente - antes esse campo era o
+                    único do formulário sem autocomplete (Shirley, 2026-09-28). */}
+                <datalist id="lista-fornecedor-lancamento">{fornecedores.map(f => <option key={f.id} value={f.nome_fantasia || f.razao_social || ''} />)}</datalist>
 
-            {!novoFornecedorLancamento ? (
-              <div onClick={() => setNovoFornecedorLancamento({ nome_fantasia: lancamentoFornecedor })}
-                style={{ fontSize:11, color:'#0369A1', fontWeight:600, cursor:'pointer', marginTop:4, marginBottom:10 }}>
-                + Fornecedor não cadastrado? Cadastrar novo
-              </div>
-            ) : (
-              <div style={{ marginTop:8, marginBottom:10 }}>
-                <FornecedorForm dados={novoFornecedorLancamento} setDados={setNovoFornecedorLancamento}
-                  salvando={salvandoFornecedor}
-                  onCancelar={() => setNovoFornecedorLancamento(null)}
-                  onSalvar={async () => {
-                    const ok = await salvarFornecedor(null, novoFornecedorLancamento)
-                    if (ok) {
-                      setLancamentoFornecedor(up(novoFornecedorLancamento.nome_fantasia || ''))
-                      setNovoFornecedorLancamento(null)
-                    }
-                  }} />
-              </div>
+                {!novoFornecedorLancamento ? (
+                  <div onClick={() => setNovoFornecedorLancamento({ nome_fantasia: lancamentoFornecedor })}
+                    style={{ fontSize:11, color:'#0369A1', fontWeight:600, cursor:'pointer', marginTop:4, marginBottom:10 }}>
+                    + Fornecedor não cadastrado? Cadastrar novo
+                  </div>
+                ) : (
+                  <div style={{ marginTop:8, marginBottom:10 }}>
+                    <FornecedorForm dados={novoFornecedorLancamento} setDados={setNovoFornecedorLancamento}
+                      salvando={salvandoFornecedor}
+                      onCancelar={() => setNovoFornecedorLancamento(null)}
+                      onSalvar={async () => {
+                        const ok = await salvarFornecedor(null, novoFornecedorLancamento)
+                        if (ok) {
+                          setLancamentoFornecedor(up(novoFornecedorLancamento.nome_fantasia || ''))
+                          setNovoFornecedorLancamento(null)
+                        }
+                      }} />
+                  </div>
+                )}
+              </>
             )}
+            {lancamentoTipo === 'receita' && <div style={{ marginBottom:10 }} />}
 
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
               <div>
@@ -8868,12 +8984,12 @@ export default function App() {
               </div>
             )}
             <div style={{ display:'flex', gap:8 }}>
-              <button onClick={() => { setModalLancamentoManual(false); setEditandoLancamentoId(null) }} disabled={lancamentoSalvando}
+              <button onClick={() => { setModalLancamentoManual(false); setEditandoLancamentoId(null); setLancamentoTipo('despesa') }} disabled={lancamentoSalvando}
                 style={{ flex:1, padding:10, background:'#F1F5F9', color:'#1A2340', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                 Cancelar
               </button>
               <button onClick={salvarLancamentoManual} disabled={lancamentoSalvando || lancamentoFaltaCampoObrigatorio()}
-                style={{ flex:1, padding:10, background: (lancamentoSalvando || lancamentoFaltaCampoObrigatorio()) ? '#94A3B8' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                style={{ flex:1, padding:10, background: (lancamentoSalvando || lancamentoFaltaCampoObrigatorio()) ? '#94A3B8' : (lancamentoTipo === 'receita' ? '#065F46' : '#0F766E'), color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                 {lancamentoSalvando ? 'Salvando...' : editandoLancamentoId ? 'Salvar alterações' : lancamentoParcelado ? `Salvar ${parseInt(lancamentoNumParcelas) || 0} parcelas` : 'Salvar lançamento'}
               </button>
             </div>
