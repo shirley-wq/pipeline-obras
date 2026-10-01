@@ -3991,6 +3991,18 @@ export default function App() {
   const [editandoValorLiquidoId, setEditandoValorLiquidoId] = useState(null)
   const [valorLiquidoEditando, setValorLiquidoEditando] = useState('')
   const [salvandoValorLiquido, setSalvandoValorLiquido] = useState(false)
+  // Importar planilha da Tecban (Shirley, 2026-10-01) - mesmo e-mail/CSV que a Aline ja usa
+  // manualmente ("Pagamentos - Grupo PG.", com os CSVs Pagamentos_Previstos/Pagamentos_Realizados
+  // anexados). Casa cada linha pelo campo "Documento de compras" = `pedido` da obra, e aplica
+  // "Montante em MI" (valor ja com os descontos de INSS/ISS) como valor_liquido_nf, sem revisao
+  // manual linha a linha - so confere o total antes de confirmar, igual o import do SIGE.
+  const [modalImportarTecban, setModalImportarTecban] = useState(false)
+  const [tecbanArquivo, setTecbanArquivo] = useState(null)
+  const [tecbanTipo, setTecbanTipo] = useState('tecban_previsto')
+  const [tecbanProcessando, setTecbanProcessando] = useState(false)
+  const [tecbanErro, setTecbanErro] = useState('')
+  const [tecbanPreview, setTecbanPreview] = useState(null)
+  const [tecbanSalvando, setTecbanSalvando] = useState(false)
   // Tela nunca tinha tratamento de erro - se o insert falhasse, a tela ficava aberta sem avisar
   // nada (achado no teste do lançamento parcelado, Shirley, 2026-09-28).
   const [lancamentoErro, setLancamentoErro] = useState('')
@@ -6624,6 +6636,76 @@ export default function App() {
     const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', obra.id)
     if (!error) setObras(prev => prev.map(o => o.id === obra.id ? { ...o, ...campos } : o))
   }
+  // Numero no formato BR da planilha da Tecban: milhar com ponto, decimal com virgula, negativo
+  // com "-" NO FINAL em vez de na frente (ex.: "14.217,87-").
+  function parseNumTecban(s) {
+    const t = String(s || '').trim()
+    if (!t) return 0
+    const negativo = t.endsWith('-')
+    const limpo = t.replace(/-$/, '').replace(/\./g, '').replace(',', '.')
+    const n = parseFloat(limpo) || 0
+    return negativo ? -n : n
+  }
+  async function processarImportacaoTecban() {
+    if (!tecbanArquivo) return
+    setTecbanProcessando(true)
+    setTecbanErro('')
+    try {
+      const buf = await tecbanArquivo.arrayBuffer()
+      const texto = new TextDecoder('iso-8859-1').decode(buf)
+      const linhas = texto.split(/\r\n|\n/).filter(l => l.trim() !== '')
+      if (linhas.length < 2) { setTecbanErro('Arquivo vazio ou em formato inesperado.'); setTecbanProcessando(false); return }
+      const cabecalho = linhas[0].split(';').map(h => h.trim())
+      const idxPedido = cabecalho.indexOf('Documento de compras')
+      const idxValorLiquido = cabecalho.indexOf('Montante em MI')
+      if (idxPedido === -1 || idxValorLiquido === -1) {
+        setTecbanErro('Não reconheci as colunas esperadas ("Documento de compras" e "Montante em MI") - confere se é o CSV certo da Tecban.')
+        setTecbanProcessando(false)
+        return
+      }
+      const obrasPorPedido = {}
+      obras.forEach(o => { if (o.status === 'NF EMITIDO' && o.pedido) obrasPorPedido[String(o.pedido).trim()] = o })
+      const matches = []
+      const naoEncontrados = []
+      const vistos = new Set()
+      for (let i = 1; i < linhas.length; i++) {
+        const cols = linhas[i].split(';')
+        const pedido = (cols[idxPedido] || '').trim()
+        if (!pedido) continue
+        const valorLiquido = Math.abs(parseNumTecban(cols[idxValorLiquido]))
+        const obra = obrasPorPedido[pedido]
+        if (!obra) { naoEncontrados.push({ pedido, valorLiquido }); continue }
+        if (vistos.has(obra.id)) continue
+        vistos.add(obra.id)
+        matches.push({ obraId: obra.id, obraNome: obra.nome, pedido, valorAtual: obra.valor, valorLiquido })
+      }
+      setTecbanPreview({ matches, naoEncontrados })
+    } catch (e) {
+      setTecbanErro('Erro ao ler o arquivo: ' + e.message)
+    }
+    setTecbanProcessando(false)
+  }
+  async function confirmarImportacaoTecban() {
+    if (!tecbanPreview || tecbanPreview.matches.length === 0) return
+    setTecbanSalvando(true)
+    const agora = new Date().toISOString()
+    const autor = usuario?.email || null
+    const atualizacoes = []
+    for (const m of tecbanPreview.matches) {
+      const campos = { valor_liquido_nf: m.valorLiquido, valor_liquido_nf_origem: tecbanTipo, valor_liquido_nf_atualizado_em: agora, valor_liquido_nf_atualizado_por: autor }
+      const { error } = await supabase.from('pipeline_obras').update(campos).eq('id', m.obraId)
+      if (!error) atualizacoes.push({ id: m.obraId, campos })
+    }
+    setObras(prev => prev.map(o => {
+      const upd = atualizacoes.find(a => a.id === o.id)
+      return upd ? { ...o, ...upd.campos } : o
+    }))
+    setTecbanSalvando(false)
+    setModalImportarTecban(false)
+    setTecbanArquivo(null)
+    setTecbanPreview(null)
+    alert(`Importação concluída: ${atualizacoes.length} de ${tecbanPreview.matches.length} NF(s) atualizada(s).`)
+  }
   // Receita manual (Shirley, 2026-10-01) entra na mesma lista das NFs emitidas pela obra - usa
   // `_origem: 'manual'` pra diferenciar na hora de renderizar/editar/excluir cada linha.
   const contasReceberManualMapeadas = contasReceberManual.map(c => ({ ...c, _origem: 'manual' }))
@@ -8585,6 +8667,12 @@ export default function App() {
                   📥 Importar do SIGE
                 </button>
               )}
+              {contasPagarSubaba === 'receber' && (
+                <button onClick={() => { setModalImportarTecban(true); setTecbanErro(''); setTecbanArquivo(null); setTecbanPreview(null) }}
+                  style={{ padding:'8px 14px', background:'#065F46', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  📥 Importar planilha da Tecban
+                </button>
+              )}
             </div>
           </div>
 
@@ -9160,6 +9248,76 @@ export default function App() {
                   <button onClick={confirmarImportacaoContasPagar} disabled={contasPagarSalvando || (contasPagarPreview.novas.length + contasPagarPreview.atualizadas.length === 0)}
                     style={{ flex:1, padding:10, background: contasPagarSalvando ? '#ccc' : '#0F766E', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: contasPagarSalvando ? 'default' : 'pointer' }}>
                     {contasPagarSalvando ? 'Salvando...' : `Confirmar (${contasPagarPreview.novas.length + contasPagarPreview.atualizadas.length})`}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {modalImportarTecban && (
+        <div onClick={e => { if (e.target === e.currentTarget && !tecbanSalvando) { setModalImportarTecban(false); setTecbanArquivo(null); setTecbanPreview(null) } }}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}>
+          <div style={{ background:'#fff', borderRadius:14, padding:20, maxWidth:480, width:'100%', maxHeight:'85vh', overflowY:'auto' }}>
+            <div style={{ fontSize:15, fontWeight:700, color:'#1A2340', marginBottom:8 }}>📥 Importar planilha da Tecban</div>
+            <div style={{ fontSize:12, color:'#64748B', marginBottom:14 }}>
+              Baixe do e-mail "Pagamentos - Grupo PG." (Tecban) o CSV de Previstos ou Realizados e selecione o arquivo abaixo. O valor líquido (já com os descontos de INSS/ISS) entra direto na NF correspondente em Contas a Receber, casando pelo número do pedido.
+            </div>
+            <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+              <button onClick={() => setTecbanTipo('tecban_previsto')}
+                style={{ flex:1, padding:8, background: tecbanTipo === 'tecban_previsto' ? '#065F46' : '#F1F5F9', color: tecbanTipo === 'tecban_previsto' ? '#fff' : '#1A2340', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                📋 Previstos
+              </button>
+              <button onClick={() => setTecbanTipo('tecban_realizado')}
+                style={{ flex:1, padding:8, background: tecbanTipo === 'tecban_realizado' ? '#065F46' : '#F1F5F9', color: tecbanTipo === 'tecban_realizado' ? '#fff' : '#1A2340', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                ✅ Realizados
+              </button>
+            </div>
+            <input type="file" accept=".csv" onChange={e => {
+              const f = e.target.files?.[0] || null
+              setTecbanArquivo(f); setTecbanPreview(null); setTecbanErro('')
+              if (f) {
+                const nome = f.name.toLowerCase()
+                if (nome.includes('previst')) setTecbanTipo('tecban_previsto')
+                else if (nome.includes('realizad')) setTecbanTipo('tecban_realizado')
+              }
+            }} style={{ marginBottom:12 }} />
+            {tecbanArquivo && !tecbanPreview && (
+              <button onClick={processarImportacaoTecban} disabled={tecbanProcessando}
+                style={{ width:'100%', padding:10, background: tecbanProcessando ? '#ccc' : '#065F46', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: tecbanProcessando ? 'default' : 'pointer' }}>
+                {tecbanProcessando ? 'Lendo planilha...' : 'Analisar planilha'}
+              </button>
+            )}
+            {tecbanErro && <div style={{ fontSize:12, color:'#B91C1C', marginTop:10 }}>{tecbanErro}</div>}
+            {tecbanPreview && (
+              <div style={{ marginTop:6 }}>
+                <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:8, padding:'8px 12px', fontSize:12, color:'#065F46', marginBottom:6 }}>
+                  ✓ {tecbanPreview.matches.length} NF(s) encontrada(s) e com valor líquido pronto pra aplicar
+                </div>
+                {tecbanPreview.naoEncontrados.length > 0 && (
+                  <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:8, padding:'8px 12px', fontSize:12, color:'#92400E', marginBottom:6 }}>
+                    ⚠ {tecbanPreview.naoEncontrados.length} linha(s) da planilha sem obra correspondente (pedido não encontrado em NF emitida) — ignoradas
+                  </div>
+                )}
+                {tecbanPreview.matches.length > 0 && (
+                  <div style={{ maxHeight:160, overflowY:'auto', border:'1px solid #F1F5F9', borderRadius:8, marginBottom:12 }}>
+                    {tecbanPreview.matches.map(m => (
+                      <div key={m.obraId} style={{ display:'flex', justifyContent:'space-between', gap:8, padding:'6px 10px', borderBottom:'1px solid #F1F5F9', fontSize:11 }}>
+                        <div style={{ minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.obraNome}</div>
+                        <div style={{ flexShrink:0, color:'#64748B' }}>{fmt(m.valorAtual)} → <span style={{ color:'#065F46', fontWeight:700 }}>{fmt(m.valorLiquido)}</span></div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display:'flex', gap:8 }}>
+                  <button onClick={() => { setModalImportarTecban(false); setTecbanArquivo(null); setTecbanPreview(null) }} disabled={tecbanSalvando}
+                    style={{ flex:1, padding:10, background:'#F1F5F9', color:'#1A2340', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                    Cancelar
+                  </button>
+                  <button onClick={confirmarImportacaoTecban} disabled={tecbanSalvando || tecbanPreview.matches.length === 0}
+                    style={{ flex:1, padding:10, background: tecbanSalvando ? '#ccc' : '#065F46', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: tecbanSalvando ? 'default' : 'pointer' }}>
+                    {tecbanSalvando ? 'Salvando...' : `Confirmar (${tecbanPreview.matches.length})`}
                   </button>
                 </div>
               </div>
