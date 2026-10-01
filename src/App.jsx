@@ -4810,13 +4810,14 @@ export default function App() {
     setContasPagarProcessando(false)
   }
 
-  // Todo campo é obrigatório, exceto Observações (Shirley, 2026-09-28) - eram os campos livres/
-  // opcionais (Centro de Custo, Grupo, Empresa, Banco, Plano de Contas) que ficavam em branco e
-  // geravam o monte de lançamento sem classificação que a gente achou no levantamento.
+  // Todo campo é obrigatório, exceto Observações, Centro de Custo e Plano de Contas
+  // (Shirley, 2026-09-28; revertido parcialmente em 2026-10-01 - Centro de Custo e Plano de
+  // Contas voltaram a ser opcionais, pois nem todo lançamento (ex.: Receita) tem essa classificação
+  // disponível no momento do lançamento). Grupo, Empresa e Banco continuam obrigatórios.
   function lancamentoFaltaCampoObrigatorio() {
     return !lancamentoFornecedor.trim() || !lancamentoValor || !lancamentoVencimento
-      || !lancamentoCentroCusto.trim() || !lancamentoGrupo.trim() || !lancamentoEmpresa.trim()
-      || !lancamentoBanco.trim() || !lancamentoPlanoContas.trim()
+      || !lancamentoGrupo.trim() || !lancamentoEmpresa.trim()
+      || !lancamentoBanco.trim()
       || (lancamentoParcelado && (parseInt(lancamentoNumParcelas) || 0) < 2)
   }
 
@@ -9004,7 +9005,7 @@ export default function App() {
 
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
               <div>
-                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Centro de Custo *</label>
+                <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Centro de Custo</label>
                 <input list="lista-centro-custo" value={lancamentoCentroCusto} onChange={e => setLancamentoCentroCusto(up(e.target.value))}
                   style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box' }} />
                 <datalist id="lista-centro-custo">{centrosCustoContasPagar.map(v => <option key={v} value={v} />)}</datalist>
@@ -9032,7 +9033,7 @@ export default function App() {
               </div>
             </div>
 
-            <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Plano de Contas *</label>
+            <label style={{ fontSize:12, color:'#4A7FC1', display:'block', marginBottom:4 }}>Plano de Contas</label>
             <input list="lista-plano-contas" value={lancamentoPlanoContas} onChange={e => setLancamentoPlanoContas(up(e.target.value))}
               style={{ width:'100%', padding:'8px 10px', border:'1px solid #CDD8E3', borderRadius:8, fontSize:13, color:'#1A2340', boxSizing:'border-box', marginBottom:10 }} />
             <datalist id="lista-plano-contas">{planosContaContasPagar.map(v => <option key={v} value={v} />)}</datalist>
